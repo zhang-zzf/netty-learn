@@ -15,6 +15,12 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class ConnAck extends ControlPacket {
 
+    public static final byte ACCEPTED = 0x00;
+    public static final byte UNACCEPTED_PROTOCOL_VERSION = 0x01;
+    public static final byte IDENTIFIER_REJECTED = 0x02;
+    public static final byte SERVER_UNAVAILABLE = 0x03;
+    public static final byte NOT_AUTHORIZED = 0x05;
+
     private boolean sp;
     private int returnCode;
 
@@ -27,6 +33,11 @@ public class ConnAck extends ControlPacket {
     }
 
     public ConnAck(boolean sp, int returnCode) {
+        // If a server sends a CONNACK packet containing a non-zero return code
+        // it MUST set Session Present to 0
+        if (returnCode != 0) {
+            sp = false;
+        }
         this.sp = sp;
         this.returnCode = returnCode;
         ByteBuf buf = Unpooled.buffer(4);

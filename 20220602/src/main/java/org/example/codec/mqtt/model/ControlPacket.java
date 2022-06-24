@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.RequiredArgsConstructor;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -24,9 +23,19 @@ public abstract class ControlPacket {
         try {
             buf.skipBytes(fixedHeaderByteCnt());
             initPacket();
+            if (this.buf.isReadable()) {
+                // control packet is illegal.
+                throw new IllegalArgumentException();
+            }
+        } catch (Exception e) {
+            throw new IllegalArgumentException();
         } finally {
             buf.resetReaderIndex();
         }
+    }
+
+    public boolean packetValidate() {
+        return true;
     }
 
     public ControlPacket setBuf(ByteBuf buf) {
@@ -64,7 +73,7 @@ public abstract class ControlPacket {
         return buf.getByte(0);
     }
 
-    protected int fixedHeaderByteCnt() {
+    private int fixedHeaderByteCnt() {
         return 1 + remainingLengthByteCnt;
     }
 

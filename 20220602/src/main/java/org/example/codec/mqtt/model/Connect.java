@@ -30,45 +30,95 @@ public class Connect extends ControlPacket {
         super(buf);
     }
 
+    public boolean cleanSession() {
+        return (connectFlags & 0x02) != 0;
+    }
+
+    @Override
+    public boolean packetValidate() {
+        if (_0Byte() != 0x10) {
+            return false;
+        }
+        // If the protocol name is incorrect the Server MAY disconnect the Client.
+        // we decide to disconnect the Client
+        if (!"MQTT".equals(protocolName)) {
+            return false;
+        }
+        // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero and
+        // disconnect the Client if it is not zero
+        if ((connectFlags & 0x01) != 0) {
+            return false;
+        }
+        if (willFlag() && (willTopic == null || willMessage == null)) {
+            return false;
+        }
+        if (!willFlag() && willQos() != 0) {
+            return false;
+        }
+        if (willQos() > 2) {
+            return false;
+        }
+        if (!willFlag() && willReturnFlag()) {
+            return false;
+        }
+        if ((usernameFlag() && username == null)) {
+            return false;
+        }
+        if (!usernameFlag() && username != null) {
+            return false;
+        }
+        if (!usernameFlag() && passwordFlag()) {
+            return false;
+        }
+        if (passwordFlag() && password == null) {
+            return false;
+        }
+        if (!passwordFlag() && password != null) {
+            return false;
+        }
+        if (clientIdentifier == null) {
+            return false;
+        }
+        return true;
+    }
+
+    public boolean willReturnFlag() {
+        return (connectFlags & 0x20) != 0;
+    }
+
+    public int willQos() {
+        return (connectFlags & 0x18);
+    }
+
     @Override
     protected void initPacket() {
-        if (type() != 1) {
-            throw new IllegalArgumentException();
+        protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+        protocolLevel = buf.readByte();
+        connectFlags = buf.readByte();
+        keepAlive = buf.readShort();
+        clientIdentifier = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+        if (willFlag()) {
+            willTopic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+            willMessage = buf.readSlice(buf.readShort());
         }
-        buf.markReaderIndex();
-        try {
-            buf.skipBytes(fixedHeaderByteCnt());
-            protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            protocolLevel = buf.readByte();
-            connectFlags = buf.readByte();
-            keepAlive = buf.readShort();
-            clientIdentifier = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            if (willFlag()) {
-                willTopic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-                willMessage = buf.readSlice(buf.readShort());
-            }
-            if (usernameFlag()) {
-                username = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            }
-            if (passwordFlag()) {
-                password = buf.readSlice(buf.readShort());
-            }
-        } finally {
-            buf.resetReaderIndex();
+        if (usernameFlag()) {
+            username = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         }
-
+        if (passwordFlag()) {
+            password = buf.readSlice(buf.readShort());
+        }
     }
 
-    private boolean passwordFlag() {
-        return false;
+    public boolean passwordFlag() {
+        return (connectFlags & 0x40) != 0;
     }
 
-    private boolean usernameFlag() {
-        return false;
+    public boolean usernameFlag() {
+        return (connectFlags & 0x80) != 0;
     }
 
     public boolean willFlag() {
-        return false;
+        return (connectFlags & 0x04) != 0;
     }
 
 }

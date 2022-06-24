@@ -24,19 +24,34 @@ public class Publish extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.topicName = getBuf().readCharSequence(buf.readShort(), UTF_8).toString();
+        ByteBuf buf = getBuf();
+        this.topicName = buf.readCharSequence(this.buf.readShort(), UTF_8).toString();
         if (qos() > 0) {
-            this.packetIdentifier = getBuf().readShort();
+            this.packetIdentifier = buf.readShort();
         }
-        this.payload = getBuf().readSlice(getBuf().readableBytes());
+        this.payload = buf.readSlice(buf.readableBytes());
     }
 
-    public int dupFlag() {
-        return _0Byte() & 0x08;
+    @Override
+    public boolean packetValidate() {
+        if ((_0Byte() & 0x01) != 0) {
+            return false;
+        }
+        // The DUP flag MUST be set to 0 for all QoS 0 messages
+        if (qos() == 0 && dupFlag()) {
+            return false;
+        }
+        if ((qos() & 0x03) == 0x03) {
+            return false;
+        }
+        return super.packetValidate();
+    }
+
+    public boolean dupFlag() {
+        return (_0Byte() & 0x08) != 0;
     }
 
     public int qos() {
-        byte byte_1 = buf.getByte(0);
         return _0Byte() & 0x06;
     }
 

@@ -1,5 +1,9 @@
 package org.example.codec.mqtt;
 
+import io.netty.channel.Channel;
+
+import java.util.Set;
+
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/23
@@ -7,11 +11,11 @@ package org.example.codec.mqtt;
 public interface Session {
 
     /**
-     * a mqtt client that bind to the session
+     * clientId
      *
-     * @return client
+     * @return clientId
      */
-    Client client();
+    String clientId();
 
     /**
      * persistent
@@ -33,5 +37,12 @@ public interface Session {
      * @param message message
      */
     void receive(Message message);
+
+    /**
+     * channel that between the client and server
+     *
+     * @return Channel
+     */
+    Channel channel();
 
 }

@@ -6,11 +6,4 @@ package org.example.codec.mqtt;
  */
 public interface Client {
 
-    /**
-     * clientId
-     *
-     * @return clientId
-     */
-    String clientId();
-
 }

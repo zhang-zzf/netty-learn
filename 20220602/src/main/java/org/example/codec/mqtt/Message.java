@@ -22,7 +22,6 @@ public interface Message {
      */
     int packetIdentifier();
 
-
     /**
      * Quality of Service
      *
@@ -31,17 +30,16 @@ public interface Message {
     int qos();
 
     /**
-     * set message qos
-     *
-     * @param qos the qos
-     */
-    void resetQos(int qos);
-
-    /**
      * payload
      *
      * @return payload
      */
     ByteBuf payload();
+
+    /**
+     *
+     * @param pocketIdentifier
+     */
+    void resetPocketIdentifier(short pocketIdentifier);
 
 }

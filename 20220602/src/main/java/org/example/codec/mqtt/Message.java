@@ -9,25 +9,11 @@ import io.netty.buffer.ByteBuf;
 public interface Message {
 
     /**
-     * topic
-     *
-     * @return topic
-     */
-    String topic();
-
-    /**
      * packet identifier of the message
      *
      * @return packet identifier
      */
     int packetIdentifier();
-
-    /**
-     * Quality of Service
-     *
-     * @return qos
-     */
-    int qos();
 
     /**
      * payload
@@ -37,8 +23,21 @@ public interface Message {
     ByteBuf payload();
 
     /**
+     * topic
      *
-     * @param pocketIdentifier
+     * @return topic
+     */
+    String topic();
+
+    /**
+     * Quality of Service
+     *
+     * @return qos
+     */
+    int qos();
+
+    /**
+     *
      */
     void resetPocketIdentifier(short pocketIdentifier);
 

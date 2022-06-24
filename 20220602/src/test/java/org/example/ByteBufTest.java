@@ -102,4 +102,18 @@ class ByteBufTest {
         then(slice.readerIndex()).isEqualTo(0);
     }
 
+    @Test
+    void givenByteBuf_whenReadBytesToByteBuf_then() {
+        ByteBuf buffer = Unpooled.buffer();
+        byte[] str = "Hello, World".getBytes(StandardCharsets.UTF_8);
+        if (buffer.maxWritableBytes() >= str.length) {
+            buffer.writeBytes(str);
+        }
+        ByteBuf destination = Unpooled.buffer(2);
+        then(destination.writableBytes()).isEqualTo(2);
+        buffer.readBytes(destination);
+        then(destination.writableBytes()).isEqualTo(0);
+        then(destination.readableBytes()).isEqualTo(2);
+    }
+
 }

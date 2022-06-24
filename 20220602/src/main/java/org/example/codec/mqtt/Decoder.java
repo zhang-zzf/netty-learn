@@ -3,7 +3,6 @@ package org.example.codec.mqtt;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
-import org.example.codec.mqtt.model.FixedHeader;
 
 import java.util.List;
 
@@ -26,7 +25,6 @@ public class Decoder extends ByteToMessageDecoder {
             in.resetReaderIndex();
             return;
         }
-        final FixedHeader fixedHeader = new FixedHeader(byte_1, remainingLength);
         // now we can decode a complete control packet.
         switch (decidePacketType(byte_1)) {
             case CONNECT:

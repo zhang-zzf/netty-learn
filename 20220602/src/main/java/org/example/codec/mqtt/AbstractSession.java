@@ -33,6 +33,10 @@ public abstract class AbstractSession implements Session {
         }
     }
 
+    @Override
+    public void receive(Message message) {
+    }
+
     protected abstract Queue<Message> outQueue();
 
     protected void sendLater() {
@@ -111,11 +115,6 @@ public abstract class AbstractSession implements Session {
             id = pocketIdentifier.getAndIncrement();
         }
         return (short) id;
-    }
-
-    @Override
-    public void receive(Message message) {
-
     }
 
 }

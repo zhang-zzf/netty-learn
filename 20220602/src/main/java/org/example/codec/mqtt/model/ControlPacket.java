@@ -34,6 +34,40 @@ public abstract class ControlPacket {
         }
     }
 
+    public static ControlPacket fromPocket(ByteBuf packet) {
+        byte _0byte = packet.getByte(packet.readerIndex());
+        switch (type(_0byte)) {
+            case 1:
+                return new Connect(packet);
+            case 3:
+                return new Publish(packet);
+            case 4:
+                return new PubAck(packet);
+            case 5:
+                return new PubRec(packet);
+            case 6:
+                return new PubRel(packet);
+            case 7:
+                return new PubComp(packet);
+            case 8:
+                return new Subscribe(packet);
+            case 10:
+                return new Unsubscribe(packet);
+            case 12:
+                return new PingReq(packet);
+            case 14:
+                return new Disconnect(packet);
+            default:
+                throw new IllegalArgumentException();
+        }
+    }
+
+    public ByteBuf getBuf() {
+        // validate packet
+        packetValidate();
+        return this.buf;
+    }
+
     public boolean packetValidate() {
         return true;
     }
@@ -66,7 +100,11 @@ public abstract class ControlPacket {
      * MQTT Control Packet type
      */
     public byte type() {
-        return (byte) (_0Byte() & 0xF0);
+        return type(_0Byte());
+    }
+
+    public static byte type(byte _0byte) {
+        return (byte) (_0byte & 0xF0);
     }
 
     protected byte _0Byte() {

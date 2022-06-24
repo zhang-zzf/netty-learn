@@ -81,7 +81,7 @@ class ByteBufTest {
     /**
      * <pre>
      * duplicate() has same readerIndex and writerIndex of the origin buff
-     * slice() readerIndex == 0 and writerIndex == 0
+     * slice() readerIndex == 0
      * </pre>
      */
     @Test

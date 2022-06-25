@@ -1,8 +1,7 @@
 package org.example.codec.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Data;
-import lombok.experimental.Accessors;
+import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,11 +12,11 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-@Data
-@Accessors(chain = true)
 public class Subscribe extends ControlPacket {
 
+    @Getter
     private short packetIdentifier;
+    @Getter
     private List<Subscription> subscriptionList;
 
     public Subscribe(ByteBuf buf) {
@@ -26,7 +25,7 @@ public class Subscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = getBuf();
+        final ByteBuf buf = this.buf;
         this.packetIdentifier = buf.readShort();
         this.subscriptionList = new ArrayList<>();
         try {
@@ -45,7 +44,7 @@ public class Subscribe extends ControlPacket {
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (_0Byte() != 0x82) {
+        if (this._0byte != 0x82) {
             return false;
         }
         //  The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.

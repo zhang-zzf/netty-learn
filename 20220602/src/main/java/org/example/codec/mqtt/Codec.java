@@ -18,7 +18,7 @@ public class Codec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
     protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) throws Exception {
-        out.writeBytes(msg.getBuf());
+        out.writeBytes(msg.toByteBuf());
     }
 
     @Override

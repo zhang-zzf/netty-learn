@@ -2,8 +2,6 @@ package org.example.codec.mqtt;
 
 import io.netty.channel.Channel;
 
-import java.util.Set;
-
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/23

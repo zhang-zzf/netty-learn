@@ -1,7 +1,6 @@
 package org.example.codec.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -33,6 +32,7 @@ public class ConnAck extends ControlPacket {
     }
 
     public ConnAck(boolean sp, int returnCode) {
+        super((byte) 0x20, 0x02);
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0
         if (returnCode != 0) {
@@ -40,12 +40,14 @@ public class ConnAck extends ControlPacket {
         }
         this.sp = sp;
         this.returnCode = returnCode;
-        ByteBuf buf = Unpooled.buffer(4);
-        buf.writeByte(0x20);
-        buf.writeByte(0x02);
+    }
+
+    @Override
+    public ByteBuf toByteBuf() {
+        ByteBuf buf = fixedHeaderByteBuf();
         buf.writeByte(sp ? 0x01 : 0x00);
         buf.writeByte(returnCode);
-        this.setBuf(buf);
+        return buf;
     }
 
 }

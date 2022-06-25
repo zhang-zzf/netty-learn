@@ -1,18 +1,15 @@
 package org.example.codec.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import lombok.Data;
-import lombok.experimental.Accessors;
+import lombok.Getter;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-@Data
-@Accessors(chain = true)
 public class PubAck extends ControlPacket {
 
+    @Getter
     private short packetIdentifier;
 
     public PubAck(ByteBuf buf) {
@@ -20,17 +17,20 @@ public class PubAck extends ControlPacket {
     }
 
     public PubAck(short packetIdentifier) {
+        super((byte) 0x40, 0x02);
         this.packetIdentifier = packetIdentifier;
-        ByteBuf buf = Unpooled.buffer(4);
-        buf.writeByte(0x40);
-        buf.writeByte(0x02);
+    }
+
+    @Override
+    public ByteBuf toByteBuf() {
+        ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
-        this.setBuf(buf);
+        return buf;
     }
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = getBuf().readShort();
+        this.packetIdentifier = this.buf.readShort();
     }
 
 }

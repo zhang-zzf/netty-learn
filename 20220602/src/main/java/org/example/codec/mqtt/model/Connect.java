@@ -36,7 +36,7 @@ public class Connect extends ControlPacket {
 
     @Override
     public boolean packetValidate() {
-        if (_0Byte() != 0x10) {
+        if (_0byte != 0x10) {
             return false;
         }
         // If the protocol name is incorrect the Server MAY disconnect the Client.
@@ -76,10 +76,7 @@ public class Connect extends ControlPacket {
         if (!passwordFlag() && password != null) {
             return false;
         }
-        if (clientIdentifier == null) {
-            return false;
-        }
-        return true;
+        return clientIdentifier != null;
     }
 
     public boolean willReturnFlag() {

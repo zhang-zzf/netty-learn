@@ -22,7 +22,6 @@ public interface Subscription {
 
     /**
      * session that subscribe the topic
-     * @return
      */
     Session session();
 

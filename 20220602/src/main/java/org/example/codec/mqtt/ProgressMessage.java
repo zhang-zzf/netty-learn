@@ -13,7 +13,6 @@ public interface ProgressMessage extends Message {
 
     /**
      * current
-     * @return
      */
     int progress();
 

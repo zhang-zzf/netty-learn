@@ -1,4 +1,4 @@
-package org.example.codec.mqtt;
+package org.example.mqtt.broker;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)

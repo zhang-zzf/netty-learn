@@ -1,12 +1,10 @@
-package org.example.codec.mqtt;
+package org.example.mqtt.broker;
 
 import io.netty.util.concurrent.ScheduledFuture;
 
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static org.example.codec.mqtt.ProgressMessage.*;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -53,7 +51,7 @@ public abstract class AbstractSession implements Session {
                     out.poll();
                     continue;
                 }
-                if (message.progress() == STATUS_INIT) {
+                if (message.progress() == ProgressMessage.STATUS_INIT) {
                     waitForClientAck = true;
                     doSend(message);
                     startSendMessageRetryTask();
@@ -77,10 +75,10 @@ public abstract class AbstractSession implements Session {
                 Queue<Message> outQueue = outQueue();
                 ProgressMessage message = (ProgressMessage) outQueue.peek();
                 if (messageSendFailed(message)) {
-                    if (message.progress() == STATUS_SENT) {
+                    if (message.progress() == ProgressMessage.STATUS_SENT) {
                         // re send message;
                         doSend(message);
-                    } else if (message.progress() == STATUS_RELEASE) {
+                    } else if (message.progress() == ProgressMessage.STATUS_RELEASE) {
                         doSendPubRelease(message);
                     }
                 }
@@ -96,7 +94,7 @@ public abstract class AbstractSession implements Session {
         int packetIdentifier = message.packetIdentifier();
         // convert to PUBREL
         // todo
-        message.updateProgress(STATUS_RELEASE);
+        message.updateProgress(ProgressMessage.STATUS_RELEASE);
     }
 
     private boolean messageNeedClientAck(Message message) {
@@ -105,7 +103,7 @@ public abstract class AbstractSession implements Session {
 
     protected void doSend(ProgressMessage message) {
         channel().writeAndFlush(message);
-        message.updateProgress(STATUS_SENT);
+        message.updateProgress(ProgressMessage.STATUS_SENT);
     }
 
     protected short nextPocketIdentifier() {

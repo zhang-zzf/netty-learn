@@ -1,9 +1,9 @@
-package org.example.codec.mqtt;
+package org.example.mqtt.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageCodec;
-import org.example.codec.mqtt.model.ControlPacket;
+import org.example.mqtt.model.ControlPacket;
 
 import java.util.List;
 
@@ -38,7 +38,7 @@ public class Codec extends ByteToMessageCodec<ControlPacket> {
             return;
         }
         // now we can decode a complete control packet.
-        out.add(ControlPacket.fromPocket(in.slice(in.readerIndex(), packetLength)));
+        out.add(ControlPacket.from(in.slice(in.readerIndex(), packetLength)));
     }
 
     private int[] queryRemainingLength(ByteBuf in) {

@@ -1,34 +1,29 @@
-package org.example.codec.mqtt.model;
+package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import lombok.Getter;
-import lombok.experimental.Accessors;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-@Accessors(chain = true)
-public class PubRel extends ControlPacket {
+public class PubAck extends ControlPacket {
 
     @Getter
     private short packetIdentifier;
 
-    public PubRel(ByteBuf buf) {
+    public PubAck(ByteBuf buf) {
         super(buf);
     }
 
-    public PubRel(short packetIdentifier) {
-        super((byte) 0x60, 0x02);
+    public PubAck(short packetIdentifier) {
+        super((byte) 0x40, 0x02);
         this.packetIdentifier = packetIdentifier;
     }
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf buf = Unpooled.buffer(4);
-        buf.writeByte(this._0byte);
-        buf.writeByte(this.remainingLength);
+        ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
     }

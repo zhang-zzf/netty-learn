@@ -1,4 +1,4 @@
-package org.example.codec.mqtt.model;
+package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 

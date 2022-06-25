@@ -1,4 +1,4 @@
-package org.example.codec.mqtt.model;
+package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -42,7 +42,13 @@ public abstract class ControlPacket {
         }
     }
 
-    public static ControlPacket fromPocket(ByteBuf packet) {
+    /**
+     * ByteBuf to model
+     *
+     * @param packet the data packet
+     * @return model
+     */
+    public static ControlPacket from(ByteBuf packet) {
         byte _0byte = packet.getByte(packet.readerIndex());
         switch (type(_0byte)) {
             case 1:

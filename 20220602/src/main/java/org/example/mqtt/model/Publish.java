@@ -4,6 +4,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Getter;
 
+import java.util.Objects;
+
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
@@ -11,6 +13,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * @date 2022/6/24
  */
 public class Publish extends ControlPacket {
+
+    public static final int AT_MOST_ONCE = 0;
+    public static final int AT_LEAST_ONCE = 1;
+    public static final int EXACTLY_ONCE = 2;
 
     @Getter
     private String topicName;
@@ -29,10 +35,40 @@ public class Publish extends ControlPacket {
         ByteBuf header = fixedHeaderByteBuf();
         header.writeShort(topicName.length());
         header.writeCharSequence(topicName, UTF_8);
-        if (qos() > 0) {
+        if (needAck()) {
             header.writeShort(packetIdentifier);
         }
         return Unpooled.compositeBuffer().addComponent(header).addComponent(payload);
+    }
+
+    /**
+     * whether the qos need receiver ack
+     *
+     * @return true / false;
+     */
+    public static boolean needAck(int qos) {
+        return qos == AT_LEAST_ONCE || qos == EXACTLY_ONCE;
+    }
+
+    /**
+     * whether the packet need receiver ack
+     *
+     * @return true / false;
+     */
+    public boolean needAck() {
+        return needAck(qos());
+    }
+
+    /**
+     * build new Publish packet from the packet
+     *
+     * @param packet source
+     * @param packetIdentifier new packetIdentifier
+     * @return the new Publish packet
+     */
+    public static Publish outgoing(Publish packet, short packetIdentifier) {
+        return new Publish(packet._0byte, packet.remainingLength,
+                packetIdentifier, packet.payload, packet.topicName);
     }
 
     /**
@@ -45,7 +81,7 @@ public class Publish extends ControlPacket {
         byte _0byte = build_0Byte();
         int topicLength = topicName.length() + 2;
         // remainingLength field
-        int packetIdentifierLength = qos > 0 ? 2 : 0;
+        int packetIdentifierLength = needAck(qos) ? 2 : 0;
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
         return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
     }
@@ -68,7 +104,7 @@ public class Publish extends ControlPacket {
     @Override
     protected void initPacket() {
         this.topicName = buf.readCharSequence(this.buf.readShort(), UTF_8).toString();
-        if (qos() > 0) {
+        if (needAck()) {
             this.packetIdentifier = buf.readShort();
         }
         this.payload = buf.readSlice(buf.readableBytes());
@@ -96,6 +132,45 @@ public class Publish extends ControlPacket {
 
     public boolean retain() {
         return (_0byte & 0x01) != 0;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        Publish publish = (Publish) o;
+        return packetIdentifier == publish.packetIdentifier;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(packetIdentifier);
+    }
+
+    public boolean atLeastOnce() {
+        return qos() == AT_LEAST_ONCE;
+    }
+
+    public boolean exactlyOnce() {
+        return qos() == EXACTLY_ONCE;
+    }
+
+    @Override
+    public String toString() {
+        return "Publish{" +
+                "topicName='" + topicName + '\'' +
+                ", packetIdentifier=" + packetIdentifier +
+                ", payload=" + payload +
+                ", _0byte=" + _0byte +
+                '}';
+    }
+
+    public boolean atMostOnce() {
+        return qos() == AT_MOST_ONCE;
     }
 
 }

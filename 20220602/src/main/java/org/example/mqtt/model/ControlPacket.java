@@ -9,6 +9,15 @@ import io.netty.buffer.Unpooled;
  */
 public abstract class ControlPacket {
 
+    public static final int CONNECT = 1;
+    public static final int SUBSCRIBE = 8;
+    public static final int UNSUBSCRIBE = 10;
+    public static final int DISCONNECT = 14;
+    public static final int PUBCOMP = 7;
+    public static final int PUBREL = 6;
+    public static final int PUBREC = 5;
+    public static final int PUBACK = 4;
+    public static final int PUBLISH = 3;
     protected ByteBuf buf;
     protected byte _0byte;
     protected int remainingLength;
@@ -51,25 +60,25 @@ public abstract class ControlPacket {
     public static ControlPacket from(ByteBuf packet) {
         byte _0byte = packet.getByte(packet.readerIndex());
         switch (type(_0byte)) {
-            case 1:
+            case CONNECT:
                 return new Connect(packet);
-            case 3:
+            case PUBLISH:
                 return new Publish(packet);
-            case 4:
+            case PUBACK:
                 return new PubAck(packet);
-            case 5:
+            case PUBREC:
                 return new PubRec(packet);
-            case 6:
+            case PUBREL:
                 return new PubRel(packet);
-            case 7:
+            case PUBCOMP:
                 return new PubComp(packet);
-            case 8:
+            case SUBSCRIBE:
                 return new Subscribe(packet);
-            case 10:
+            case UNSUBSCRIBE:
                 return new Unsubscribe(packet);
             case 12:
                 return new PingReq(packet);
-            case 14:
+            case DISCONNECT:
                 return new Disconnect(packet);
             default:
                 throw new IllegalArgumentException();
@@ -92,6 +101,10 @@ public abstract class ControlPacket {
 
     public static byte type(byte _0byte) {
         return (byte) (_0byte & 0xF0);
+    }
+
+    public byte type() {
+        return type(this._0byte);
     }
 
     private int readRemainingLength(ByteBuf buf) {

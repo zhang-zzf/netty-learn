@@ -1,12 +1,12 @@
 package org.example.mqtt.broker;
 
-import io.netty.channel.Channel;
+import org.example.mqtt.model.ControlPacket;
 
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/23
  */
-public interface Session {
+public interface Session extends AutoCloseable {
 
     /**
      * clientId
@@ -27,20 +27,28 @@ public interface Session {
      *
      * @param message message
      */
-    void send(Message message);
+    void send(ControlPacket message);
 
     /**
      * receive a message from client
      *
      * @param message message
      */
-    void receive(Message message);
+    void receive(ControlPacket message);
 
     /**
-     * channel that between the client and server
+     * the subscription qos for the topic of the session
      *
-     * @return Channel
+     * @param topic topic
+     * @return qos
      */
-    Channel channel();
+    Integer subscriptionQos(Topic topic);
+
+    /**
+     * the broker that session was bound to
+     *
+     * @return Broker
+     */
+    Broker broker();
 
 }

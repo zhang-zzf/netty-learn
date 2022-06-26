@@ -10,6 +10,8 @@ public interface Topic {
 
     String topic();
 
-    Set<Subscription> subscription();
+    Set<Session> retainedSession();
+
+    Set<Session> subscription();
 
 }

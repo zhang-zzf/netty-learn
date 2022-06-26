@@ -1,6 +1,7 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import lombok.Getter;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -8,6 +9,7 @@ import io.netty.buffer.ByteBuf;
  */
 public class PubRec extends ControlPacket {
 
+    @Getter
     private short packetIdentifier;
 
     public PubRec(ByteBuf buf) {

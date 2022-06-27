@@ -1,9 +1,6 @@
 package org.example.mqtt.broker;
 
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.EventLoop;
+import io.netty.channel.*;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
@@ -48,14 +45,12 @@ public abstract class AbstractSession implements Session {
     private String clientId;
 
     protected AbstractSession(Channel channel) {
-        synchronized (this) {
             this.channel = channel;
             this.eventLoop = channel.eventLoop();
-        }
     }
 
     @Override
-    public synchronized void close() throws Exception {
+    public void close() throws Exception {
         if (!persistent()) {
             broker().disconnect(this);
             eventLoop = null;

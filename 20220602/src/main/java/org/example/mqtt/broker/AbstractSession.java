@@ -32,6 +32,15 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void send(ControlPacket packet) {
+        // make sure use the safe thread that the session wad bound to
+        if (channel().eventLoop().inEventLoop()) {
+            invokeSend(packet);
+        } else {
+            channel().eventLoop().execute(()-> invokeSend(packet));
+        }
+    }
+
+    private void invokeSend(ControlPacket packet) {
         if (packet == null) {
             return;
         }

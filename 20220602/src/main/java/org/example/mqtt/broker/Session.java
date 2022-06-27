@@ -13,7 +13,7 @@ public interface Session extends AutoCloseable {
      *
      * @return clientId
      */
-    String clientId();
+    String clientIdentifier();
 
     /**
      * persistent

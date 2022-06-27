@@ -45,22 +45,18 @@ public abstract class AbstractSession implements Session {
     private boolean disconnect;
     private final AbstractBroker broker;
 
-    /**
-     * whether the Session is persistent.
-     */
-    private final boolean persistent;
+    private String clientIdentifier;
+    private int keepAlive;
+    private boolean cleanSession;
 
-    private String clientId;
-
-    protected AbstractSession(Channel channel, AbstractBroker broker, boolean persistent) {
+    protected AbstractSession(Channel channel, AbstractBroker broker) {
         this.channel = channel;
         this.eventLoop = channel.eventLoop();
         this.broker = broker;
-        this.persistent = persistent;
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         if (!persistent()) {
             // disconnect the session from the broker
             broker().disconnect(this);
@@ -142,7 +138,10 @@ public abstract class AbstractSession implements Session {
         if (disconnect()) {
             return;
         }
-        while (cpx != null) {
+        while (true) {
+            if (cpx == null) {
+                break;
+            }
             if (cpx.canPublish()) {
                 break;
             }
@@ -175,9 +174,9 @@ public abstract class AbstractSession implements Session {
         ControlPacketContext header = queue.peek();
         while (header != null && header.complete()) {
             // delete the complete cpx
-            ControlPacketContext cpx = queue.poll();
+            queue.poll();
             // good for gc
-            cpx.setNext(null);
+            header.setNext(null);
             header = queue.peek();
         }
     }
@@ -219,7 +218,7 @@ public abstract class AbstractSession implements Session {
             // Client does not PubComp the right PacketIdentifier.
             log.error("Client may have lost some PubComp. need: {}, actual: {}, ",
                     cpx.packet().getPacketIdentifier(), packetIdentifier);
-            // just drop it;
+            /* just drop it; */
             return;
         }
         cpx.markStatus(ControlPacketContext.PUB_REC, ControlPacketContext.PUB_COMP);
@@ -228,7 +227,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private ControlPacketContext findFirst(Deque<ControlPacketContext> queue, int qos) {
-        ControlPacketContext cpx = outQueue().peek();
+        ControlPacketContext cpx = queue.peek();
         while (cpx != null) {
             if (cpx.packet().qos() == qos) {
                 break;
@@ -252,14 +251,13 @@ public abstract class AbstractSession implements Session {
             // Client does not PubRec the right PacketIdentifier.
             log.error("Client may have lost some PubRec. need: {}, actual: {}, ",
                     cpx.packet().getPacketIdentifier(), packetIdentifier);
-            // just drop it;
+            /* just drop it; */
             return;
         }
         cpx.markStatus(ControlPacketContext.SENT, ControlPacketContext.PUB_REC);
         // send PubRel packet.
         doWrite(cpx.pubRel());
         // no need clean the queue
-        // cleanQueue(outQueue());
     }
 
     private void doReceivePubAck(PubAck packet) {
@@ -276,7 +274,7 @@ public abstract class AbstractSession implements Session {
             // Client does not PubAck the right PacketIdentifier.
             log.error("Client may have lost some PubAck. need: {}, actual: {}, ",
                     cpx.packet().getPacketIdentifier(), packetIdentifier);
-            // just drop it;
+            /* just drop it; */
             return;
         }
         cpx.markStatus(ControlPacketContext.SENT, ControlPacketContext.PUB_ACK);
@@ -298,7 +296,7 @@ public abstract class AbstractSession implements Session {
             // Client does not PubRel the right PacketIdentifier.
             log.error("Client may have lost some PubRel. need: {}, actual: {}, ",
                     cpx.packet().getPacketIdentifier(), packetIdentifier);
-            // just drop it;
+            /* just drop it; */
             return;
         }
         cpx.markStatus(ONWARD, PUB_REL);
@@ -414,7 +412,27 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public boolean persistent() {
-        return this.persistent;
+        return !this.cleanSession;
+    }
+
+    @Override
+    public String clientIdentifier() {
+        return this.clientIdentifier;
+    }
+
+    AbstractSession clientIdentifier(String clientIdentifier) {
+        this.clientIdentifier = clientIdentifier;
+        return this;
+    }
+
+    AbstractSession keepAlive(int keepAlive) {
+        this.keepAlive = keepAlive;
+        return this;
+    }
+
+    AbstractSession persistent(boolean cleanSession) {
+        this.cleanSession = cleanSession;
+        return this;
     }
 
 }

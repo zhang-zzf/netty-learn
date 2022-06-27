@@ -11,8 +11,6 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-@Getter
-@Setter
 @Accessors(chain = true)
 public class Connect extends ControlPacket {
 
@@ -30,8 +28,16 @@ public class Connect extends ControlPacket {
         super(buf);
     }
 
+    public int keepAlive() {
+        return keepAlive;
+    }
+
     public boolean cleanSession() {
         return (connectFlags & 0x02) != 0;
+    }
+
+    public String clientIdentifier() {
+        return this.clientIdentifier;
     }
 
     @Override

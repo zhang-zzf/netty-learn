@@ -22,8 +22,9 @@ public interface Broker extends AutoCloseable {
      *
      * @param packet data
      * @return session session
+     * @throws Exception
      */
-    Session accepted(Connect packet);
+    Session accepted(Connect packet) throws Exception;
 
     /**
      * deregister a session from the broker

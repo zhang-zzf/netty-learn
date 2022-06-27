@@ -41,7 +41,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubAck() {
-        return new PubAck(packet.getPacketIdentifier());
+        return new PubAck(packet().getPacketIdentifier());
     }
 
     public boolean canPublish() {
@@ -58,10 +58,10 @@ public class ControlPacketContext {
         if (expect == RECEIVED) {
             update = ONWARD;
         } else if (expect == ONWARD) {
-            if (packet.atLeastOnce()) {
+            if (packet().atLeastOnce()) {
                 update = PUB_ACK;
             }
-            if (packet.exactlyOnce()) {
+            if (packet().exactlyOnce()) {
                 update = PUB_REC;
             }
         } else if (expect == PUB_REC) {
@@ -69,10 +69,10 @@ public class ControlPacketContext {
         } else if (expect == PUB_REL) {
             update = PUB_COMP;
         } else if (expect == SENT) {
-            if (packet.atLeastOnce()) {
+            if (packet().atLeastOnce()) {
                 update = PUB_ACK;
             }
-            if (packet.exactlyOnce()) {
+            if (packet().exactlyOnce()) {
                 update = PUB_REC;
             }
         }
@@ -89,15 +89,15 @@ public class ControlPacketContext {
 
     public boolean complete() {
         int s = status.get();
-        if (packet.atMostOnce()) {
+        if (packet().atMostOnce()) {
             if (s == ONWARD || s == SENT) {
                 return true;
             }
         }
-        if (packet.atLeastOnce() && s == PUB_ACK) {
+        if (packet().atLeastOnce() && s == PUB_ACK) {
             return true;
         }
-        if (packet.exactlyOnce() && s == PUB_COMP) {
+        if (packet().exactlyOnce() && s == PUB_COMP) {
             return true;
         }
         return false;
@@ -112,15 +112,48 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubRec() {
-        return new PubRec(packet.getPacketIdentifier());
+        return new PubRec(packet().getPacketIdentifier());
     }
 
     public ControlPacket pubRel() {
-        return new PubRel(packet.getPacketIdentifier());
+        return new PubRel(packet().getPacketIdentifier());
     }
 
     public ControlPacket pubComp() {
-        return new PubComp(packet.getPacketIdentifier());
+        return new PubComp(packet().getPacketIdentifier());
+    }
+
+    public ControlPacket retryPacket() {
+        int s = status.get();
+        if (packet().atLeastOnce()) {
+            switch (s) {
+                case ONWARD:
+                    // receive message case
+                    return pubAck();
+                case SENT:
+                    // send message case
+                    return packet();
+                default:
+            }
+        }
+        if (packet().exactlyOnce()) {
+            switch (s) {
+                // receive message case
+                case ONWARD:
+                    return pubRec();
+                // receive message case
+                case PUB_REL:
+                    return pubComp();
+                // send message case
+                case SENT:
+                    return packet();
+                // send message case
+                case PUB_REC:
+                    return pubRel();
+                default:
+            }
+        }
+        return null;
     }
 
 }

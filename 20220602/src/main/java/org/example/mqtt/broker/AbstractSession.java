@@ -1,6 +1,9 @@
 package org.example.mqtt.broker;
 
-import io.netty.channel.*;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
@@ -31,29 +34,36 @@ public abstract class AbstractSession implements Session {
 
     private final AtomicInteger pocketIdentifier = new AtomicInteger(0);
     private ScheduledFuture retryTask;
-
     private final int retryPeriod = 3000;
 
-    /**
-     * bind executor
-     */
-    private EventLoop eventLoop;
+    private final EventLoop eventLoop;
     private Channel channel;
 
+    /**
+     * whether the Session disconnect with the Client
+     */
     private boolean disconnect;
+    private final AbstractBroker broker;
+
+    /**
+     * whether the Session is persistent.
+     */
+    private final boolean persistent;
 
     private String clientId;
 
-    protected AbstractSession(Channel channel) {
-            this.channel = channel;
-            this.eventLoop = channel.eventLoop();
+    protected AbstractSession(Channel channel, AbstractBroker broker, boolean persistent) {
+        this.channel = channel;
+        this.eventLoop = channel.eventLoop();
+        this.broker = broker;
+        this.persistent = persistent;
     }
 
     @Override
     public void close() throws Exception {
         if (!persistent()) {
+            // disconnect the session from the broker
             broker().disconnect(this);
-            eventLoop = null;
         }
         disconnect = true;
         channel = null;
@@ -81,8 +91,15 @@ public abstract class AbstractSession implements Session {
         if (PUBLISH == packet.type()) {
             doSendPublish((Publish) packet);
         } else {
-            doSend(packet);
+            doSendPacket(packet);
         }
+    }
+
+    private void doSendPacket(ControlPacket packet) {
+        if (disconnect()) {
+            return;
+        }
+        doWrite(packet);
     }
 
     private void doSendPublish(Publish packet) {
@@ -96,7 +113,7 @@ public abstract class AbstractSession implements Session {
         ControlPacketContext cpx = new ControlPacketContext(outgoing, ControlPacketContext.CREATED);
         offer(out, cpx);
         // start send some packet
-        doSend(out.peek());
+        doSendPublishPacket(out.peek());
     }
 
     private void offer(Deque<ControlPacketContext> queue, ControlPacketContext cpx) {
@@ -121,7 +138,10 @@ public abstract class AbstractSession implements Session {
         return false;
     }
 
-    private void doSend(ControlPacketContext cpx) {
+    private void doSendPublishPacket(ControlPacketContext cpx) {
+        if (disconnect()) {
+            return;
+        }
         while (cpx != null) {
             if (cpx.canPublish()) {
                 break;
@@ -139,12 +159,16 @@ public abstract class AbstractSession implements Session {
         // mark first and then send data
         cpxToUse.markStatus(ControlPacketContext.CREATED, ControlPacketContext.SENDING);
         // send data and add send complete listener
-        doSend(cpxToUse.packet()).addListener((ChannelFutureListener) future -> {
+        doWrite(cpxToUse.packet()).addListener((ChannelFutureListener) future -> {
             cpxToUse.markStatus(ControlPacketContext.SENDING, ControlPacketContext.SENT);
             cleanQueue(outQueue());
             // send the next packet in the queue if needed
-            doSend(cpxToUse.next());
+            doSendPublishPacket(cpxToUse.next());
         });
+    }
+
+    private boolean disconnect() {
+        return disconnect;
     }
 
     private void cleanQueue(Deque<ControlPacketContext> queue) {
@@ -233,7 +257,7 @@ public abstract class AbstractSession implements Session {
         }
         cpx.markStatus(ControlPacketContext.SENT, ControlPacketContext.PUB_REC);
         // send PubRel packet.
-        doSend(cpx.pubRel());
+        doWrite(cpx.pubRel());
         // no need clean the queue
         // cleanQueue(outQueue());
     }
@@ -279,7 +303,7 @@ public abstract class AbstractSession implements Session {
         }
         cpx.markStatus(ONWARD, PUB_REL);
         // ack PubComp to Client
-        doSend(cpx.pubComp()).addListener((ChannelFutureListener) future -> {
+        doWrite(cpx.pubComp()).addListener((ChannelFutureListener) future -> {
             cpx.markStatus(PUB_REL, PUB_COMP);
             // try clean the queue
             cleanQueue(inQueue());
@@ -311,13 +335,13 @@ public abstract class AbstractSession implements Session {
         if (packet.atMostOnce()) {
             cleanQueue(inQueue());
         } else if (packet.atLeastOnce()) {
-            doSend(cpx.pubAck()).addListener((ChannelFutureListener) future -> {
+            doWrite(cpx.pubAck()).addListener((ChannelFutureListener) future -> {
                 cpx.markStatus(ONWARD, PUB_ACK);
                 cleanQueue(inQueue());
             });
         } else if (packet.exactlyOnce()) {
             // does not modify the status of the cpx
-            doSend(cpx.pubRec());
+            doWrite(cpx.pubRec());
         }
     }
 
@@ -330,23 +354,42 @@ public abstract class AbstractSession implements Session {
 
     protected abstract Deque<ControlPacketContext> outQueue();
 
-    private ChannelFuture doSend(ControlPacket packet) {
+    private ChannelFuture doWrite(ControlPacket packet) {
         startRetryTask();
         return channel.writeAndFlush(packet);
     }
 
     private void startRetryTask() {
-        if (retryTask == null) {
-            retryTask = eventLoop.scheduleWithFixedDelay(() -> {
-                Queue<ControlPacketContext> inQueue = inQueue();
-                for (ControlPacketContext qosPacket : inQueue) {
-                    if (shouldRetrySend(qosPacket)) {
-                        // re send do not change status.
-                        // todo
-                        // doSend();
-                    }
-                }
-            }, 1, 1, TimeUnit.SECONDS);
+        if (this.retryTask != null) {
+            return;
+        }
+        this.retryTask = eventLoop.scheduleWithFixedDelay(() -> {
+            Deque<ControlPacketContext> in = inQueue();
+            Deque<ControlPacketContext> out = outQueue();
+            cleanQueue(in);
+            cleanQueue(out);
+            if (in.isEmpty() && out.isEmpty()) {
+                // cancel the scheduled task
+                this.retryTask.cancel(false);
+                return;
+            }
+            doRetry(in.peek());
+            doRetry(out.peek());
+        }, 1, 1, TimeUnit.SECONDS);
+    }
+
+    private void doRetry(ControlPacketContext cpx) {
+        // find the first cpx that need retry send
+        while (cpx != null) {
+            if (!cpx.complete() && shouldRetrySend(cpx)) {
+                break;
+            }
+            cpx = cpx.next();
+        }
+        // resend all the packet that is behind the retry cpx
+        while (cpx != null) {
+            doSendPacket(cpx.retryPacket());
+            cpx = cpx.next();
         }
     }
 
@@ -362,6 +405,16 @@ public abstract class AbstractSession implements Session {
             id = pocketIdentifier.getAndIncrement();
         }
         return (short) id;
+    }
+
+    @Override
+    public Broker broker() {
+        return this.broker;
+    }
+
+    @Override
+    public boolean persistent() {
+        return this.persistent;
     }
 
 }

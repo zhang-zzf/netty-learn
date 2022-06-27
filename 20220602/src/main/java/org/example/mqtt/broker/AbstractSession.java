@@ -3,6 +3,7 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
@@ -17,6 +18,14 @@ import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
 
 /**
+ * QA
+ * <pre>
+ *     20220627 Session 下无 Channel 时
+ *     1. 如何接受 broker 的 send 消息，如何处理？（Persistent Session)
+ *     2. 超时调度任务暂定
+ *     3.
+ * </pre>
+ *
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
@@ -28,15 +37,43 @@ public abstract class AbstractSession implements Session {
 
     private final int retryPeriod = 3000;
 
+    /**
+     * bind executor
+     */
+    private EventLoop eventLoop;
+    private Channel channel;
+
+    private boolean disconnect;
+
     private String clientId;
+
+    protected AbstractSession(Channel channel) {
+        synchronized (this) {
+            this.channel = channel;
+            this.eventLoop = channel.eventLoop();
+        }
+    }
+
+    @Override
+    public synchronized void close() throws Exception {
+        if (!persistent()) {
+            broker().disconnect(this);
+            eventLoop = null;
+        }
+        disconnect = true;
+        channel = null;
+        if (retryTask != null) {
+            retryTask.cancel(true);
+        }
+    }
 
     @Override
     public void send(ControlPacket packet) {
         // make sure use the safe thread that the session wad bound to
-        if (channel().eventLoop().inEventLoop()) {
+        if (eventLoop.inEventLoop()) {
             invokeSend(packet);
         } else {
-            channel().eventLoop().execute(()-> invokeSend(packet));
+            eventLoop.execute(() -> invokeSend(packet));
         }
     }
 
@@ -300,12 +337,12 @@ public abstract class AbstractSession implements Session {
 
     private ChannelFuture doSend(ControlPacket packet) {
         startRetryTask();
-        return channel().writeAndFlush(packet);
+        return channel.writeAndFlush(packet);
     }
 
     private void startRetryTask() {
         if (retryTask == null) {
-            retryTask = channel().eventLoop().scheduleWithFixedDelay(() -> {
+            retryTask = eventLoop.scheduleWithFixedDelay(() -> {
                 Queue<ControlPacketContext> inQueue = inQueue();
                 for (ControlPacketContext qosPacket : inQueue) {
                     if (shouldRetrySend(qosPacket)) {
@@ -331,13 +368,5 @@ public abstract class AbstractSession implements Session {
         }
         return (short) id;
     }
-
-    /**
-     * channel that between the client and server
-     *
-     * @return Channel
-     */
-    protected abstract Channel channel();
-
 
 }

@@ -43,7 +43,10 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         // receive a packet, remove the activeIdleTimeoutHandler
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket)) {
-            log.error("channelRead illegal ControlPacket, now close channel");
+            log.error("channelRead msg is not ControlPacket, now close the Session and channel");
+            if (session != null) {
+                session.close();
+            }
             ctx.close();
             return;
         }

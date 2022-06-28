@@ -8,10 +8,22 @@ import java.util.Set;
  */
 public interface Topic {
 
-    String topic();
+    TopicFilter topic();
 
     Set<Session> retainedSession();
 
-    Set<Session> subscription();
+    /**
+     * add subscriber to the topic
+     *
+     * @param session subscriber
+     * @param qos QoS
+     */
+    void addSubscriber(Session session, int qos);
+
+    interface TopicFilter {
+
+        String value();
+
+    }
 
 }

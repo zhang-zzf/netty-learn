@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,13 +13,15 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class Subscribe extends ControlPacket {
 
-    @Getter
     private short packetIdentifier;
-    @Getter
     private List<Subscription> subscriptionList;
 
     public Subscribe(ByteBuf buf) {
         super(buf);
+    }
+
+    public List<Subscription> subscriptionList() {
+        return this.subscriptionList;
     }
 
     @Override

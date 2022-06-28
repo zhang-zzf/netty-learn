@@ -11,7 +11,7 @@ public interface Subscription {
      *
      * @return topic
      */
-    String topic();
+    Topic.TopicFilter topic();
 
     /**
      * maximum Qos

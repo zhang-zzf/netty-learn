@@ -430,7 +430,7 @@ public abstract class AbstractSession implements Session {
         return this;
     }
 
-    AbstractSession persistent(boolean cleanSession) {
+    AbstractSession cleanSession(boolean cleanSession) {
         this.cleanSession = cleanSession;
         return this;
     }

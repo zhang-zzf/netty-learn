@@ -24,6 +24,10 @@ public class Subscribe extends ControlPacket {
         return this.subscriptionList;
     }
 
+    public short packetIdentifier() {
+        return this.packetIdentifier;
+    }
+
     @Override
     protected void initPacket() {
         final ByteBuf buf = this.buf;

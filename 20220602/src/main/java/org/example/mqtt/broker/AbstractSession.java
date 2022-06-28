@@ -8,8 +8,7 @@ import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
-import java.util.Deque;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -46,7 +45,6 @@ public abstract class AbstractSession implements Session {
     private final AbstractBroker broker;
 
     private String clientIdentifier;
-    private int keepAlive;
     private boolean cleanSession;
 
     protected AbstractSession(Channel channel, AbstractBroker broker) {
@@ -57,15 +55,20 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void close() {
-        if (!persistent()) {
+        if (cleanSession()) {
             // disconnect the session from the broker
             broker().disconnect(this);
         }
         disconnect = true;
+        channel.close();
         channel = null;
         if (retryTask != null) {
             retryTask.cancel(true);
         }
+    }
+
+    private boolean cleanSession() {
+        return cleanSession;
     }
 
     @Override
@@ -182,7 +185,7 @@ public abstract class AbstractSession implements Session {
     }
 
     @Override
-    public void receive(ControlPacket packet) {
+    public void messageReceived(ControlPacket packet) {
         switch (packet.type()) {
             case PUBLISH:
                 doReceivePublish((Publish) packet);
@@ -199,9 +202,40 @@ public abstract class AbstractSession implements Session {
             case PUBCOMP:
                 doReceivePubComp((PubComp) packet);
                 break;
+            case SUBSCRIBE:
+                doReceiveSubscribe((Subscribe) packet);
+                break;
+            case UNSUBSCRIBE:
+                doReceiveUnsubscribe((Unsubscribe) packet);
+                break;
+            case DISCONNECT:
+                doReceiveDisconnect((Disconnect) packet);
+                break;
             default:
                 throw new IllegalArgumentException();
         }
+    }
+
+    private void doReceiveUnsubscribe(Unsubscribe packet) {
+        broker.deregister(this, packet.getSubscriptionList());
+    }
+
+    private void doReceiveSubscribe(Subscribe packet) {
+        List<org.example.mqtt.model.Subscription> subscriptions = packet.subscriptionList();
+        Map<Topic.TopicFilter, Subscription> resp = broker.register(this, subscriptions);
+        List<org.example.mqtt.model.Subscription> permittedSubscriptions = new ArrayList<>(subscriptions.size());
+        for (org.example.mqtt.model.Subscription subscription : subscriptions) {
+            permittedSubscriptions.add(new org.example.mqtt.model.Subscription()
+                    .setTopic(subscription.getTopic())
+                    // todo
+                    .setQos(0x80));
+        }
+        channel.writeAndFlush(new SubAck(packet.packetIdentifier(), permittedSubscriptions));
+    }
+
+    protected void doReceiveDisconnect(Disconnect packet) {
+        log.info("receive Disconnect packet, now clean the session and close the Channel");
+        close();
     }
 
     protected void doReceivePubComp(PubComp packet) {
@@ -422,11 +456,6 @@ public abstract class AbstractSession implements Session {
 
     AbstractSession clientIdentifier(String clientIdentifier) {
         this.clientIdentifier = clientIdentifier;
-        return this;
-    }
-
-    AbstractSession keepAlive(int keepAlive) {
-        this.keepAlive = keepAlive;
         return this;
     }
 

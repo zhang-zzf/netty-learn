@@ -15,15 +15,15 @@ import java.util.concurrent.ConcurrentMap;
 public class DefaultTopic implements Topic {
 
     private final TopicFilter topicFilter;
-    private final ConcurrentMap<Session, Integer> subscriber;
+    private final ConcurrentMap<Session, Integer> subscribers;
 
     public DefaultTopic(TopicFilter topicFilter) {
         this.topicFilter = topicFilter;
-        this.subscriber = new ConcurrentHashMap<>();
+        this.subscribers = new ConcurrentHashMap<>();
     }
 
     @Override
-    public TopicFilter topic() {
+    public TopicFilter topicFilter() {
         return topicFilter;
     }
 
@@ -34,12 +34,27 @@ public class DefaultTopic implements Topic {
 
     @Override
     public void addSubscriber(Session session, int qos) {
-        subscriber.put(session, qos);
+        subscribers.put(session, qos);
+    }
+
+    @Override
+    public void removeSubscriber(Session session) {
+        subscribers.remove(session);
     }
 
     @Override
     public Map<Session, Integer> subscribers() {
-        return null;
+        return subscribers;
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return subscribers.isEmpty();
+    }
+
+    @Override
+    public void close() throws Exception {
+
     }
 
     public static class DefaultTopicFilter implements TopicFilter {

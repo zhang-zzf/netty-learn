@@ -34,7 +34,7 @@ public interface Session extends AutoCloseable {
      *
      * @param message message
      */
-    void receive(ControlPacket message);
+    void messageReceived(ControlPacket message);
 
     /**
      * the subscription qos for the topic of the session

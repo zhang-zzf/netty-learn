@@ -6,11 +6,10 @@ import org.example.mqtt.broker.AbstractSession;
 import org.example.mqtt.broker.Session;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscription;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -26,6 +25,19 @@ public class DefaultBroker extends AbstractBroker {
     private ConcurrentMap<String, AbstractSession> sessionMap = new ConcurrentHashMap<>();
 
     private ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
+
+    @Override
+    public void onward(Publish packet) {
+        List<Topic> forwardTopic = topicBy(packet.getTopicName());
+        for (Topic topic : forwardTopic) {
+            String topicName = topic.topicFilter().value();
+            for (Map.Entry<Session, Integer> entry : topic.subscribers().entrySet()) {
+                Session session = entry.getKey();
+                Publish message = Publish.outgoing(packet, topicName, entry.getValue());
+                session.send(message);
+            }
+        }
+    }
 
     @Override
     protected AbstractSession findSession(String clientIdentifier) {
@@ -60,6 +72,7 @@ public class DefaultBroker extends AbstractBroker {
 
     @Override
     protected List<Topic> topicBy(String topicName) {
+        // todo should optimize match algorithm
         List<Topic> ret = new ArrayList<>();
         for (Map.Entry<Topic.TopicFilter, Topic> entry : topicMap.entrySet()) {
             if (entry.getKey().match(topicName)) {
@@ -88,8 +101,21 @@ public class DefaultBroker extends AbstractBroker {
     }
 
     @Override
-    public void deregister(Session session, Subscribe subscribe) {
+    public void deregister(Session session, List<Subscription> subscriptions) {
+        for (Subscription sub : subscriptions) {
+            Topic.TopicFilter filter = new DefaultTopic.DefaultTopicFilter(sub.getTopic());
+            Topic topic = topicBy(filter);
+            topic.removeSubscriber(session);
+            if (topic.isEmpty()) {
+                // remove the topic from the broker
+                topicMap.remove(filter, topic);
+            }
+        }
+    }
 
+    @Override
+    public Set<Integer> supportProtocolLevel() {
+        return new HashSet<>(Arrays.asList(4));
     }
 
     @Override

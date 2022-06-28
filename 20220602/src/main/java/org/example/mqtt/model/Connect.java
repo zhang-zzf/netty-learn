@@ -1,8 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
-import lombok.Setter;
 import lombok.experimental.Accessors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -122,6 +120,10 @@ public class Connect extends ControlPacket {
 
     public boolean willFlag() {
         return (connectFlags & 0x04) != 0;
+    }
+
+    public Integer protocolLevel() {
+        return Integer.valueOf(protocolLevel);
     }
 
 }

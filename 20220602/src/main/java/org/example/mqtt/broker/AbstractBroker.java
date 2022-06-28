@@ -3,8 +3,6 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import org.example.mqtt.broker.jvm.DefaultTopic;
 import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
 
 import java.util.HashMap;
 import java.util.List;
@@ -16,26 +14,10 @@ import java.util.Map;
  */
 public abstract class AbstractBroker implements Broker {
 
-    @Override
-    public void onward(Publish packet) {
-        String topicName = packet.getTopicName();
-        List<Topic> forwardTopic = topicBy(topicName);
-        // todo subscriber is on another node in the cluster
-        for (Topic topic : forwardTopic) {
-            for (Map.Entry<Session, Integer> entry : topic.subscribers().entrySet()) {
-                // use new topic and qos
-                entry.getKey().send(Publish.outgoing(packet, topic.topic().value(), entry.getValue()));
-            }
-        }
-    }
-
     protected abstract List<Topic> topicBy(String topicName);
 
     @Override
     public Session accepted(Connect packet, Channel channel) throws Exception {
-        if (!authenticate(packet)) {
-            return null;
-        }
         AbstractSession session = findSession(packet.clientIdentifier());
         // clean session is set to 0
         if (!packet.cleanSession() && session != null) {
@@ -54,9 +36,10 @@ public abstract class AbstractBroker implements Broker {
     }
 
     @Override
-    public Map<Topic.TopicFilter, Subscription> register(Session session, Subscribe subscribe) {
-        Map<Topic.TopicFilter, Subscription> ret = new HashMap<>(subscribe.subscriptionList().size());
-        for (org.example.mqtt.model.Subscription sub : subscribe.subscriptionList()) {
+    public Map<Topic.TopicFilter, Subscription> register(Session session,
+                                                         List<org.example.mqtt.model.Subscription> subscriptions) {
+        Map<Topic.TopicFilter, Subscription> ret = new HashMap<>(subscriptions.size());
+        for (org.example.mqtt.model.Subscription sub : subscriptions) {
             Topic.TopicFilter topicFilter = new DefaultTopic.DefaultTopicFilter(sub.getTopic());
             int permittedQoS = decideSubscriptionQos(session, topicFilter, sub.getQos());
             ret.put(topicFilter, new DefaultSubscription(topicFilter, permittedQoS, session));
@@ -91,7 +74,6 @@ public abstract class AbstractBroker implements Broker {
 
     protected void initAndBind(AbstractSession session, Connect packet) {
         session.clientIdentifier(packet.clientIdentifier());
-        session.keepAlive(packet.keepAlive());
         session.cleanSession(packet.cleanSession());
         // session bind to broker;
         bindSession(session);

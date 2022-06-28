@@ -7,9 +7,9 @@ import java.util.Set;
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-public interface Topic {
+public interface Topic extends AutoCloseable {
 
-    TopicFilter topic();
+    TopicFilter topicFilter();
 
     Set<Session> retainedSession();
 
@@ -22,10 +22,21 @@ public interface Topic {
     void addSubscriber(Session session, int qos);
 
     /**
+     * remove a subscriber
+     *
+     * @param session Session
+     */
+    void removeSubscriber(Session session);
+
+
+    /**
      * all the subscribers that subscribe the topic
+     *
      * @return all the subscribers
      */
     Map<Session, Integer> subscribers();
+
+    boolean isEmpty();
 
     interface TopicFilter {
 

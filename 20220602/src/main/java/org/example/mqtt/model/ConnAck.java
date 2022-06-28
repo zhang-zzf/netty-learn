@@ -42,6 +42,17 @@ public class ConnAck extends ControlPacket {
         this.returnCode = returnCode;
     }
 
+    /**
+     * 0x01 Connection Refused, unacceptable protocol version
+     */
+    public static ConnAck notSupportProtocolLevel() {
+        return new ConnAck(0x01);
+    }
+
+    public static ConnAck serverUnavailable() {
+        return new ConnAck(0x03);
+    }
+
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = fixedHeaderByteBuf();

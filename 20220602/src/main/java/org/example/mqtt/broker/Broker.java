@@ -3,9 +3,10 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * @author zhanfeng.zhang
@@ -26,7 +27,6 @@ public interface Broker extends AutoCloseable {
      * @param packet data
      * @param channel Channel
      * @return session session
-     * @throws Exception
      */
     Session accepted(Connect packet, Channel channel) throws Exception;
 
@@ -41,17 +41,19 @@ public interface Broker extends AutoCloseable {
      * register a subscription between the session and the topic
      *
      * @param session session
-     * @param subscribe the topic and the qos
+     * @param subscriptions the topic and the qos
      * @return subscription
      */
-    Map<Topic.TopicFilter, Subscription> register(Session session, Subscribe subscribe);
+    Map<Topic.TopicFilter, Subscription> register(Session session, List<org.example.mqtt.model.Subscription> subscriptions);
 
     /**
      * deregister a subscription between the session and the topic
      *
      * @param session session
-     * @param subscribe the topic and the qos
+     * @param subscriptions the topic and the qos
      */
-    void deregister(Session session, Subscribe subscribe);
+    void deregister(Session session, List<org.example.mqtt.model.Subscription> subscriptions);
+
+    Set<Integer> supportProtocolLevel();
 
 }

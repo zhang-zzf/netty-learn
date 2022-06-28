@@ -17,6 +17,7 @@ public class Publish extends ControlPacket {
     public static final int AT_MOST_ONCE = 0;
     public static final int AT_LEAST_ONCE = 1;
     public static final int EXACTLY_ONCE = 2;
+    public static final short UNKNOWN_PACKET_IDENTIFIER = 0;
 
     @Getter
     private String topicName;
@@ -27,6 +28,10 @@ public class Publish extends ControlPacket {
 
     public Publish(ByteBuf receivedPacket) {
         super(receivedPacket);
+    }
+
+    public static Publish outgoing(Publish source, String topicName, Integer qos) {
+        return Publish.outgoing(qos, UNKNOWN_PACKET_IDENTIFIER, source.payload, topicName);
     }
 
     @Override

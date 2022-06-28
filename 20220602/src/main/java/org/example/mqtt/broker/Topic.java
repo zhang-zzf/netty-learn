@@ -1,5 +1,6 @@
 package org.example.mqtt.broker;
 
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -20,9 +21,17 @@ public interface Topic {
      */
     void addSubscriber(Session session, int qos);
 
+    /**
+     * all the subscribers that subscribe the topic
+     * @return all the subscribers
+     */
+    Map<Session, Integer> subscribers();
+
     interface TopicFilter {
 
         String value();
+
+        boolean match(String topicName);
 
     }
 

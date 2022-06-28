@@ -1,11 +1,16 @@
 package org.example.mqtt.broker.jvm;
 
 import io.netty.channel.Channel;
-import org.example.mqtt.broker.*;
+import org.example.mqtt.broker.AbstractBroker;
+import org.example.mqtt.broker.AbstractSession;
+import org.example.mqtt.broker.Session;
+import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -38,18 +43,13 @@ public class DefaultBroker extends AbstractBroker {
     }
 
     @Override
-    protected void bind(AbstractSession session) {
+    protected void bindSession(AbstractSession session) {
         AbstractSession previous = sessionMap.putIfAbsent(session.clientIdentifier(), session);
         if (previous != null) {
             throw new IllegalStateException();
         }
     }
 
-
-    @Override
-    public void onward(Publish packet) {
-
-    }
 
     @Override
     public void disconnect(Session session) {
@@ -59,13 +59,27 @@ public class DefaultBroker extends AbstractBroker {
     }
 
     @Override
-    protected Topic createNewTopic(Topic.TopicFilter topicFilter) {
-        return new DefaultTopic(topicFilter);
+    protected List<Topic> topicBy(String topicName) {
+        List<Topic> ret = new ArrayList<>();
+        for (Map.Entry<Topic.TopicFilter, Topic> entry : topicMap.entrySet()) {
+            if (entry.getKey().match(topicName)) {
+                ret.add(entry.getValue());
+            }
+        }
+        return ret;
     }
 
     @Override
-    protected Topic findTopic(Topic.TopicFilter topicFilter) {
-        return topicMap.get(topicFilter);
+    protected Topic topicBy(Topic.TopicFilter topicFilter) {
+        Topic topic = topicMap.get(topicFilter);
+        if (topic == null) {
+            // create the topic if not Exist
+            topic = new DefaultTopic(topicFilter);
+            if (topicMap.putIfAbsent(topicFilter, topic) != null) {
+                topic = topicMap.get(topicFilter);
+            }
+        }
+        return topic;
     }
 
     @Override

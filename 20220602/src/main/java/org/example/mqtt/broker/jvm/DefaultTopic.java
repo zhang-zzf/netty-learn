@@ -1,5 +1,9 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.broker.jvm;
 
+import org.example.mqtt.broker.Session;
+import org.example.mqtt.broker.Topic;
+
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -11,7 +15,7 @@ import java.util.concurrent.ConcurrentMap;
 public class DefaultTopic implements Topic {
 
     private final TopicFilter topicFilter;
-    private final ConcurrentMap<Session, Integer> subscriber ;
+    private final ConcurrentMap<Session, Integer> subscriber;
 
     public DefaultTopic(TopicFilter topicFilter) {
         this.topicFilter = topicFilter;
@@ -33,6 +37,11 @@ public class DefaultTopic implements Topic {
         subscriber.put(session, qos);
     }
 
+    @Override
+    public Map<Session, Integer> subscribers() {
+        return null;
+    }
+
     public static class DefaultTopicFilter implements TopicFilter {
 
         private final String value;
@@ -44,6 +53,11 @@ public class DefaultTopic implements Topic {
         @Override
         public String value() {
             return value;
+        }
+
+        @Override
+        public boolean match(String topicName) {
+            return value.equals(topicName);
         }
 
     }

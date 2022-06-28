@@ -1,10 +1,13 @@
 package org.example.mqtt.broker;
 
 import io.netty.channel.Channel;
+import org.example.mqtt.broker.jvm.DefaultTopic;
 import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -12,6 +15,21 @@ import java.util.Map;
  * @date 2022/6/24
  */
 public abstract class AbstractBroker implements Broker {
+
+    @Override
+    public void onward(Publish packet) {
+        String topicName = packet.getTopicName();
+        List<Topic> forwardTopic = topicBy(topicName);
+        // todo subscriber is on another node in the cluster
+        for (Topic topic : forwardTopic) {
+            for (Map.Entry<Session, Integer> entry : topic.subscribers().entrySet()) {
+                // use new topic and qos
+                entry.getKey().send(Publish.outgoing(packet, topic.topic().value(), entry.getValue()));
+            }
+        }
+    }
+
+    protected abstract List<Topic> topicBy(String topicName);
 
     @Override
     public Session accepted(Connect packet, Channel channel) throws Exception {
@@ -42,18 +60,13 @@ public abstract class AbstractBroker implements Broker {
             Topic.TopicFilter topicFilter = new DefaultTopic.DefaultTopicFilter(sub.getTopic());
             int permittedQoS = decideSubscriptionQos(session, topicFilter, sub.getQos());
             ret.put(topicFilter, new DefaultSubscription(topicFilter, permittedQoS, session));
-            Topic topic = findTopic(topicFilter);
-            if (topic == null) {
-                topic = createNewTopic(topicFilter);
-            }
+            Topic topic = topicBy(topicFilter);
             topic.addSubscriber(session, permittedQoS);
         }
         return ret;
     }
 
-    protected abstract Topic createNewTopic(Topic.TopicFilter topicFilter);
-
-    protected abstract Topic findTopic(Topic.TopicFilter topicFilter);
+    protected abstract Topic topicBy(Topic.TopicFilter topicFilter);
 
     protected abstract int decideSubscriptionQos(Session session, Topic.TopicFilter topicFilter, int requiredQoS);
 
@@ -81,9 +94,9 @@ public abstract class AbstractBroker implements Broker {
         session.keepAlive(packet.keepAlive());
         session.cleanSession(packet.cleanSession());
         // session bind to broker;
-        bind(session);
+        bindSession(session);
     }
 
-    protected abstract void bind(AbstractSession session);
+    protected abstract void bindSession(AbstractSession session);
 
 }

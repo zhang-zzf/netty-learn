@@ -14,9 +14,9 @@ public class SubAck extends ControlPacket {
     @Getter
     private final short packetIdentifier;
     @Getter
-    private final List<Subscription> subscriptionList;
+    private final List<Subscribe.Subscription> subscriptionList;
 
-    public SubAck(short packetIdentifier, List<Subscription> subscriptionList) {
+    public SubAck(short packetIdentifier, List<Subscribe.Subscription> subscriptionList) {
         super((byte) 0x02, 0x01 * subscriptionList.size());
         this.packetIdentifier = packetIdentifier;
         this.subscriptionList = subscriptionList;
@@ -26,8 +26,8 @@ public class SubAck extends ControlPacket {
     public ByteBuf toByteBuf() {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
-        for (Subscription s : subscriptionList) {
-            buf.writeByte(s.getQos());
+        for (Subscribe.Subscription s : subscriptionList) {
+            buf.writeByte(s.qos());
         }
         return buf;
 

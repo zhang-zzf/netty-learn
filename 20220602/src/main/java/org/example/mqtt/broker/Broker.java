@@ -3,6 +3,7 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscribe;
 
 import java.util.List;
 import java.util.Map;
@@ -40,19 +41,16 @@ public interface Broker extends AutoCloseable {
     /**
      * register a subscription between the session and the topic
      *
-     * @param session session
      * @param subscriptions the topic and the qos
-     * @return subscription
      */
-    Map<Topic.TopicFilter, Subscription> register(Session session, List<org.example.mqtt.model.Subscription> subscriptions);
+   List<Subscription> register(List<Subscription> subscriptions);
 
     /**
      * deregister a subscription between the session and the topic
      *
-     * @param session session
      * @param subscriptions the topic and the qos
      */
-    void deregister(Session session, List<org.example.mqtt.model.Subscription> subscriptions);
+    void deregister(List<Subscription> subscriptions);
 
     Set<Integer> supportProtocolLevel();
 

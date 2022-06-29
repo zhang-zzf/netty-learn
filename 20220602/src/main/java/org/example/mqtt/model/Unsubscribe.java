@@ -16,8 +16,11 @@ public class Unsubscribe extends ControlPacket {
 
     @Getter
     private short packetIdentifier;
-    @Getter
-    private List<Subscription> subscriptionList;
+    private List<Subscribe.Subscription> subscriptions;
+
+    public List<Subscribe.Subscription> subscriptions() {
+        return this.subscriptions;
+    }
 
     public Unsubscribe(ByteBuf buf) {
         super(buf);
@@ -27,11 +30,11 @@ public class Unsubscribe extends ControlPacket {
     protected void initPacket() {
         final ByteBuf buf = this.buf;
         this.packetIdentifier = buf.readShort();
-        this.subscriptionList = new ArrayList<>();
+        this.subscriptions = new ArrayList<>();
         try {
             while (buf.isReadable()) {
                 String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-                this.subscriptionList.add(new Subscription(topic, 0));
+                this.subscriptions.add(new Subscribe.Subscription(topic, 0));
             }
         } catch (Exception e) {
             // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings
@@ -47,7 +50,7 @@ public class Unsubscribe extends ControlPacket {
             return false;
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.
-        return !subscriptionList.isEmpty();
+        return !subscriptions.isEmpty();
     }
 
 }

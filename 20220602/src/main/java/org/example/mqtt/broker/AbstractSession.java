@@ -8,10 +8,13 @@ import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
-import java.util.*;
+import java.util.Deque;
+import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.broker.ControlPacketContext.*;
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
@@ -217,19 +220,21 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doReceiveUnsubscribe(Unsubscribe packet) {
-        broker.deregister(this, packet.getSubscriptionList());
+        List<Subscription> subscriptions = packet.subscriptions().stream()
+                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
+                .collect(toList());
+        broker.deregister(subscriptions);
     }
 
     private void doReceiveSubscribe(Subscribe packet) {
-        List<org.example.mqtt.model.Subscription> subscriptions = packet.subscriptionList();
-        Map<Topic.TopicFilter, Subscription> resp = broker.register(this, subscriptions);
-        List<org.example.mqtt.model.Subscription> permittedSubscriptions = new ArrayList<>(subscriptions.size());
-        for (org.example.mqtt.model.Subscription subscription : subscriptions) {
-            permittedSubscriptions.add(new org.example.mqtt.model.Subscription()
-                    .setTopic(subscription.getTopic())
-                    // todo
-                    .setQos(0x80));
-        }
+        List<Subscription> subscriptions = packet.subscriptions().stream()
+                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
+                .collect(toList());
+        // register the Subscribe
+        List<Subscription> permitted = broker.register(subscriptions);
+        List<Subscribe.Subscription> permittedSubscriptions = permitted.stream()
+                .map(s -> new Subscribe.Subscription(s.topicFilter(), s.qos()))
+                .collect(toList());
         channel.writeAndFlush(new SubAck(packet.packetIdentifier(), permittedSubscriptions));
     }
 

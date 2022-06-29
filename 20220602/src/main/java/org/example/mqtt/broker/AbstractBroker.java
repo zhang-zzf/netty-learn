@@ -3,6 +3,7 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import org.example.mqtt.broker.jvm.DefaultTopic;
 import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.Subscribe;
 
 import java.util.HashMap;
 import java.util.List;
@@ -35,23 +36,9 @@ public abstract class AbstractBroker implements Broker {
         return session;
     }
 
-    @Override
-    public Map<Topic.TopicFilter, Subscription> register(Session session,
-                                                         List<org.example.mqtt.model.Subscription> subscriptions) {
-        Map<Topic.TopicFilter, Subscription> ret = new HashMap<>(subscriptions.size());
-        for (org.example.mqtt.model.Subscription sub : subscriptions) {
-            Topic.TopicFilter topicFilter = new DefaultTopic.DefaultTopicFilter(sub.getTopic());
-            int permittedQoS = decideSubscriptionQos(session, topicFilter, sub.getQos());
-            ret.put(topicFilter, new DefaultSubscription(topicFilter, permittedQoS, session));
-            Topic topic = topicBy(topicFilter);
-            topic.addSubscriber(session, permittedQoS);
-        }
-        return ret;
-    }
-
     protected abstract Topic topicBy(Topic.TopicFilter topicFilter);
 
-    protected abstract int decideSubscriptionQos(Session session, Topic.TopicFilter topicFilter, int requiredQoS);
+    protected abstract int decideSubscriptionQos(Subscription subscription);
 
 
     /**

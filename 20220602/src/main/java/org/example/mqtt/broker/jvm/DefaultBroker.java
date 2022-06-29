@@ -1,13 +1,10 @@
 package org.example.mqtt.broker.jvm;
 
 import io.netty.channel.Channel;
-import org.example.mqtt.broker.AbstractBroker;
-import org.example.mqtt.broker.AbstractSession;
-import org.example.mqtt.broker.Session;
-import org.example.mqtt.broker.Topic;
+import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscription;
+import org.example.mqtt.model.Subscribe;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,6 +22,19 @@ public class DefaultBroker extends AbstractBroker {
     private ConcurrentMap<String, AbstractSession> sessionMap = new ConcurrentHashMap<>();
 
     private ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
+
+    @Override
+    public List<Subscription> register(List<Subscription> subscriptions) {
+        List<Subscription> permittedSub = new ArrayList<>(subscriptions.size());
+        for (Subscription sub : subscriptions) {
+            Topic.TopicFilter topicFilter = new DefaultTopic.DefaultTopicFilter(sub.topicFilter());
+            Topic topic = topicBy(topicFilter);
+            int permittedQoS = decideSubscriptionQos(sub);
+            topic.addSubscriber(sub.session(), permittedQoS);
+            permittedSub.add(Subscription.from(sub.topicFilter(), permittedQoS, sub.session()));
+        }
+        return permittedSub;
+    }
 
     @Override
     public void onward(Publish packet) {
@@ -96,16 +106,16 @@ public class DefaultBroker extends AbstractBroker {
     }
 
     @Override
-    protected int decideSubscriptionQos(Session session, Topic.TopicFilter topicFilter, int requiredQoS) {
-        return requiredQoS;
+    protected int decideSubscriptionQos(Subscription sub) {
+        return sub.qos();
     }
 
     @Override
-    public void deregister(Session session, List<Subscription> subscriptions) {
+    public void deregister(List<Subscription> subscriptions) {
         for (Subscription sub : subscriptions) {
-            Topic.TopicFilter filter = new DefaultTopic.DefaultTopicFilter(sub.getTopic());
+            Topic.TopicFilter filter = new DefaultTopic.DefaultTopicFilter(sub.topicFilter());
             Topic topic = topicBy(filter);
-            topic.removeSubscriber(session);
+            topic.removeSubscriber(sub.session());
             if (topic.isEmpty()) {
                 // remove the topic from the broker
                 topicMap.remove(filter, topic);

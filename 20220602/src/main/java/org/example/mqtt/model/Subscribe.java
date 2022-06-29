@@ -1,6 +1,9 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.experimental.Accessors;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,14 +17,14 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 public class Subscribe extends ControlPacket {
 
     private short packetIdentifier;
-    private List<Subscription> subscriptionList;
+    private List<Subscription> subscriptions;
 
     public Subscribe(ByteBuf buf) {
         super(buf);
     }
 
-    public List<Subscription> subscriptionList() {
-        return this.subscriptionList;
+    public List<Subscription> subscriptions() {
+        return this.subscriptions;
     }
 
     public short packetIdentifier() {
@@ -32,12 +35,12 @@ public class Subscribe extends ControlPacket {
     protected void initPacket() {
         final ByteBuf buf = this.buf;
         this.packetIdentifier = buf.readShort();
-        this.subscriptionList = new ArrayList<>();
+        this.subscriptions = new ArrayList<>();
         try {
             while (buf.isReadable()) {
                 String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
                 byte qos = buf.readByte();
-                this.subscriptionList.add(new Subscription(topic, qos));
+                this.subscriptions.add(new Subscription(topic, qos));
             }
         } catch (Exception e) {
             //
@@ -53,11 +56,11 @@ public class Subscribe extends ControlPacket {
             return false;
         }
         //  The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.
-        if (subscriptionList.isEmpty()) {
+        if (subscriptions.isEmpty()) {
             return false;
         }
-        for (Subscription sub : subscriptionList) {
-            int qos = sub.getQos();
+        for (Subscription sub : subscriptions) {
+            int qos = sub.qos();
             // The Server MUST treat a SUBSCRIBE packet as malformed and close the
             // Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2
             if ((qos & 0xFC) != 0) {
@@ -70,6 +73,29 @@ public class Subscribe extends ControlPacket {
             }
         }
         return true;
+    }
+
+    /**
+     * @author zhanfeng.zhang
+     * @date 2022/06/23
+     */
+    @Accessors(chain = true)
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Subscription {
+
+        private String topicFilter;
+        private int qos;
+
+        public String topicFilter() {
+            return this.topicFilter;
+        }
+
+        public int qos() {
+            return this.qos;
+        }
+
+
     }
 
 }

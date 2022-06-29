@@ -130,4 +130,20 @@ class ByteBufTest {
         then(heapBuf.release()).isTrue();
     }
 
+    /**
+     * 测试 Unpooled.heapBuffer() 的内存释放
+     */
+    @Test
+    void givenUnpooledDirectBuffer_whenRelease_then() {
+        ByteBuf heapBuf = Unpooled.directBuffer();
+        then(heapBuf.refCnt()).isEqualTo(1);
+        ByteBuf retain = heapBuf.retain();
+        then(retain).isSameAs(heapBuf);
+        then(heapBuf.refCnt()).isEqualTo(2);
+        then(heapBuf.release()).isFalse();
+        then(heapBuf.release()).isTrue();
+    }
+
+
+
 }

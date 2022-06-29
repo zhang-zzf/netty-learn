@@ -30,14 +30,15 @@ public abstract class ControlPacket {
     /**
      * build incoming Packet
      *
-     * @param buf packet
+     * @param packet packet
      */
-    public ControlPacket(ByteBuf buf) {
-        this.buf = Unpooled.copiedBuffer(buf);
-        buf.markReaderIndex();
+    public ControlPacket(ByteBuf packet) {
+        // todo : to be optimized
+        this.buf = Unpooled.copiedBuffer(packet);
+        this.buf.markReaderIndex();
         try {
-            this._0byte = buf.readByte();
-            this.remainingLength = readRemainingLength(buf);
+            this._0byte = this.buf.readByte();
+            this.remainingLength = readRemainingLength(this.buf);
             // should read all the bytes out of the packet.
             initPacket();
             if (this.buf.isReadable()) {
@@ -45,9 +46,9 @@ public abstract class ControlPacket {
                 throw new IllegalArgumentException();
             }
         } catch (Exception e) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException(e);
         } finally {
-            buf.resetReaderIndex();
+            this.buf.resetReaderIndex();
         }
     }
 
@@ -114,7 +115,7 @@ public abstract class ControlPacket {
     }
 
     public static byte type(byte _0byte) {
-        return (byte) (_0byte & 0xF0);
+        return (byte) (_0byte >> 4);
     }
 
     public byte type() {

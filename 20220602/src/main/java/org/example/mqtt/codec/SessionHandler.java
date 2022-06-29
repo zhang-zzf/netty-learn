@@ -44,7 +44,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket)) {
             log.error("channelRead msg is not ControlPacket, now close the Session and channel");
-            if (session != null) {
+            if (existSession()) {
                 session.close();
             }
             ctx.close();
@@ -63,12 +63,12 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             // A Client can only send the CONNECT Packet once over a Network Connection.
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
-            if (session != null) {
-                log.error("channelRead send Connect packet more than once, now close channel");
-                ctx.close();
+            if (existSession()) {
+                log.error("channelRead send Connect packet more than once, now close session");
+                session.close();
             }
-            // The Server MUST respond to the CONNECT Packet with a CONNACK
-            // return code 0x01 (unacceptable protocol level) and then
+            // The Server MUST respond to the CONNECT Packet
+            // with a CONNACK return code 0x01 (unacceptable protocol level) and then
             // disconnect the Client if the Protocol Level is not supported by the Server
             Set<Integer> supportProtocolLevel = broker.supportProtocolLevel();
             if (!supportProtocolLevel.contains(connect.protocolLevel())) {
@@ -89,7 +89,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             }
             // broker try accept the Connect packet
             Session accepted = broker.accepted(connect, ctx.channel());
-            if (session != null) {
+            if (accepted != null) {
                 this.session = accepted;
             } else {
                 // just close the Channel
@@ -131,7 +131,16 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         if (cause instanceof ReadTimeoutException) {
             log.error("channel read timeout, now close the channel");
         }
-        super.exceptionCaught(ctx, cause);
+        log.error("channel fire unexpected exception. now close the session", cause);
+        if (existSession()) {
+            session.close();
+        } else {
+            ctx.close();
+        }
+    }
+
+    private boolean existSession() {
+        return session != null;
     }
 
 }

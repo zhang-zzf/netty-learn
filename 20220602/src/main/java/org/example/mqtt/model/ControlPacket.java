@@ -58,6 +58,20 @@ public abstract class ControlPacket {
      * @return model
      */
     public static ControlPacket from(ByteBuf packet) {
+        ControlPacket controlPacket = convertToControlPacket(packet);
+        if (!controlPacket.packetValidate()) {
+            throw new IllegalArgumentException("packet validate failed: protocol violation.");
+        }
+        return controlPacket;
+    }
+
+    /**
+     * convert ByteBuf to ControlPacket
+     *
+     * @param packet ByteBuf
+     * @return ControlPacket
+     */
+    public static ControlPacket convertToControlPacket(ByteBuf packet) {
         byte _0byte = packet.getByte(packet.readerIndex());
         switch (type(_0byte)) {
             case CONNECT:

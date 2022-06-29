@@ -190,11 +190,14 @@ public abstract class AbstractSession implements Session {
     @Override
     public void messageReceived(ControlPacket packet) {
         switch (packet.type()) {
+            case SUBSCRIBE:
+                doReceiveSubscribe((Subscribe) packet);
+                break;
+            case UNSUBSCRIBE:
+                doReceiveUnsubscribe((Unsubscribe) packet);
+                break;
             case PUBLISH:
                 doReceivePublish((Publish) packet);
-                break;
-            case PUBREL:
-                doReceivePubRel((PubRel) packet);
                 break;
             case PUBACK:
                 doReceivePubAck((PubAck) packet);
@@ -202,14 +205,11 @@ public abstract class AbstractSession implements Session {
             case PUBREC:
                 doReceivePubRec((PubRec) packet);
                 break;
+            case PUBREL:
+                doReceivePubRel((PubRel) packet);
+                break;
             case PUBCOMP:
                 doReceivePubComp((PubComp) packet);
-                break;
-            case SUBSCRIBE:
-                doReceiveSubscribe((Subscribe) packet);
-                break;
-            case UNSUBSCRIBE:
-                doReceiveUnsubscribe((Unsubscribe) packet);
                 break;
             case DISCONNECT:
                 doReceiveDisconnect((Disconnect) packet);

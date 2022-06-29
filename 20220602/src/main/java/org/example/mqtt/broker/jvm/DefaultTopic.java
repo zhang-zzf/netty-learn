@@ -4,6 +4,7 @@ import org.example.mqtt.broker.Session;
 import org.example.mqtt.broker.Topic;
 
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -73,6 +74,23 @@ public class DefaultTopic implements Topic {
         @Override
         public boolean match(String topicName) {
             return value.equals(topicName);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            DefaultTopicFilter that = (DefaultTopicFilter) o;
+            return value.equals(that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
         }
 
     }

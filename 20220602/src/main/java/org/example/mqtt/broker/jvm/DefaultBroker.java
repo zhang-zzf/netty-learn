@@ -4,7 +4,6 @@ import io.netty.channel.Channel;
 import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -38,13 +37,16 @@ public class DefaultBroker extends AbstractBroker {
 
     @Override
     public void onward(Publish packet) {
-        List<Topic> forwardTopic = topicBy(packet.getTopicName());
+        List<Topic> forwardTopic = topicBy(packet.topicName());
         for (Topic topic : forwardTopic) {
             String topicName = topic.topicFilter().value();
             for (Map.Entry<Session, Integer> entry : topic.subscribers().entrySet()) {
                 Session session = entry.getKey();
-                Publish message = Publish.outgoing(packet, topicName, entry.getValue());
-                session.send(message);
+                byte qos = entry.getValue().byteValue();
+                /**
+                 * retained payload will be released when it was remove from outQueue
+                 */
+                session.send(Publish.retained(packet).topicName(topicName).qos(qos));
             }
         }
     }

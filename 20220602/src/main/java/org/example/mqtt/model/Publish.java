@@ -3,7 +3,6 @@ package org.example.mqtt.model;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.Getter;
 
 import java.util.Objects;
 
@@ -18,21 +17,20 @@ public class Publish extends ControlPacket {
     public static final int AT_MOST_ONCE = 0;
     public static final int AT_LEAST_ONCE = 1;
     public static final int EXACTLY_ONCE = 2;
-    public static final short UNKNOWN_PACKET_IDENTIFIER = 0;
 
-    @Getter
     private String topicName;
-    @Getter
     private short packetIdentifier;
-    @Getter
     private ByteBuf payload;
 
     public Publish(ByteBuf receivedPacket) {
         super(receivedPacket);
     }
 
-    public static Publish outgoing(Publish source, String topicName, Integer qos) {
-        return Publish.outgoing(qos, UNKNOWN_PACKET_IDENTIFIER, source.payload, topicName);
+    public static Publish retained(Publish origin) {
+        ByteBuf retainedPayload = origin.payload.retainedSlice();
+        return new Publish(origin._0byte, origin.remainingLength,
+                origin.packetIdentifier,
+                retainedPayload, origin.topicName);
     }
 
     @Override
@@ -47,9 +45,6 @@ public class Publish extends ControlPacket {
         CompositeByteBuf packet = Unpooled.compositeBuffer()
                 .addComponent(true, header)
                 .addComponent(true, payload);
-        // todo 待验证
-        // important: release the payload ByteBuf
-        this.payload.release(this.payload.refCnt());
         return packet;
     }
 
@@ -74,21 +69,6 @@ public class Publish extends ControlPacket {
     /**
      * 构建 outgoing Publish Message
      */
-    public static Publish outgoing(int qos, short packetIdentifier, ByteBuf payload, String topicName) {
-        if (topicName.length() > Short.MAX_VALUE) {
-            throw new IllegalArgumentException("TopicName is Illegal: overflow");
-        }
-        byte _0byte = build_0Byte();
-        int topicLength = topicName.length() + 2;
-        // remainingLength field
-        int packetIdentifierLength = needAck(qos) ? 2 : 0;
-        int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
-        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
-    }
-
-    /**
-     * 构建 outgoing Publish Message
-     */
     protected Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
@@ -98,6 +78,7 @@ public class Publish extends ControlPacket {
     }
 
     private static byte build_0Byte() {
+        // todo
         return 0;
     }
 
@@ -183,6 +164,33 @@ public class Publish extends ControlPacket {
     public Publish packetIdentifier(short packetIdentifier) {
         this.packetIdentifier = packetIdentifier;
         return this;
+    }
+
+    public ByteBuf payload() {
+        return this.payload;
+    }
+
+    public String topicName() {
+        return this.topicName;
+    }
+
+    public short packetIdentifier() {
+        return this.packetIdentifier;
+    }
+
+    public Publish topicName(String topicName) {
+        this.topicName = topicName;
+        return this;
+    }
+
+    public Publish qos(byte qos) {
+        this.updateQos(qos);
+        return this;
+    }
+
+    private void updateQos(byte qos) {
+        int clearQoS = this._0byte & 0xF9;
+        this._0byte = (byte) (clearQoS & qos);
     }
 
 }

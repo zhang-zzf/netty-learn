@@ -16,13 +16,6 @@ public interface Session extends AutoCloseable {
     String clientIdentifier();
 
     /**
-     * persistent
-     *
-     * @return true / false
-     */
-    boolean persistent();
-
-    /**
      * send a message to client
      *
      * @param message message

@@ -1,5 +1,6 @@
 package org.example.mqtt.codec;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutException;
@@ -11,6 +12,7 @@ import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.Session;
 import org.example.mqtt.model.*;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -44,39 +46,52 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket)) {
             log.error("channelRead msg is not ControlPacket, now close the Session and channel");
-            if (existSession()) {
-                session.close();
-            }
-            ctx.close();
+            closeSession(ctx);
             return;
         }
         ControlPacket cp = (ControlPacket) msg;
         try {
             channelRead0(ctx, cp);
+            // fireChannelRead if need just before release the ControlPacket
+            ctx.fireChannelRead(cp);
         } finally {
-            // release org.example.mqtt.model.ControlPacket.buf
-            cp.releasePacket();
+            /**
+             * release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+             */
+            cp._buf().release();
         }
     }
 
-    private void channelRead0(ChannelHandlerContext ctx, ControlPacket msg) throws Exception {
+    private boolean closeSession(ChannelHandlerContext ctx) throws Exception {
+        if (existSession()) {
+            session.close();
+        } else {
+            ctx.close();
+        }
+        return true;
+    }
+
+    /**
+     * @return true if channelRead0 close the session otherwise false;
+     */
+    private boolean channelRead0(ChannelHandlerContext ctx, ControlPacket msg) throws Exception {
         ControlPacket cp = msg;
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
-            ctx.close();
+            return closeSession(ctx);
+        }
+        // A Client can only send the CONNECT Packet once over a Network Connection.
+        // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
+        // and disconnect the Client
+        if (existSession() && cp instanceof Connect) {
+            log.error("channelRead send Connect packet more than once, now close session");
+            return closeSession(ctx);
         }
         // the first Connect Packet
         if (cp instanceof Connect) {
             Connect connect = (Connect) cp;
-            // A Client can only send the CONNECT Packet once over a Network Connection.
-            // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
-            // and disconnect the Client
-            if (existSession()) {
-                log.error("channelRead send Connect packet more than once, now close session");
-                session.close();
-            }
             // The Server MUST respond to the CONNECT Packet
             // with a CONNACK return code 0x01 (unacceptable protocol level) and then
             // disconnect the Client if the Protocol Level is not supported by the Server
@@ -84,14 +99,14 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             if (!supportProtocolLevel.contains(connect.protocolLevel())) {
                 log.error("not support protocol level, now send ConnAck and close channel");
                 ctx.writeAndFlush(ConnAck.notSupportProtocolLevel());
-                ctx.close();
+                return closeSession(ctx);
             }
             // authenticate
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
                 ctx.writeAndFlush(new ConnAck(authenticate));
-                ctx.close();
+                return closeSession(ctx);
             }
             // keep alive
             if (connect.keepAlive() > 0) {
@@ -105,7 +120,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 // just close the Channel
                 log.error("Broker does not accept the Connect, now send an ConnAck and close channel");
                 ctx.writeAndFlush(ConnAck.serverUnavailable());
-                ctx.close();
+                return closeSession(ctx);
             }
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
@@ -114,6 +129,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             // let the session handle the packet
             session.messageReceived(cp);
         }
+        return false;
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {
@@ -142,11 +158,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             log.error("channel read timeout, now close the channel");
         }
         log.error("channel fire unexpected exception. now close the session", cause);
-        if (existSession()) {
-            session.close();
-        } else {
-            ctx.close();
-        }
+        closeSession(ctx);
     }
 
     private boolean existSession() {

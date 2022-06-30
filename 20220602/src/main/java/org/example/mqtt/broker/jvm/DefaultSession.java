@@ -5,6 +5,7 @@ import org.example.mqtt.broker.AbstractBroker;
 import org.example.mqtt.broker.AbstractSession;
 import org.example.mqtt.broker.ControlPacketContext;
 import org.example.mqtt.broker.Topic;
+import org.example.mqtt.model.Publish;
 
 import java.util.Deque;
 import java.util.LinkedList;
@@ -20,6 +21,11 @@ public class DefaultSession extends AbstractSession {
 
     protected DefaultSession(Channel channel, AbstractBroker broker) {
         super(channel, broker);
+    }
+
+    @Override
+    protected void cleanOutgoingPublish(Publish packet) {
+        packet.payload().release();
     }
 
     @Override

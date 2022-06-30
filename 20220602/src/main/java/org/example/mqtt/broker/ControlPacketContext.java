@@ -41,7 +41,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubAck() {
-        return new PubAck(packet().getPacketIdentifier());
+        return new PubAck(packet().packetIdentifier());
     }
 
     public boolean canPublish() {
@@ -112,15 +112,15 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubRec() {
-        return new PubRec(packet().getPacketIdentifier());
+        return new PubRec(packet().packetIdentifier());
     }
 
     public ControlPacket pubRel() {
-        return new PubRel(packet().getPacketIdentifier());
+        return new PubRel(packet().packetIdentifier());
     }
 
     public ControlPacket pubComp() {
-        return new PubComp(packet().getPacketIdentifier());
+        return new PubComp(packet().packetIdentifier());
     }
 
     public ControlPacket retryPacket() {

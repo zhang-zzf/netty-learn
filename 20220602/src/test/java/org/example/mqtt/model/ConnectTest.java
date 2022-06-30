@@ -22,7 +22,7 @@ class ConnectTest {
         then(connect.packetValidate()).isTrue();
         // user outgoing packet as ingoing packet
         ByteBuf buf = connect.toByteBuf();
-        ControlPacket packet = Connect.from(buf, buf.readableBytes());
+        ControlPacket packet = Connect.from(buf);
         then(packet.packetValidate()).isTrue();
     }
 

@@ -40,7 +40,11 @@ public class Codec extends ByteToMessageCodec<ControlPacket> {
         // now we can decode a complete control packet.
         // use readRetainedSlice() to use zero-copy of ByteBuf (mostly in the direct area).
         // must release it after or it will cause memory leak
-        out.add(ControlPacket.from(in, packetLength));
+        ByteBuf packet = in.readRetainedSlice(packetLength);
+        /**
+         * The packet ByteBuf will be released by {@link SessionHandler#channelRead(ChannelHandlerContext, Object)}
+         */
+        out.add(ControlPacket.from(packet));
     }
 
     private int[] queryRemainingLength(ByteBuf in) {

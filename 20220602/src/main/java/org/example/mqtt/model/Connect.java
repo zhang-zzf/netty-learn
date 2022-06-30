@@ -176,13 +176,15 @@ public class Connect extends ControlPacket {
         clientIdentifier = packet.readCharSequence(packet.readShort(), UTF_8).toString();
         if (willFlag()) {
             willTopic = packet.readCharSequence(packet.readShort(), UTF_8).toString();
-            willMessage = packet.readSlice(packet.readShort());
+            willMessage = Unpooled.buffer(packet.readShort());
+            packet.readBytes(willMessage);
         }
         if (usernameFlag()) {
             username = packet.readCharSequence(packet.readShort(), UTF_8).toString();
         }
         if (passwordFlag()) {
-            password = packet.readSlice(packet.readShort());
+            password = Unpooled.buffer(packet.readShort());
+            packet.readBytes(password);
         }
     }
 

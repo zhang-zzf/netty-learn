@@ -33,7 +33,6 @@ public abstract class ControlPacket {
      * @param packet packet
      */
     public ControlPacket(ByteBuf packet) {
-        // todo : to be optimized
         this.packet = packet.discardReadBytes();
         this.packet.markReaderIndex();
         try {
@@ -56,11 +55,10 @@ public abstract class ControlPacket {
      * ByteBuf to model
      *
      * @param buf the data packet
-     * @param packetLength packet length
      * @return model
      */
-    public static ControlPacket from(ByteBuf buf, int packetLength) {
-        ControlPacket controlPacket = convertToControlPacket(buf, packetLength);
+    public static ControlPacket from(ByteBuf buf) {
+        ControlPacket controlPacket = convertToControlPacket(buf);
         if (!controlPacket.packetValidate()) {
             throw new IllegalArgumentException("packet validate failed: protocol violation.");
         }
@@ -70,12 +68,10 @@ public abstract class ControlPacket {
     /**
      * convert ByteBuf to ControlPacket
      *
-     * @param buf ByteBuf
-     * @param packetLength packet length
+     * @param packet ByteBuf
      * @return ControlPacket
      */
-    public static ControlPacket convertToControlPacket(ByteBuf buf, int packetLength) {
-        ByteBuf packet = retainedPacket(buf, packetLength);
+    public static ControlPacket convertToControlPacket(ByteBuf packet) {
         byte _0byte = packet.getByte(packet.readerIndex());
         switch (type(_0byte)) {
             case CONNECT:
@@ -101,10 +97,6 @@ public abstract class ControlPacket {
             default:
                 throw new IllegalArgumentException();
         }
-    }
-
-    private static ByteBuf retainedPacket(ByteBuf buf, int packetLength) {
-        return buf.readRetainedSlice(packetLength);
     }
 
     /**
@@ -171,8 +163,8 @@ public abstract class ControlPacket {
         return buf;
     }
 
-    public void releasePacket() {
-        this.packet.release();
+    public ByteBuf _buf() {
+        return this.packet;
     }
-
 }
+

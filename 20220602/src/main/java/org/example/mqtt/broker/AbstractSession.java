@@ -76,6 +76,9 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void send(ControlPacket packet) {
+        if (packet == null) {
+            return;
+        }
         // make sure use the safe thread that the session wad bound to
         if (eventLoop.inEventLoop()) {
             invokeSend(packet);
@@ -85,9 +88,6 @@ public abstract class AbstractSession implements Session {
     }
 
     private void invokeSend(ControlPacket packet) {
-        if (packet == null) {
-            return;
-        }
         // send immediately if can or queue the packet
         // put Publish packet into queue
         if (PUBLISH == packet.type()) {
@@ -108,6 +108,7 @@ public abstract class AbstractSession implements Session {
         Deque<ControlPacketContext> out = outQueue();
         // very little chance
         if (qos2DuplicateCheck(packet, out)) {
+            cleanOutgoingPublish(packet);
             return;
         }
         // generate packetIdentifier for the packet
@@ -127,14 +128,18 @@ public abstract class AbstractSession implements Session {
         queue.offer(cpx);
     }
 
-    private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> out) {
-        if (packet.exactlyOnce()) {
-            for (ControlPacketContext p : out) {
-                if (p.packet().equals(packet)) {
-                    // same packet
-                    log.info("qos2 same packet: {}", packet);
-                    return true;
-                }
+    private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> queue) {
+        if (packet.exactlyOnce() && existSamePacket(packet, queue)) {
+            log.info("qos2 same packet: {}", packet);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean existSamePacket(Publish packet, Queue<ControlPacketContext> queue) {
+        for (ControlPacketContext p : queue) {
+            if (p.packet().equals(packet)) {
+                return true;
             }
         }
         return false;
@@ -181,10 +186,15 @@ public abstract class AbstractSession implements Session {
         while (header != null && header.complete()) {
             // delete the complete cpx
             queue.poll();
-            // good for gc
+            // good fot GC
             header.setNext(null);
+            cleanOutgoingPublish(header.packet());
             header = queue.peek();
         }
+    }
+
+    protected void cleanOutgoingPublish(Publish packet) {
+        // noop
     }
 
     @Override
@@ -253,10 +263,10 @@ public abstract class AbstractSession implements Session {
             log.error("Client PubComp nothing. {}", packetIdentifier);
             return;
         }
-        if (cpx.packet().getPacketIdentifier() != packetIdentifier) {
+        if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubComp the right PacketIdentifier.
             log.error("Client may have lost some PubComp. need: {}, actual: {}, ",
-                    cpx.packet().getPacketIdentifier(), packetIdentifier);
+                    cpx.packet().packetIdentifier(), packetIdentifier);
             /* just drop it; */
             return;
         }
@@ -286,10 +296,10 @@ public abstract class AbstractSession implements Session {
             log.error("Client PubRec nothing. {}", packetIdentifier);
             return;
         }
-        if (cpx.packet().getPacketIdentifier() != packetIdentifier) {
+        if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubRec the right PacketIdentifier.
             log.error("Client may have lost some PubRec. need: {}, actual: {}, ",
-                    cpx.packet().getPacketIdentifier(), packetIdentifier);
+                    cpx.packet().packetIdentifier(), packetIdentifier);
             /* just drop it; */
             return;
         }
@@ -309,10 +319,10 @@ public abstract class AbstractSession implements Session {
             log.error("Client PubAck nothing. {}", packetIdentifier);
             return;
         }
-        if (cpx.packet().getPacketIdentifier() != packetIdentifier) {
+        if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubAck the right PacketIdentifier.
             log.error("Client may have lost some PubAck. need: {}, actual: {}, ",
-                    cpx.packet().getPacketIdentifier(), packetIdentifier);
+                    cpx.packet().packetIdentifier(), packetIdentifier);
             /* just drop it; */
             return;
         }
@@ -331,10 +341,10 @@ public abstract class AbstractSession implements Session {
             log.error("Client PubRel nothing. {}", packetIdentifier);
             return;
         }
-        if (cpx.packet().getPacketIdentifier() != packetIdentifier) {
+        if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubRel the right PacketIdentifier.
             log.error("Client may have lost some PubRel. need: {}, actual: {}, ",
-                    cpx.packet().getPacketIdentifier(), packetIdentifier);
+                    cpx.packet().packetIdentifier(), packetIdentifier);
             /* just drop it; */
             return;
         }
@@ -349,24 +359,14 @@ public abstract class AbstractSession implements Session {
 
     protected void doReceivePublish(Publish packet) {
         Deque<ControlPacketContext> inQueue = inQueue();
-        if (packet.needAck()) {
-            for (ControlPacketContext qosPacket : inQueue) {
-                if (packet.equals(qosPacket.packet())) {
-                    log.error("receive same Publish packet: {}", packet.getPacketIdentifier());
-                    // todo
-                    return;
-                }
-            }
+        if (packet.needAck() && existSamePacket(packet, inQueue)) {
+            log.error("receive same Publish packet: {}", packet.packetIdentifier());
+            return;
         }
         ControlPacketContext cpx = new ControlPacketContext(packet, RECEIVED);
         offer(inQueue, cpx);
-        // try transfer all the packet to relative subscribers
-        doReceive(cpx);
-    }
-
-    private void doReceive(ControlPacketContext cpx) {
         // todo : may broke when onward to relative subscriptions
-        Publish packet = cpx.packet();
+        // try transfer the packet to all relative subscribers
         broker().onward(packet);
         cpx.markStatus(RECEIVED, ONWARD);
         // now cpx is ONWARD
@@ -448,11 +448,6 @@ public abstract class AbstractSession implements Session {
     @Override
     public Broker broker() {
         return this.broker;
-    }
-
-    @Override
-    public boolean persistent() {
-        return !this.cleanSession;
     }
 
     @Override

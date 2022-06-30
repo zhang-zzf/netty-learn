@@ -240,7 +240,7 @@ public abstract class AbstractSession implements Session {
 
     protected void doReceiveDisconnect(Disconnect packet) {
         log.info("receive Disconnect packet, now clean the session and close the Channel");
-        close();
+        this.close();
     }
 
     protected void doReceivePubComp(PubComp packet) {

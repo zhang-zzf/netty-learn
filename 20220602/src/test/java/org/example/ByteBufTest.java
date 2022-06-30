@@ -1,11 +1,12 @@
 package org.example;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.util.IllegalReferenceCountException;
 import org.junit.jupiter.api.Test;
 
-import java.nio.charset.StandardCharsets;
-
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 
@@ -68,7 +69,7 @@ class ByteBufTest {
     void givenByteBuf_whenSearch_then() {
         final ByteBuf buffer = Unpooled.buffer();
         // write 8 bytes
-        byte[] str = "Hello, World".getBytes(StandardCharsets.UTF_8);
+        byte[] str = "Hello, World".getBytes(UTF_8);
         if (buffer.maxWritableBytes() >= str.length) {
             buffer.writeBytes(str);
         }
@@ -87,7 +88,7 @@ class ByteBufTest {
     @Test
     void givenByteBuf_whenDerive_then() {
         final ByteBuf buffer = Unpooled.buffer();
-        byte[] str = "Hello, World".getBytes(StandardCharsets.UTF_8);
+        byte[] str = "Hello, World".getBytes(UTF_8);
         if (buffer.maxWritableBytes() >= str.length) {
             buffer.writeBytes(str);
         }
@@ -105,7 +106,7 @@ class ByteBufTest {
     @Test
     void givenByteBuf_whenReadBytesToByteBuf_then() {
         ByteBuf buffer = Unpooled.buffer();
-        byte[] str = "Hello, World".getBytes(StandardCharsets.UTF_8);
+        byte[] str = "Hello, World".getBytes(UTF_8);
         if (buffer.maxWritableBytes() >= str.length) {
             buffer.writeBytes(str);
         }
@@ -131,11 +132,41 @@ class ByteBufTest {
     }
 
     /**
-     * 测试 Unpooled.heapBuffer() 的内存释放
+     * 测试 Unpooled.DirectBuffer() 的内存释放
      */
     @Test
     void givenUnpooledDirectBuffer_whenRelease_then() {
-        ByteBuf heapBuf = Unpooled.directBuffer();
+        ByteBuf directBuffer = Unpooled.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        ByteBuf retain = directBuffer.retain();
+        then(retain).isSameAs(directBuffer);
+        then(directBuffer.refCnt()).isEqualTo(2);
+        then(directBuffer.release()).isFalse();
+        then(directBuffer.release()).isTrue();
+    }
+
+    /**
+     * 测试 PooledByteBufAllocator.directBuffer() 的内存释放
+     */
+    @Test
+    void givenPooledByteBufAllocator_whenAllocateReleaseDirectByteBuf_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.buffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        ByteBuf retain = directBuffer.retain();
+        then(retain).isSameAs(directBuffer);
+        then(directBuffer.refCnt()).isEqualTo(2);
+        then(directBuffer.release()).isFalse();
+        then(directBuffer.release()).isTrue();
+    }
+
+    /**
+     * 测试 PooledByteBufAllocator.heapBuffer() 的内存释放
+     */
+    @Test
+    void givenPooledByteBufAllocator_whenAllocateReleaseHeapBuffer_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf heapBuf = PooledByteBufAllocator.DEFAULT.heapBuffer();
         then(heapBuf.refCnt()).isEqualTo(1);
         ByteBuf retain = heapBuf.retain();
         then(retain).isSameAs(heapBuf);
@@ -144,6 +175,111 @@ class ByteBufTest {
         then(heapBuf.release()).isTrue();
     }
 
+    /**
+     * 测试 PooledByteBufAllocator.heapBuffer() 的内存释放
+     * <p>slice()</p>
+     * <p>验证结果：source buffer release 后，访问 slice() 的 buffer 抛出 IllegalReferenceCountException </p>
+     */
+    @Test
+    void givenPooledByteBufAllocator_whenSlice_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        String str = "Hello, World!\n 你好，世界。！";
+        directBuffer.writeShort(str.length());
+        directBuffer.writeCharSequence(str, UTF_8);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        ByteBuf noRetainedSlice = directBuffer.readSlice(str.length());
+        // release directBuffer
+        then(directBuffer.release()).isTrue();
+        Throwable throwable = catchThrowable(() -> noRetainedSlice.readCharSequence(str.length(), UTF_8));
+        then(throwable).isNotNull().isInstanceOf(IllegalReferenceCountException.class);
+    }
 
+    /**
+     * 测试 PooledByteBufAllocator.heapBuffer() 的内存释放
+     * <p>retainedSlice()</p>
+     * <p>验证结果：source buffer release 后，访问 slice() 的 buffer 抛出 IllegalReferenceCountException </p>
+     */
+    @Test
+    void givenPooledByteBufAllocator_whenRetainedSlice_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        String str = "Hello, World!\n你好，世界。！";
+        // 错误的用法
+        // str.length 返回的值 char 类型的字符数量（21）
+        directBuffer.writeShort(str.length());
+        // writeCharSequence 会写入 utf_8 编码后的字节数量（35）
+        directBuffer.writeCharSequence(str, UTF_8);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        ByteBuf noRetainedSlice = directBuffer.readRetainedSlice(str.length() + 2);
+        // release directBuffer
+        then(directBuffer.release()).isFalse();
+        Throwable throwable = catchThrowable(() -> noRetainedSlice.readCharSequence(noRetainedSlice.readShort(), UTF_8));
+        then(throwable).isNull();
+    }
+
+
+    /**
+     * 系统支持 Unicode, 每个中文算一个 char
+     * <p>Java 中每个 char 占用 2 个 byte，如何表示 ? 中国：U+4E2DU+56FD</p>
+     */
+    @Test
+    public void given中文_whenUTF8_then() {
+        //你好，世界。！unicode          =>  \u4f60\u597d\uff0c\u4e16\u754c\u3002\uff01 共7个字符
+        //你好，世界。！UTF_8            =>  E4BDA0,E5A5BD,EFBC8C,E4B896,E7958C,E38082,EFBC81 共21个字节
+        // 'Hello, World!\n' unicode  => 'Hello, World!\n'  共 14 个字符
+        // 'Hello, World!\n' utf_8    => 48,65,6C,6C,6F,2C,20,57,6F,72,6C,64,21,0A 共14个字节
+        String str = "Hello, World!\n你好，世界。！";
+        then(str.length()).isEqualTo(21);
+        char[] chars = str.toCharArray();
+        then(chars.length).isEqualTo(str.length());
+        //
+        String fromChars = new String(chars);
+        then(fromChars).isEqualTo(str);
+        byte[] bytes = str.getBytes(UTF_8);
+        then(bytes.length).isEqualTo(21 + 14);
+    }
+
+
+    @Test
+    void given中文_whenWriteByteBuf_thenFailed() {
+        ByteBuf buf = Unpooled.buffer();
+        String str = "Hello, World!\n你好，世界。！";
+        // 错误的用法
+        // str.length 返回的值 char 类型的字符数量（21）
+        buf.writeShort(str.length());
+        // writeCharSequence 会写入 utf_8 编码后的字节数量（35）
+        buf.writeCharSequence(str, UTF_8);
+        // 读不出来字符串
+        CharSequence actual = buf.readCharSequence(buf.readShort(), UTF_8);
+        then(actual).isNotEqualTo(str);
+    }
+
+    @Test
+    void given中文_whenWriteByteBuf_thenSuccess() {
+        ByteBuf buf = Unpooled.buffer();
+        String str = "Hello, World!\n你好，世界。！";
+        // 返回 UTF_8 编码后的字节数组（35个字节）
+        byte[] bytes = str.getBytes(UTF_8);
+        buf.writeShort(bytes.length);
+        buf.writeBytes(bytes);
+        CharSequence actual = buf.readCharSequence(buf.readShort(), UTF_8);
+        then(actual).isEqualTo(str);
+    }
+
+    @Test
+    void given中文_whenWriteByteBuf_thenSuccess2() {
+        ByteBuf buf = Unpooled.buffer();
+        String str = "Hello, World!\n你好，世界。！";
+        int marked = buf.writerIndex();
+        buf.writeShort(0);
+        buf.writeCharSequence(str, UTF_8);
+        int strUtf8Length = buf.writerIndex() - marked - 2;
+        buf.setShort(marked, strUtf8Length);
+        CharSequence actual = buf.readCharSequence(buf.readShort(), UTF_8);
+        then(actual).isEqualTo(str);
+    }
 
 }

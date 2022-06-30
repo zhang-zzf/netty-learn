@@ -18,7 +18,7 @@ public abstract class ControlPacket {
     public static final int PUBREC = 5;
     public static final int PUBACK = 4;
     public static final int PUBLISH = 3;
-    protected ByteBuf buf;
+    protected ByteBuf packet;
     protected byte _0byte;
     protected int remainingLength;
 
@@ -34,32 +34,33 @@ public abstract class ControlPacket {
      */
     public ControlPacket(ByteBuf packet) {
         // todo : to be optimized
-        this.buf = Unpooled.copiedBuffer(packet);
-        this.buf.markReaderIndex();
+        this.packet = packet.discardReadBytes();
+        this.packet.markReaderIndex();
         try {
-            this._0byte = this.buf.readByte();
-            this.remainingLength = readRemainingLength(this.buf);
+            this._0byte = this.packet.readByte();
+            this.remainingLength = readRemainingLength(this.packet);
             // should read all the bytes out of the packet.
             initPacket();
-            if (this.buf.isReadable()) {
+            if (this.packet.isReadable()) {
                 // control packet is illegal.
                 throw new IllegalArgumentException();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException(e);
         } finally {
-            this.buf.resetReaderIndex();
+            this.packet.resetReaderIndex();
         }
     }
 
     /**
      * ByteBuf to model
      *
-     * @param packet the data packet
+     * @param buf the data packet
+     * @param packetLength packet length
      * @return model
      */
-    public static ControlPacket from(ByteBuf packet) {
-        ControlPacket controlPacket = convertToControlPacket(packet);
+    public static ControlPacket from(ByteBuf buf, int packetLength) {
+        ControlPacket controlPacket = convertToControlPacket(buf, packetLength);
         if (!controlPacket.packetValidate()) {
             throw new IllegalArgumentException("packet validate failed: protocol violation.");
         }
@@ -69,10 +70,12 @@ public abstract class ControlPacket {
     /**
      * convert ByteBuf to ControlPacket
      *
-     * @param packet ByteBuf
+     * @param buf ByteBuf
+     * @param packetLength packet length
      * @return ControlPacket
      */
-    public static ControlPacket convertToControlPacket(ByteBuf packet) {
+    public static ControlPacket convertToControlPacket(ByteBuf buf, int packetLength) {
+        ByteBuf packet = retainedPacket(buf, packetLength);
         byte _0byte = packet.getByte(packet.readerIndex());
         switch (type(_0byte)) {
             case CONNECT:
@@ -98,6 +101,10 @@ public abstract class ControlPacket {
             default:
                 throw new IllegalArgumentException();
         }
+    }
+
+    private static ByteBuf retainedPacket(ByteBuf buf, int packetLength) {
+        return buf.readRetainedSlice(packetLength);
     }
 
     /**
@@ -162,6 +169,10 @@ public abstract class ControlPacket {
             buf.writeByte(encodedByte);
         } while (remainingLength > 0);
         return buf;
+    }
+
+    public void releasePacket() {
+        this.packet.release();
     }
 
 }

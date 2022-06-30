@@ -30,7 +30,7 @@ public class PubComp extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = this.buf.readShort();
+        this.packetIdentifier = this.packet.readShort();
     }
 
 }

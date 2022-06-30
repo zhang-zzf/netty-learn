@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import org.junit.jupiter.api.Test;
 
 import static io.netty.buffer.Unpooled.buffer;
@@ -23,7 +22,7 @@ class ConnectTest {
         then(connect.packetValidate()).isTrue();
         // user outgoing packet as ingoing packet
         ByteBuf buf = connect.toByteBuf();
-        ControlPacket packet = Connect.from(buf);
+        ControlPacket packet = Connect.from(buf, buf.readableBytes());
         then(packet.packetValidate()).isTrue();
     }
 

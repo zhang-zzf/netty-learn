@@ -111,7 +111,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         // generate packetIdentifier for the packet
-        Publish outgoing = Publish.outgoing(packet, nextPocketIdentifier());
+        Publish outgoing = packet.packetIdentifier(nextPocketIdentifier());
         ControlPacketContext cpx = new ControlPacketContext(outgoing, ControlPacketContext.CREATED);
         offer(out, cpx);
         // start send some packet
@@ -352,6 +352,7 @@ public abstract class AbstractSession implements Session {
         if (packet.needAck()) {
             for (ControlPacketContext qosPacket : inQueue) {
                 if (packet.equals(qosPacket.packet())) {
+                    log.error("receive same Publish packet: {}", packet.getPacketIdentifier());
                     // todo
                     return;
                 }

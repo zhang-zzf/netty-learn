@@ -33,7 +33,7 @@ public class Subscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = this.buf;
+        final ByteBuf buf = this.packet;
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
         try {

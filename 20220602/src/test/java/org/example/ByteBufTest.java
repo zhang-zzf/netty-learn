@@ -185,41 +185,73 @@ class ByteBufTest {
         // 使用 PoolByteBufAllocator
         ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
         then(directBuffer.refCnt()).isEqualTo(1);
-        String str = "Hello, World!\n 你好，世界。！";
-        directBuffer.writeShort(str.length());
-        directBuffer.writeCharSequence(str, UTF_8);
         directBuffer.writeLong(Integer.MAX_VALUE);
-        ByteBuf noRetainedSlice = directBuffer.readSlice(str.length());
+        ByteBuf noRetainedSlice = directBuffer.readSlice(8);
         // release directBuffer
         then(directBuffer.release()).isTrue();
-        Throwable throwable = catchThrowable(() -> noRetainedSlice.readCharSequence(str.length(), UTF_8));
+        Throwable throwable = catchThrowable(() -> noRetainedSlice.readLong());
         then(throwable).isNotNull().isInstanceOf(IllegalReferenceCountException.class);
     }
 
     /**
-     * 测试 PooledByteBufAllocator.heapBuffer() 的内存释放
+     * 测试 ByteBuf#readRetainedSlice() 的内存释放
      * <p>retainedSlice()</p>
-     * <p>验证结果：source buffer release 后，访问 slice() 的 buffer 抛出 IllegalReferenceCountException </p>
+     * <p>ByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
      */
     @Test
-    void givenPooledByteBufAllocator_whenRetainedSlice_then() {
+    void givenByteBuf_whenRetainedSlice_then2() {
         // 使用 PoolByteBufAllocator
         ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
         then(directBuffer.refCnt()).isEqualTo(1);
-        String str = "Hello, World!\n你好，世界。！";
-        // 错误的用法
-        // str.length 返回的值 char 类型的字符数量（21）
-        directBuffer.writeShort(str.length());
-        // writeCharSequence 会写入 utf_8 编码后的字节数量（35）
-        directBuffer.writeCharSequence(str, UTF_8);
         directBuffer.writeLong(Integer.MAX_VALUE);
-        ByteBuf noRetainedSlice = directBuffer.readRetainedSlice(str.length() + 2);
-        // release directBuffer
-        then(directBuffer.release()).isFalse();
-        Throwable throwable = catchThrowable(() -> noRetainedSlice.readCharSequence(noRetainedSlice.readShort(), UTF_8));
-        then(throwable).isNull();
+        //
+        // will increase the source bufffer's refCnt
+        ByteBuf retainedSlice = directBuffer.readRetainedSlice(8);
+        then(directBuffer.refCnt()).isEqualTo(2);
+        // slice buf.refCnt() == 1
+        then(retainedSlice.refCnt()).isEqualTo(1);
     }
 
+
+    /**
+     * 测试 ByteBuf#readRetainedSlice() 的内存释放
+     * <p>retainedSlice()</p>
+     * <p>ByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
+     * <p>source ByteBuf 和 slice ByteBuf 分别管理自己的 refCnt。</p>
+     * <p>核心点：slice ByteBuf released 后会引发 source ByteBuf 的 refCnt 减1</p>
+     */
+    @Test
+    void givenPooledByteBufAllocator_whenRetainedSlice_then2() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        //
+        // will increase the source bufffer's refCnt
+        ByteBuf retainedSlice = directBuffer.readRetainedSlice(8);
+        then(directBuffer.refCnt()).isEqualTo(2);
+        // slice buf.refCnt() == 1
+        then(retainedSlice.refCnt()).isEqualTo(1);
+        //
+        // increase slice buf's refCnt
+        retainedSlice.retain();
+        then(retainedSlice.refCnt()).isEqualTo(2);
+        //  source buf's refCnt do not change
+        then(directBuffer.refCnt()).isEqualTo(2);
+        //
+        // increase source buf's refCnt
+        directBuffer.retain();
+        then(directBuffer.refCnt()).isEqualTo(3);
+        then(retainedSlice.refCnt()).isEqualTo(2);
+        //
+        // release slice
+        then(retainedSlice.release()).isFalse();
+        then(retainedSlice.release()).isTrue();
+        // when slice buf was released (refCnt == 0), do release the source
+        then(directBuffer.refCnt()).isEqualTo(2);
+        then(directBuffer.release()).isFalse();
+        then(directBuffer.release()).isTrue();
+    }
 
     /**
      * 系统支持 Unicode, 每个中文算一个 char

@@ -51,6 +51,16 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         ControlPacket cp = (ControlPacket) msg;
+        try {
+            channelRead0(ctx, cp);
+        } finally {
+            // release org.example.mqtt.model.ControlPacket.buf
+            cp.releasePacket();
+        }
+    }
+
+    private void channelRead0(ChannelHandlerContext ctx, ControlPacket msg) throws Exception {
+        ControlPacket cp = msg;
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {

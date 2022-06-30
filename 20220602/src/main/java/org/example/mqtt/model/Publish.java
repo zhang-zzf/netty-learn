@@ -1,6 +1,7 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Getter;
 
@@ -36,14 +37,20 @@ public class Publish extends ControlPacket {
 
     @Override
     public ByteBuf toByteBuf() {
-        // todo direct buffer?
         ByteBuf header = fixedHeaderByteBuf();
         header.writeShort(topicName.length());
         header.writeCharSequence(topicName, UTF_8);
         if (needAck()) {
             header.writeShort(packetIdentifier);
         }
-        return Unpooled.compositeBuffer().addComponent(header).addComponent(payload);
+        // todo 待验证
+        CompositeByteBuf packet = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, payload);
+        // todo 待验证
+        // important: release the payload ByteBuf
+        this.payload.release(this.payload.refCnt());
+        return packet;
     }
 
     /**
@@ -65,18 +72,6 @@ public class Publish extends ControlPacket {
     }
 
     /**
-     * build new Publish packet from the packet
-     *
-     * @param packet source
-     * @param packetIdentifier new packetIdentifier
-     * @return the new Publish packet
-     */
-    public static Publish outgoing(Publish packet, short packetIdentifier) {
-        return new Publish(packet._0byte, packet.remainingLength,
-                packetIdentifier, packet.payload, packet.topicName);
-    }
-
-    /**
      * 构建 outgoing Publish Message
      */
     public static Publish outgoing(int qos, short packetIdentifier, ByteBuf payload, String topicName) {
@@ -91,7 +86,6 @@ public class Publish extends ControlPacket {
         return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
     }
 
-
     /**
      * 构建 outgoing Publish Message
      */
@@ -99,7 +93,8 @@ public class Publish extends ControlPacket {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
-        this.payload = payload;
+        // important: use retainedSlice() to increase the refCnt
+        this.payload = payload.retainedSlice();
     }
 
     private static byte build_0Byte() {
@@ -108,11 +103,12 @@ public class Publish extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.topicName = buf.readCharSequence(this.buf.readShort(), UTF_8).toString();
+        this.topicName = packet.readCharSequence(this.packet.readShort(), UTF_8).toString();
         if (needAck()) {
-            this.packetIdentifier = buf.readShort();
+            this.packetIdentifier = packet.readShort();
         }
-        this.payload = buf.readSlice(buf.readableBytes());
+        // important: use realRetainedSlice to retain packet
+        this.payload = packet.readRetainedSlice(packet.readableBytes());
     }
 
     @Override
@@ -176,6 +172,17 @@ public class Publish extends ControlPacket {
 
     public boolean atMostOnce() {
         return qos() == AT_MOST_ONCE;
+    }
+
+    /**
+     * update packetIdentifier
+     *
+     * @param packetIdentifier the new id
+     * @return this
+     */
+    public Publish packetIdentifier(short packetIdentifier) {
+        this.packetIdentifier = packetIdentifier;
+        return this;
     }
 
 }

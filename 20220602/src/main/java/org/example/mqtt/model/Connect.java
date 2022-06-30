@@ -169,20 +169,20 @@ public class Connect extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-        protocolLevel = buf.readByte();
-        connectFlags = buf.readByte();
-        keepAlive = buf.readShort();
-        clientIdentifier = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+        protocolName = packet.readCharSequence(packet.readShort(), UTF_8).toString();
+        protocolLevel = packet.readByte();
+        connectFlags = packet.readByte();
+        keepAlive = packet.readShort();
+        clientIdentifier = packet.readCharSequence(packet.readShort(), UTF_8).toString();
         if (willFlag()) {
-            willTopic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            willMessage = buf.readSlice(buf.readShort());
+            willTopic = packet.readCharSequence(packet.readShort(), UTF_8).toString();
+            willMessage = packet.readSlice(packet.readShort());
         }
         if (usernameFlag()) {
-            username = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+            username = packet.readCharSequence(packet.readShort(), UTF_8).toString();
         }
         if (passwordFlag()) {
-            password = buf.readSlice(buf.readShort());
+            password = packet.readSlice(packet.readShort());
         }
     }
 

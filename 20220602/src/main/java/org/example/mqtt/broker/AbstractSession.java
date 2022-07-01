@@ -9,12 +9,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
 import java.util.Deque;
-import java.util.List;
+import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.broker.ControlPacketContext.*;
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
@@ -34,33 +33,30 @@ import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
 @Slf4j
 public abstract class AbstractSession implements Session {
 
+    private String clientIdentifier;
     private final AtomicInteger pocketIdentifier = new AtomicInteger(0);
+    private boolean cleanSession;
+
+    private Deque<ControlPacketContext> inQueue = new LinkedList<>();
+    private Deque<ControlPacketContext> outQueue = new LinkedList<>();
     private ScheduledFuture retryTask;
     private final int retryPeriod = 3000;
-
-    private final EventLoop eventLoop;
-    private Channel channel;
 
     /**
      * whether the Session disconnect with the Client
      */
     private boolean disconnect;
-    private final AbstractBroker broker;
-
-    private String clientIdentifier;
-    private boolean cleanSession;
-
-    protected AbstractSession(Channel channel, AbstractBroker broker) {
-        this.channel = channel;
-        this.eventLoop = channel.eventLoop();
-        this.broker = broker;
-    }
+    /**
+     * bind to the same EventLoop that the channel was bind to.
+     */
+    private EventLoop eventLoop;
+    private Channel channel;
 
     @Override
     public void close() {
         if (cleanSession()) {
             // disconnect the session from the broker
-            broker().disconnect(this);
+            // broker().disconnect(this);
         }
         disconnect = true;
         channel.close();
@@ -193,19 +189,13 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    protected void cleanOutgoingPublish(Publish packet) {
-        // noop
+    private void cleanOutgoingPublish(Publish packet) {
+        packet.payload().release();
     }
 
     @Override
     public void messageReceived(ControlPacket packet) {
         switch (packet.type()) {
-            case SUBSCRIBE:
-                doReceiveSubscribe((Subscribe) packet);
-                break;
-            case UNSUBSCRIBE:
-                doReceiveUnsubscribe((Unsubscribe) packet);
-                break;
             case PUBLISH:
                 doReceivePublish((Publish) packet);
                 break;
@@ -221,39 +211,12 @@ public abstract class AbstractSession implements Session {
             case PUBCOMP:
                 doReceivePubComp((PubComp) packet);
                 break;
-            case DISCONNECT:
-                doReceiveDisconnect((Disconnect) packet);
-                break;
             default:
                 throw new IllegalArgumentException();
         }
     }
 
-    private void doReceiveUnsubscribe(Unsubscribe packet) {
-        List<Subscription> subscriptions = packet.subscriptions().stream()
-                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
-                .collect(toList());
-        broker.deregister(subscriptions);
-    }
-
-    private void doReceiveSubscribe(Subscribe packet) {
-        List<Subscription> subscriptions = packet.subscriptions().stream()
-                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
-                .collect(toList());
-        // register the Subscribe
-        List<Subscription> permitted = broker.register(subscriptions);
-        List<Subscribe.Subscription> permittedSubscriptions = permitted.stream()
-                .map(s -> new Subscribe.Subscription(s.topicFilter(), s.qos()))
-                .collect(toList());
-        channel.writeAndFlush(new SubAck(packet.packetIdentifier(), permittedSubscriptions));
-    }
-
-    protected void doReceiveDisconnect(Disconnect packet) {
-        log.info("receive Disconnect packet, now clean the session and close the Channel");
-        this.close();
-    }
-
-    protected void doReceivePubComp(PubComp packet) {
+    private void doReceivePubComp(PubComp packet) {
         short packetIdentifier = packet.getPacketIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
         ControlPacketContext cpx = findFirst(outQueue(), EXACTLY_ONCE);
@@ -331,7 +294,7 @@ public abstract class AbstractSession implements Session {
         cleanQueue(outQueue());
     }
 
-    protected void doReceivePubRel(PubRel packet) {
+    private void doReceivePubRel(PubRel packet) {
         short packetIdentifier = packet.getPacketIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
         ControlPacketContext cpx = findFirst(outQueue(), EXACTLY_ONCE);
@@ -357,7 +320,7 @@ public abstract class AbstractSession implements Session {
         });
     }
 
-    protected void doReceivePublish(Publish packet) {
+    private void doReceivePublish(Publish packet) {
         Deque<ControlPacketContext> inQueue = inQueue();
         if (packet.needAck() && existSamePacket(packet, inQueue)) {
             log.error("receive same Publish packet: {}", packet.packetIdentifier());
@@ -367,7 +330,7 @@ public abstract class AbstractSession implements Session {
         offer(inQueue, cpx);
         // todo : may broke when onward to relative subscriptions
         // try transfer the packet to all relative subscribers
-        broker().onward(packet);
+        doHandleReceivedPublish(packet);
         cpx.markStatus(RECEIVED, ONWARD);
         // now cpx is ONWARD
         if (packet.atMostOnce()) {
@@ -384,13 +347,24 @@ public abstract class AbstractSession implements Session {
     }
 
     /**
+     * do handle the Publish from the pair
+     *
+     * @param packet the Publish packet that received from pair
+     */
+    protected abstract void doHandleReceivedPublish(Publish packet);
+
+    /**
      * todo queue 实现算法优化
      *
      * @return inQueue
      */
-    protected abstract Deque<ControlPacketContext> inQueue();
+    private Deque<ControlPacketContext> inQueue() {
+        return this.inQueue;
+    }
 
-    protected abstract Deque<ControlPacketContext> outQueue();
+    private Deque<ControlPacketContext> outQueue() {
+        return this.outQueue;
+    }
 
     private ChannelFuture doWrite(ControlPacket packet) {
         startRetryTask();
@@ -435,7 +409,6 @@ public abstract class AbstractSession implements Session {
         return System.currentTimeMillis() - qosPacket.getMarkedMillis() >= retryPeriod;
     }
 
-
     protected short nextPocketIdentifier() {
         int id = pocketIdentifier.getAndIncrement();
         if (id >= Short.MAX_VALUE) {
@@ -446,23 +419,33 @@ public abstract class AbstractSession implements Session {
     }
 
     @Override
-    public Broker broker() {
-        return this.broker;
-    }
-
-    @Override
     public String clientIdentifier() {
         return this.clientIdentifier;
     }
 
-    AbstractSession clientIdentifier(String clientIdentifier) {
+    public AbstractSession clientIdentifier(String clientIdentifier) {
         this.clientIdentifier = clientIdentifier;
         return this;
     }
 
-    AbstractSession cleanSession(boolean cleanSession) {
+    public AbstractSession cleanSession(boolean cleanSession) {
         this.cleanSession = cleanSession;
         return this;
+    }
+
+    /**
+     * bind the session to a channel
+     *
+     * @param channel Channel use to send and receive data from pair
+     */
+    public void bindChannel(Channel channel) {
+        this.channel = channel;
+        this.eventLoop = channel.eventLoop();
+    }
+
+    @Override
+    public Channel channel() {
+        return this.channel;
     }
 
 }

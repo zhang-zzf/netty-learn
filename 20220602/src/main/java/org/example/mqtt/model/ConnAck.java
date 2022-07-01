@@ -42,6 +42,10 @@ public class ConnAck extends ControlPacket {
         this.returnCode = returnCode;
     }
 
+    public static ConnAck accepted() {
+        return new ConnAck();
+    }
+
     /**
      * 0x01 Connection Refused, unacceptable protocol version
      */

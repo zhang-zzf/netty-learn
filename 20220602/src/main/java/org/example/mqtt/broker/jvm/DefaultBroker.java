@@ -1,6 +1,5 @@
 package org.example.mqtt.broker.jvm;
 
-import io.netty.channel.Channel;
 import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
@@ -52,28 +51,36 @@ public class DefaultBroker extends AbstractBroker {
     }
 
     @Override
-    protected AbstractSession findSession(String clientIdentifier) {
-        return sessionMap.get(clientIdentifier);
+    public Session accepted(Connect packet) throws Exception {
+        AbstractSession session = sessionMap.get(packet.clientIdentifier());
+        // clean session is set to 0
+        if (!packet.cleanSession() && session != null) {
+            return session;
+        }
+        // clean session is set to 1
+        if (packet.cleanSession() && session != null) {
+            // discard any previous session if exist
+            session.close();
+        }
+        // create and init session
+        session = initAndBind(packet);
+        return session;
     }
 
-    @Override
-    protected boolean authenticate(Connect packet) {
-        return true;
-    }
 
     @Override
-    protected AbstractSession createNewSession(Channel channel) {
-        return new DefaultSession(channel, this);
-    }
-
-    @Override
-    protected void bindSession(AbstractSession session) {
-        AbstractSession previous = sessionMap.putIfAbsent(session.clientIdentifier(), session);
-        if (previous != null) {
+    protected AbstractSession initAndBind(Connect packet) {
+        // AbstractSession session = new AbstractSession(this);
+        AbstractSession session = null;
+        session.clientIdentifier(packet.clientIdentifier());
+        session.cleanSession(packet.cleanSession());
+        // session bind to broker;
+        if (sessionMap.putIfAbsent(session.clientIdentifier(), session) != null) {
+            // concurrent create the same clientIdentifier session
             throw new IllegalStateException();
         }
+        return session;
     }
-
 
     @Override
     public void disconnect(Session session) {

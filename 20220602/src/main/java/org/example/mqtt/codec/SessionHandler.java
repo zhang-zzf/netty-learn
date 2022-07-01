@@ -30,6 +30,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
     private final Broker broker;
     private final Authenticator authenticator;
     private final int activeIdleTimeoutSecond;
+    private ReadTimeoutHandler activeIdleTimeoutHandler;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -113,9 +114,11 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
             // broker try accept the Connect packet
-            Session accepted = broker.accepted(connect, ctx.channel());
+            Session accepted = broker.accepted(connect);
             if (accepted != null) {
                 this.session = accepted;
+                ctx.writeAndFlush(ConnAck.accepted());
+                // this.session.bindChannel()
             } else {
                 // just close the Channel
                 log.error("Broker does not accept the Connect, now send an ConnAck and close channel");
@@ -144,11 +147,16 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
     private void addActiveIdleTimeoutHandler(ChannelHandlerContext ctx) {
         ReadTimeoutHandler handler = new ReadTimeoutHandler(activeIdleTimeoutSecond);
         ctx.pipeline().addBefore(HANDLER_NAME, ACTIVE_IDLE_TIMEOUT_HANDLER, handler);
+        this.activeIdleTimeoutHandler = handler;
         log.info("addActiveIdleTimeoutHandler done");
     }
 
     private void removeActiveIdleTimeoutHandler(ChannelHandlerContext ctx) {
+        if (this.activeIdleTimeoutHandler == null) {
+            return;
+        }
         ctx.pipeline().remove(ACTIVE_IDLE_TIMEOUT_HANDLER);
+        this.activeIdleTimeoutHandler = null;
         log.info("removeActiveIdleTimeoutHandler done");
     }
 

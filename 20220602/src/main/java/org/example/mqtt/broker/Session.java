@@ -1,5 +1,6 @@
 package org.example.mqtt.broker;
 
+import io.netty.channel.Channel;
 import org.example.mqtt.model.ControlPacket;
 
 /**
@@ -30,18 +31,10 @@ public interface Session extends AutoCloseable {
     void messageReceived(ControlPacket message);
 
     /**
-     * the subscription qos for the topic of the session
+     * the channel that the session bind to
      *
-     * @param topic topic
-     * @return qos
+     * @return Channel
      */
-    Integer subscriptionQos(Topic topic);
-
-    /**
-     * the broker that session was bound to
-     *
-     * @return Broker
-     */
-    Broker broker();
+    Channel channel();
 
 }

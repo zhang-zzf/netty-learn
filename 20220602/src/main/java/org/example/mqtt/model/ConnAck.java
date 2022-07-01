@@ -57,6 +57,10 @@ public class ConnAck extends ControlPacket {
         return new ConnAck(0x03);
     }
 
+    public static ConnAck acceptedWithStoredSession() {
+        return new ConnAck(true, 0x00);
+    }
+
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = fixedHeaderByteBuf();

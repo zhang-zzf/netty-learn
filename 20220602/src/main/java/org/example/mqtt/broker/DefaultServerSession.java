@@ -9,18 +9,14 @@ import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.model.ControlPacket.*;
 
 /**
- *
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
 @Slf4j
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
-    private final Broker broker;
-
-    public DefaultServerSession(Broker broker) {
-        this.broker = broker;
-    }
+    private Broker broker;
+    private boolean registered;
 
     @Override
     public void messageReceived(ControlPacket packet) {
@@ -71,6 +67,28 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public Broker broker() {
         return this.broker;
+    }
+
+    @Override
+    public void register(Broker broker) {
+        this.broker = broker;
+        this.broker.bind(this);
+        this.registered = true;
+    }
+
+    @Override
+    public boolean isRegistered() {
+        return this.registered;
+    }
+
+    @Override
+    public void close() {
+        if (cleanSession()) {
+            // disconnect the session from the broker
+            broker().disconnect(this);
+            this.registered = false;
+        }
+        super.close();
     }
 
 }

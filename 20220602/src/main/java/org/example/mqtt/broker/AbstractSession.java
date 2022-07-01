@@ -43,10 +43,6 @@ public abstract class AbstractSession implements Session {
     private final int retryPeriod = 3000;
 
     /**
-     * whether the Session disconnect with the Client
-     */
-    private boolean disconnect;
-    /**
      * bind to the same EventLoop that the channel was bind to.
      */
     private EventLoop eventLoop;
@@ -54,19 +50,13 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void close() {
-        if (cleanSession()) {
-            // disconnect the session from the broker
-            // broker().disconnect(this);
-        }
-        disconnect = true;
         channel.close();
-        channel = null;
         if (retryTask != null) {
             retryTask.cancel(true);
         }
     }
 
-    private boolean cleanSession() {
+    protected boolean cleanSession() {
         return cleanSession;
     }
 
@@ -94,7 +84,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPacket(ControlPacket packet) {
-        if (disconnect()) {
+        if (!isBound()) {
             return;
         }
         doWrite(packet);
@@ -142,7 +132,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPublishPacket(ControlPacketContext cpx) {
-        if (disconnect()) {
+        if (!isBound()) {
             return;
         }
         while (true) {
@@ -171,10 +161,6 @@ public abstract class AbstractSession implements Session {
             // send the next packet in the queue if needed
             doSendPublishPacket(cpxToUse.next());
         });
-    }
-
-    private boolean disconnect() {
-        return disconnect;
     }
 
     private void cleanQueue(Deque<ControlPacketContext> queue) {
@@ -433,12 +419,8 @@ public abstract class AbstractSession implements Session {
         return this;
     }
 
-    /**
-     * bind the session to a channel
-     *
-     * @param channel Channel use to send and receive data from pair
-     */
-    public void bindChannel(Channel channel) {
+    @Override
+    public void bind(Channel channel) {
         this.channel = channel;
         this.eventLoop = channel.eventLoop();
     }
@@ -446,6 +428,11 @@ public abstract class AbstractSession implements Session {
     @Override
     public Channel channel() {
         return this.channel;
+    }
+
+    @Override
+    public boolean isBound() {
+        return channel != null;
     }
 
 }

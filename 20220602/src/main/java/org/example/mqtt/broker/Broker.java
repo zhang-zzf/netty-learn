@@ -1,5 +1,6 @@
 package org.example.mqtt.broker;
 
+import com.sun.security.ntlm.Server;
 import io.netty.channel.Channel;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
@@ -22,13 +23,7 @@ public interface Broker extends AutoCloseable {
      */
     void onward(Publish packet);
 
-    /**
-     * register a session to the broker
-     *
-     * @param packet data
-     * @return session session
-     */
-    Session accepted(Connect packet) throws Exception;
+    ServerSession session(String clientIdentifier);
 
     /**
      * deregister a session from the broker
@@ -52,5 +47,7 @@ public interface Broker extends AutoCloseable {
     void deregister(List<Subscription> subscriptions);
 
     Set<Integer> supportProtocolLevel();
+
+    void bind(ServerSession session);
 
 }

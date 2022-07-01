@@ -37,4 +37,17 @@ public interface Session extends AutoCloseable {
      */
     Channel channel();
 
+    /**
+     * bind the session to a channel
+     *
+     * @param channel Channel use to send and receive data from pair
+     */
+    void bind(Channel channel);
+
+    /**
+     * whether the Session is bound with a Channel
+     * @return Returns {@code true} if the {@link Session} is bound with a {@link Channel}.
+     */
+    boolean isBound();
+
 }

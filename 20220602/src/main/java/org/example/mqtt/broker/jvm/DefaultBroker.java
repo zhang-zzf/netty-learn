@@ -12,12 +12,12 @@ import java.util.concurrent.ConcurrentMap;
  * @author zhanfeng.zhang
  * @date 2022/06/28
  */
-public class DefaultBroker extends AbstractBroker {
+public class DefaultBroker implements Broker {
 
     /**
      * ClientIdentifier -> Session
      */
-    private ConcurrentMap<String, AbstractSession> sessionMap = new ConcurrentHashMap<>();
+    private ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
 
     private ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
 
@@ -36,50 +36,27 @@ public class DefaultBroker extends AbstractBroker {
 
     @Override
     public void onward(Publish packet) {
-        List<Topic> forwardTopic = topicBy(packet.topicName());
-        for (Topic topic : forwardTopic) {
-            String topicName = topic.topicFilter().value();
-            for (Map.Entry<Session, Integer> entry : topic.subscribers().entrySet()) {
-                Session session = entry.getKey();
-                byte qos = entry.getValue().byteValue();
+        for (Map.Entry<Topic.TopicFilter, Topic> entry : topicMap.entrySet()) {
+            if (!entry.getKey().match(packet.topicName())) {
+                continue;
+            }
+            Topic topic = entry.getValue();
+            for (Map.Entry<Session, Integer> subscriber : topic.subscribers().entrySet()) {
+                Session session = subscriber.getKey();
+                byte qos = subscriber.getValue().byteValue();
                 /**
                  * retained payload will be released when it was remove from outQueue
                  */
-                session.send(Publish.retained(packet).topicName(topicName).qos(qos));
+                Publish outgoing = Publish.retained(packet).topicName(topic.topicFilter().value()).qos(qos);
+                session.send(outgoing);
             }
+
         }
     }
 
     @Override
-    public Session accepted(Connect packet) throws Exception {
-        AbstractSession session = sessionMap.get(packet.clientIdentifier());
-        // clean session is set to 0
-        if (!packet.cleanSession() && session != null) {
-            return session;
-        }
-        // clean session is set to 1
-        if (packet.cleanSession() && session != null) {
-            // discard any previous session if exist
-            session.close();
-        }
-        // create and init session
-        session = initAndBind(packet);
-        return session;
-    }
-
-
-    @Override
-    protected AbstractSession initAndBind(Connect packet) {
-        // AbstractSession session = new AbstractSession(this);
-        AbstractSession session = null;
-        session.clientIdentifier(packet.clientIdentifier());
-        session.cleanSession(packet.cleanSession());
-        // session bind to broker;
-        if (sessionMap.putIfAbsent(session.clientIdentifier(), session) != null) {
-            // concurrent create the same clientIdentifier session
-            throw new IllegalStateException();
-        }
-        return session;
+    public ServerSession session(String clientIdentifier) {
+        return sessionMap.get(clientIdentifier);
     }
 
     @Override
@@ -89,19 +66,6 @@ public class DefaultBroker extends AbstractBroker {
         sessionMap.remove(session.clientIdentifier(), session);
     }
 
-    @Override
-    protected List<Topic> topicBy(String topicName) {
-        // todo should optimize match algorithm
-        List<Topic> ret = new ArrayList<>();
-        for (Map.Entry<Topic.TopicFilter, Topic> entry : topicMap.entrySet()) {
-            if (entry.getKey().match(topicName)) {
-                ret.add(entry.getValue());
-            }
-        }
-        return ret;
-    }
-
-    @Override
     protected Topic topicBy(Topic.TopicFilter topicFilter) {
         Topic topic = topicMap.get(topicFilter);
         if (topic == null) {
@@ -114,7 +78,6 @@ public class DefaultBroker extends AbstractBroker {
         return topic;
     }
 
-    @Override
     protected int decideSubscriptionQos(Subscription sub) {
         return sub.qos();
     }
@@ -135,6 +98,13 @@ public class DefaultBroker extends AbstractBroker {
     @Override
     public Set<Integer> supportProtocolLevel() {
         return new HashSet<>(Arrays.asList(4));
+    }
+
+    @Override
+    public void bind(ServerSession session) {
+        if (this.sessionMap.putIfAbsent(session.clientIdentifier(), session) != null) {
+            throw new IllegalStateException();
+        }
     }
 
     @Override

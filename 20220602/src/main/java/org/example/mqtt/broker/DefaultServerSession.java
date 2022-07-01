@@ -9,7 +9,6 @@ import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.model.ControlPacket.*;
 
 /**
- *
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
@@ -65,8 +64,17 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     protected void doReceiveDisconnect(Disconnect packet) {
         log.info("receive Disconnect packet, now clean the session and close the Channel");
-        this.close();
+        doDisconnect();
     }
+
+    private void doDisconnect() {
+        if (cleanSession()) {
+            // disconnect the session from the broker
+            broker().disconnect(this);
+        }
+        super.close();
+    }
+
 
     @Override
     public Broker broker() {

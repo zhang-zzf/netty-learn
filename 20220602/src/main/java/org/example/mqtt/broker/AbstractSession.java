@@ -43,7 +43,7 @@ public abstract class AbstractSession implements Session {
     private final int retryPeriod = 3000;
 
     /**
-     * whether the Session disconnect with the Client
+     * whether the Session disconnect with the Channel
      */
     private boolean disconnect;
     /**
@@ -54,19 +54,16 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void close() {
-        if (cleanSession()) {
-            // disconnect the session from the broker
-            // broker().disconnect(this);
-        }
         disconnect = true;
         channel.close();
         channel = null;
         if (retryTask != null) {
             retryTask.cancel(true);
+            retryTask = null;
         }
     }
 
-    private boolean cleanSession() {
+    protected boolean cleanSession() {
         return cleanSession;
     }
 
@@ -438,7 +435,7 @@ public abstract class AbstractSession implements Session {
      *
      * @param channel Channel use to send and receive data from pair
      */
-    public void bindChannel(Channel channel) {
+    public void bind(Channel channel) {
         this.channel = channel;
         this.eventLoop = channel.eventLoop();
     }

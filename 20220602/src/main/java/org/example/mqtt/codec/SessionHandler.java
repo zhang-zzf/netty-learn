@@ -7,9 +7,7 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.Session;
+import org.example.mqtt.broker.*;
 import org.example.mqtt.model.*;
 
 import java.util.List;
@@ -114,6 +112,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
             // broker try accept the Connect packet
+            ServerSession session = new DefaultServerSession(broker);
             Session accepted = broker.accepted(connect);
             if (accepted != null) {
                 this.session = accepted;

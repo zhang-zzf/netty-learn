@@ -1,7 +1,7 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
+import io.netty.buffer.Unpooled;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,7 +14,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
  */
 public class Unsubscribe extends ControlPacket {
 
-    @Getter
+    public static final byte _0_BYTE = (byte) 0xA2;
     private short packetIdentifier;
     private List<Subscribe.Subscription> subscriptions;
 
@@ -31,22 +31,53 @@ public class Unsubscribe extends ControlPacket {
         final ByteBuf buf = this.packet;
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
-        try {
-            while (buf.isReadable()) {
-                String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-                this.subscriptions.add(new Subscribe.Subscription(topic, 0));
-            }
-        } catch (Exception e) {
-            // The Topic Filters in an UNSUBSCRIBE packet MUST be UTF-8 encoded strings
-            throw new IllegalArgumentException(e);
+        while (buf.isReadable()) {
+            String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+            this.subscriptions.add(new Subscribe.Subscription(topic, 0));
         }
+    }
+
+    public static Unsubscribe from(List<Subscribe.Subscription> subscriptions) {
+        return from((short) 0, subscriptions);
+    }
+
+    public static Unsubscribe from(short packetIdentifier, List<Subscribe.Subscription> subscriptions) {
+        if (subscriptions.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        int remainingLength = 2;
+        for (Subscribe.Subscription s : subscriptions) {
+            remainingLength += (2 + s.topicFilter().getBytes(UTF_8).length);
+        }
+        return new Unsubscribe(_0_BYTE, remainingLength, packetIdentifier, subscriptions);
+    }
+
+    private Unsubscribe(byte _0Byte, int remainingLength,
+                        short packetIdentifier,
+                        List<Subscribe.Subscription> subscriptions) {
+        super(_0Byte, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.subscriptions = subscriptions;
+    }
+
+    @Override
+    public ByteBuf toByteBuf() {
+        ByteBuf header = fixedHeaderByteBuf();
+        header.writeShort(packetIdentifier);
+        ByteBuf payload = Unpooled.buffer(this.remainingLength);
+        for (Subscribe.Subscription s : subscriptions) {
+            byte[] bytes = s.topicFilter().getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
+        }
+        return Unpooled.compositeBuffer().addComponents(true, header, payload);
     }
 
     @Override
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (this._0byte != 0xA2) {
+        if (this._0byte != _0_BYTE) {
             return false;
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.

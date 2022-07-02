@@ -16,7 +16,11 @@ public class PubAck extends ControlPacket {
         super(buf);
     }
 
-    public PubAck(short packetIdentifier) {
+    public static PubAck from(short packetIdentifier) {
+        return new PubAck(packetIdentifier);
+    }
+
+    private PubAck(short packetIdentifier) {
         super((byte) 0x40, 0x02);
         this.packetIdentifier = packetIdentifier;
     }

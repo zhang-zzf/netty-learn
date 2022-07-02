@@ -8,13 +8,33 @@ import io.netty.buffer.ByteBuf;
  */
 public class PingReq extends ControlPacket {
 
+    public static final byte _0_BYTE = (byte) 0xC0;
+
     public PingReq(ByteBuf buf) {
         super(buf);
     }
 
+    private PingReq(byte _0Byte, int remainingLength) {
+        super(_0Byte, remainingLength);
+    }
+
+    public static PingReq from() {
+        return new PingReq(_0_BYTE, 0);
+    }
+
+    @Override
+    public ByteBuf toByteBuf() {
+        return fixedHeaderByteBuf();
+    }
+
     @Override
     public boolean packetValidate() {
-        return _0byte == 0xC0;
+        return _0byte == _0_BYTE;
+    }
+
+    @Override
+    protected void initPacket() {
+        // noop
     }
 
 }

@@ -37,8 +37,8 @@ public abstract class AbstractSession implements Session {
     private final AtomicInteger pocketIdentifier = new AtomicInteger(0);
     private boolean cleanSession;
 
-    private Deque<ControlPacketContext> inQueue = new LinkedList<>();
-    private Deque<ControlPacketContext> outQueue = new LinkedList<>();
+    private final Deque<ControlPacketContext> inQueue = new LinkedList<>();
+    private final Deque<ControlPacketContext> outQueue = new LinkedList<>();
     private ScheduledFuture retryTask;
     private final int retryPeriod = 3000;
 

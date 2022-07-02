@@ -46,6 +46,7 @@ public interface Session extends AutoCloseable {
 
     /**
      * whether the Session is bound with a Channel
+     *
      * @return Returns {@code true} if the {@link Session} is bound with a {@link Channel}.
      */
     boolean isBound();

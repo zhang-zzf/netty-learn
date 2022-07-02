@@ -1,6 +1,7 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import lombok.AllArgsConstructor;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
@@ -23,6 +24,42 @@ public class Subscribe extends ControlPacket {
         super(buf);
     }
 
+    public static Subscribe from(List<Subscription> subscriptions) {
+        return from((short) 0, subscriptions);
+    }
+
+    public static Subscribe from(short packetIdentifier, List<Subscription> subscriptions) {
+        if (subscriptions.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        int remainingLength = 2;
+        for (Subscription s : subscriptions) {
+            remainingLength += (2 + s.topicFilter().getBytes(UTF_8).length + 1);
+        }
+        return new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
+    }
+
+    private Subscribe(byte _0Byte, int remainingLength, short packetIdentifier, List<Subscription> subscriptions) {
+        super(_0Byte, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.subscriptions = subscriptions;
+    }
+
+    @Override
+    public ByteBuf toByteBuf() {
+        packetValidate();
+        ByteBuf header = fixedHeaderByteBuf();
+        header.writeShort(packetIdentifier);
+        ByteBuf payload = Unpooled.buffer(this.remainingLength);
+        for (Subscription s : subscriptions) {
+            byte[] bytes = s.topicFilter().getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
+            payload.writeByte(s.qos());
+        }
+        return Unpooled.compositeBuffer().addComponents(true, header, payload);
+    }
+
     public List<Subscription> subscriptions() {
         return this.subscriptions;
     }
@@ -36,15 +73,10 @@ public class Subscribe extends ControlPacket {
         final ByteBuf buf = this.packet;
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
-        try {
-            while (buf.isReadable()) {
-                String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-                byte qos = buf.readByte();
-                this.subscriptions.add(new Subscription(topic, qos));
-            }
-        } catch (Exception e) {
-            //
-            throw new IllegalArgumentException(e);
+        while (buf.isReadable()) {
+            String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+            byte qos = buf.readByte();
+            this.subscriptions.add(new Subscription(topic, qos));
         }
     }
 
@@ -52,7 +84,7 @@ public class Subscribe extends ControlPacket {
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (this._0byte != 0x82) {
+        if (this._0byte != (byte) 0x82) {
             return false;
         }
         //  The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.
@@ -94,7 +126,6 @@ public class Subscribe extends ControlPacket {
         public int qos() {
             return this.qos;
         }
-
 
     }
 

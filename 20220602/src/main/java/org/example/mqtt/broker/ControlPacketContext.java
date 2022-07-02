@@ -41,7 +41,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubAck() {
-        return new PubAck(packet().packetIdentifier());
+        return PubAck.from(packet().packetIdentifier());
     }
 
     public boolean canPublish() {
@@ -97,10 +97,7 @@ public class ControlPacketContext {
         if (packet().atLeastOnce() && s == PUB_ACK) {
             return true;
         }
-        if (packet().exactlyOnce() && s == PUB_COMP) {
-            return true;
-        }
-        return false;
+        return packet().exactlyOnce() && s == PUB_COMP;
     }
 
     public boolean inSending() {
@@ -112,15 +109,15 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubRec() {
-        return new PubRec(packet().packetIdentifier());
+        return PubRec.from(packet().packetIdentifier());
     }
 
     public ControlPacket pubRel() {
-        return new PubRel(packet().packetIdentifier());
+        return PubRel.from(packet().packetIdentifier());
     }
 
     public ControlPacket pubComp() {
-        return new PubComp(packet().packetIdentifier());
+        return PubComp.from(packet().packetIdentifier());
     }
 
     public ControlPacket retryPacket() {

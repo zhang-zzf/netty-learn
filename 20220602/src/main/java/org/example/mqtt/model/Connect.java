@@ -50,10 +50,10 @@ public class Connect extends ControlPacket {
                 username, password);
     }
 
-    public Connect(byte _0byte, int remainingLength, String protocolName,
-                   byte protocolLevel, byte connectFlags, short keepAlive,
-                   String clientIdentifier, String willTopic, ByteBuf willMessage,
-                   String username, ByteBuf password) {
+    private Connect(byte _0byte, int remainingLength, String protocolName,
+                    byte protocolLevel, byte connectFlags, short keepAlive,
+                    String clientIdentifier, String willTopic, ByteBuf willMessage,
+                    String username, ByteBuf password) {
         super(_0byte, remainingLength);
         this.protocolName = protocolName;
         this.protocolLevel = protocolLevel;
@@ -80,14 +80,16 @@ public class Connect extends ControlPacket {
         payload.writeShort(clientIdentifier.length());
         payload.writeCharSequence(clientIdentifier, UTF_8);
         if (willFlag()) {
-            payload.writeShort(willTopic.length());
-            payload.writeCharSequence(willTopic, UTF_8);
+            byte[] bytes = willTopic.getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
             payload.writeShort(willMessage.readableBytes());
             payload.writeBytes(willMessage);
         }
         if (usernameFlag()) {
-            payload.writeShort(username.length());
-            payload.writeCharSequence(username, UTF_8);
+            byte[] bytes = username.getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
         }
         if (passwordFlag()) {
             payload.writeShort(password.readableBytes());

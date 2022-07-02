@@ -16,9 +16,13 @@ public class PubComp extends ControlPacket {
         super(buf);
     }
 
-    public PubComp(short packetIdentifier) {
+    private PubComp(short packetIdentifier) {
         super((byte) 0x70, 0x02);
         this.packetIdentifier = packetIdentifier;
+    }
+
+    public static PubComp from(short packetIdentifier) {
+        return new PubComp(packetIdentifier);
     }
 
     @Override

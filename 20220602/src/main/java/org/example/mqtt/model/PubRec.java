@@ -16,9 +16,13 @@ public class PubRec extends ControlPacket {
         super(buf);
     }
 
-    public PubRec(short packetIdentifier) {
+    private PubRec(short packetIdentifier) {
         super((byte) 0x50, 0x02);
         this.packetIdentifier = packetIdentifier;
+    }
+
+    public static PubRec from(short packetIdentifier) {
+        return new PubRec(packetIdentifier);
     }
 
     @Override

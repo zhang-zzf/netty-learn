@@ -56,7 +56,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         List<Subscribe.Subscription> permittedSubscriptions = permitted.stream()
                 .map(s -> new Subscribe.Subscription(s.topicFilter(), s.qos()))
                 .collect(toList());
-        channel().writeAndFlush(new SubAck(packet.packetIdentifier(), permittedSubscriptions));
+        channel().writeAndFlush(SubAck.from(packet.packetIdentifier(), permittedSubscriptions));
     }
 
     protected void doReceiveDisconnect(Disconnect packet) {

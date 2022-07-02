@@ -8,8 +8,23 @@ import io.netty.buffer.ByteBuf;
  */
 public class PingResp extends ControlPacket {
 
-    public PingResp() {
-        super((byte) 0xD0, 0x00);
+    public static final byte _0_BYTE = (byte) 0xD0;
+
+    public PingResp(ByteBuf packet) {
+        super(packet);
+    }
+
+    @Override
+    protected void initPacket() {
+        // noop
+    }
+
+    private PingResp() {
+        super(_0_BYTE, 0x00);
+    }
+
+    public static PingResp from() {
+        return new PingResp();
     }
 
     @Override

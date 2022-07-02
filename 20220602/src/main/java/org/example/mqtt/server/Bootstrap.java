@@ -7,12 +7,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.jvm.DefaultBroker;
 import org.example.mqtt.codec.Codec;
 import org.example.mqtt.codec.SessionHandler;
-import org.example.mqtt.model.Connect;
 
 /**
  * @author zhanfeng.zhang

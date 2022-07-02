@@ -22,10 +22,21 @@ public class Publish extends ControlPacket {
     private short packetIdentifier;
     private ByteBuf payload;
 
+    /**
+     * inbound packet convert to model
+     *
+     * @param receivedPacket inbound packet
+     */
     public Publish(ByteBuf receivedPacket) {
         super(receivedPacket);
     }
 
+    /**
+     * Publish to Publish use Zero-Copy of ByteBuf for payload
+     *
+     * @param origin source
+     * @return a Publish Packet that have the save data as source
+     */
     public static Publish retained(Publish origin) {
         ByteBuf retainedPayload = origin.payload.retainedSlice();
         return new Publish(origin._0byte, origin.remainingLength,
@@ -33,19 +44,29 @@ public class Publish extends ControlPacket {
                 retainedPayload, origin.topicName);
     }
 
+    public static Publish outgoing(boolean retain, byte qos, boolean dup,
+                                   String topicName, short packetIdentifier, ByteBuf payload) {
+        byte _0byte = build_0Byte(retain, qos, dup);
+        int topicLength = topicName.length() + 2;
+        // remainingLength field
+        int packetIdentifierLength = needAck(qos) ? 2 : 0;
+        int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
+        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
+    }
+
+
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf header = fixedHeaderByteBuf();
-        header.writeShort(topicName.length());
-        header.writeCharSequence(topicName, UTF_8);
+        byte[] topicNameBytes = topicName.getBytes(UTF_8);
+        header.writeShort(topicNameBytes.length);
+        header.writeBytes(topicNameBytes);
         if (needAck()) {
             header.writeShort(packetIdentifier);
         }
-        // todo 待验证
-        CompositeByteBuf packet = Unpooled.compositeBuffer()
+        return Unpooled.compositeBuffer()
                 .addComponent(true, header)
-                .addComponent(true, payload);
-        return packet;
+                .addComponent(true, this.payload);
     }
 
     /**
@@ -67,9 +88,9 @@ public class Publish extends ControlPacket {
     }
 
     /**
-     * 构建 outgoing Publish Message
+     * outgoing Publish Message
      */
-    protected Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
+    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
@@ -77,9 +98,16 @@ public class Publish extends ControlPacket {
         this.payload = payload.retainedSlice();
     }
 
-    private static byte build_0Byte() {
-        // todo
-        return 0;
+    static byte build_0Byte(boolean retain, byte qos, boolean dup) {
+        byte _0Byte = 0x30;
+        if (retain) {
+            _0Byte |= 0x01;
+        }
+        _0Byte |= qos << 1;
+        if (dup) {
+            _0Byte |= 0x08;
+        }
+        return _0Byte;
     }
 
     @Override
@@ -95,7 +123,7 @@ public class Publish extends ControlPacket {
     @Override
     protected boolean packetValidate() {
         // The DUP flag MUST be set to 0 for all QoS 0 messages
-        if (qos() == 0 && dupFlag()) {
+        if (qos() == 0 && dup()) {
             return false;
         }
         if ((qos() & 0x03) == 0x03) {
@@ -104,12 +132,12 @@ public class Publish extends ControlPacket {
         return super.packetValidate();
     }
 
-    public boolean dupFlag() {
+    public boolean dup() {
         return (_0byte & 0x08) != 0;
     }
 
     public int qos() {
-        return this._0byte & 0x06;
+        return (this._0byte & 0x06) >> 1;
     }
 
     public boolean retain() {

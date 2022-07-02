@@ -1,13 +1,8 @@
 package org.example.mqtt.broker;
 
-import com.sun.security.ntlm.Server;
-import io.netty.channel.Channel;
-import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -37,7 +32,7 @@ public interface Broker extends AutoCloseable {
      *
      * @param subscriptions the topic and the qos
      */
-   List<Subscription> register(List<Subscription> subscriptions);
+    List<Subscription> register(List<Subscription> subscriptions);
 
     /**
      * deregister a subscription between the session and the topic

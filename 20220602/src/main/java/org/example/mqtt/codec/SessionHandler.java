@@ -8,7 +8,10 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.*;
+import org.example.mqtt.broker.Authenticator;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.DefaultServerSession;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.model.*;
 
 import java.util.List;
@@ -104,7 +107,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
-                ctx.writeAndFlush(new ConnAck(authenticate));
+                ctx.writeAndFlush(ConnAck.from(authenticate));
                 return closeSession(ctx);
             }
             // keep alive
@@ -134,7 +137,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             });
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
-            ctx.writeAndFlush(new PingResp());
+            ctx.writeAndFlush(PingResp.from());
         } else {
             // let the session handle the packet
             session.messageReceived(cp);

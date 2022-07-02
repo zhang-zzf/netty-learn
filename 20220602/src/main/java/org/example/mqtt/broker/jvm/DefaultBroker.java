@@ -1,7 +1,6 @@
 package org.example.mqtt.broker.jvm;
 
 import org.example.mqtt.broker.*;
-import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 
 import java.util.*;
@@ -17,9 +16,9 @@ public class DefaultBroker implements Broker {
     /**
      * ClientIdentifier -> Session
      */
-    private ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
 
-    private ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
 
     @Override
     public List<Subscription> register(List<Subscription> subscriptions) {

@@ -9,7 +9,7 @@ import java.util.Set;
  */
 public interface Topic extends AutoCloseable {
 
-    TopicFilter topicFilter();
+    String topicFilter();
 
     Set<Session> retainedSession();
 
@@ -19,7 +19,7 @@ public interface Topic extends AutoCloseable {
      * @param session subscriber
      * @param qos QoS
      */
-    void addSubscriber(Session session, int qos);
+    void addSubscriber(ServerSession session, int qos);
 
     /**
      * remove a subscriber
@@ -28,22 +28,14 @@ public interface Topic extends AutoCloseable {
      */
     void removeSubscriber(Session session);
 
-
     /**
      * all the subscribers that subscribe the topic
      *
      * @return all the subscribers
      */
-    Map<Session, Integer> subscribers();
+    Map<ServerSession, Integer> subscribers();
 
     boolean isEmpty();
 
-    interface TopicFilter {
-
-        String value();
-
-        boolean match(String topicName);
-
-    }
 
 }

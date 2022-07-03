@@ -26,4 +26,11 @@ class ConnectTest {
         then(packet.packetValidate()).isTrue();
     }
 
+
+    @Test
+    void givenPacket_whenToString_then() {
+        Connect out = Connect.from("clientIdentifier", (short) 60);
+        then(out.toString()).isNotNull();
+    }
+
 }

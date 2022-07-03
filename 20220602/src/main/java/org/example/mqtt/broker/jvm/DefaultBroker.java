@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.jvm;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Publish;
 
@@ -11,6 +12,7 @@ import java.util.concurrent.ConcurrentMap;
  * @author zhanfeng.zhang
  * @date 2022/06/28
  */
+@Slf4j
 public class DefaultBroker implements Broker {
 
     /**
@@ -18,14 +20,13 @@ public class DefaultBroker implements Broker {
      */
     private final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<Topic.TopicFilter, Topic> topicMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Topic> topicMap = new ConcurrentHashMap<>();
 
     @Override
     public List<Subscription> register(List<Subscription> subscriptions) {
         List<Subscription> permittedSub = new ArrayList<>(subscriptions.size());
         for (Subscription sub : subscriptions) {
-            Topic.TopicFilter topicFilter = new DefaultTopic.DefaultTopicFilter(sub.topicFilter());
-            Topic topic = topicBy(topicFilter);
+            Topic topic = topicBy(sub.topicFilter());
             int permittedQoS = decideSubscriptionQos(sub);
             topic.addSubscriber(sub.session(), permittedQoS);
             permittedSub.add(Subscription.from(sub.topicFilter(), permittedQoS, sub.session()));
@@ -35,21 +36,25 @@ public class DefaultBroker implements Broker {
 
     @Override
     public void onward(Publish packet) {
-        for (Map.Entry<Topic.TopicFilter, Topic> entry : topicMap.entrySet()) {
-            if (!entry.getKey().match(packet.topicName())) {
+        for (Map.Entry<String, Topic> entry : topicMap.entrySet()) {
+            // todo use matcher
+            if (!entry.getKey().equals(packet.topicName())) {
                 continue;
             }
             Topic topic = entry.getValue();
-            for (Map.Entry<Session, Integer> subscriber : topic.subscribers().entrySet()) {
-                Session session = subscriber.getKey();
+            for (Map.Entry<ServerSession, Integer> subscriber : topic.subscribers().entrySet()) {
+                ServerSession session = subscriber.getKey();
+                if (!session.isRegistered()) {
+                    log.error("Session deregister from the broker, but there is a subscribe linked to the session." +
+                            "{}", session.clientIdentifier());
+                    continue;
+                }
                 byte qos = subscriber.getValue().byteValue();
-                /**
-                 * retained payload will be released when it was remove from outQueue
-                 */
-                Publish outgoing = Publish.retained(packet).topicName(topic.topicFilter().value()).qos(qos);
+                // use a shadow copy of the origin Publish
+                Publish outgoing = Publish.outgoing(packet, false, topic.topicFilter(), qos,
+                        session.nextPacketIdentifier());
                 session.send(outgoing);
             }
-
         }
     }
 
@@ -63,9 +68,19 @@ public class DefaultBroker implements Broker {
         // todo other clean job
         // remove the session from the broker
         sessionMap.remove(session.clientIdentifier(), session);
+        // clean all the subscription that the session registered
+        for (Subscription sub : session.subscriptions()) {
+            Topic topic = topicMap.get(sub.topicFilter());
+            if (topic != null) {
+                topic.removeSubscriber(sub.session());
+                if (topic.isEmpty()) {
+                    topicMap.remove(sub.topicFilter(), topic);
+                }
+            }
+        }
     }
 
-    protected Topic topicBy(Topic.TopicFilter topicFilter) {
+    protected Topic topicBy(String topicFilter) {
         Topic topic = topicMap.get(topicFilter);
         if (topic == null) {
             // create the topic if not Exist
@@ -84,12 +99,12 @@ public class DefaultBroker implements Broker {
     @Override
     public void deregister(List<Subscription> subscriptions) {
         for (Subscription sub : subscriptions) {
-            Topic.TopicFilter filter = new DefaultTopic.DefaultTopicFilter(sub.topicFilter());
-            Topic topic = topicBy(filter);
+            String topicFilter = sub.topicFilter();
+            Topic topic = topicBy(topicFilter);
             topic.removeSubscriber(sub.session());
             if (topic.isEmpty()) {
                 // remove the topic from the broker
-                topicMap.remove(filter, topic);
+                topicMap.remove(topicFilter, topic);
             }
         }
     }
@@ -100,10 +115,9 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public void bind(ServerSession session) {
-        if (this.sessionMap.putIfAbsent(session.clientIdentifier(), session) != null) {
-            throw new IllegalStateException();
-        }
+    public void connect(ServerSession session) {
+        sessionMap.putIfAbsent(session.clientIdentifier(), session);
+
     }
 
     @Override

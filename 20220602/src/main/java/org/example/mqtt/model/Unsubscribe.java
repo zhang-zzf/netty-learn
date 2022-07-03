@@ -5,6 +5,7 @@ import io.netty.buffer.Unpooled;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -28,7 +29,7 @@ public class Unsubscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = this.packet;
+        final ByteBuf buf = _buf();
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
         while (buf.isReadable()) {
@@ -73,6 +74,10 @@ public class Unsubscribe extends ControlPacket {
         return Unpooled.compositeBuffer().addComponents(true, header, payload);
     }
 
+    public short packetIdentifier() {
+        return this.packetIdentifier;
+    }
+
     @Override
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved and MUST be set to
@@ -82,6 +87,36 @@ public class Unsubscribe extends ControlPacket {
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.
         return !subscriptions.isEmpty();
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        if (subscriptions != null) {
+            sb.append("\"subscriptions\":");
+            if (!(subscriptions).isEmpty()) {
+                sb.append("[");
+                final int listSize = (subscriptions).size();
+                for (int i = 0; i < listSize; i++) {
+                    final Object listValue = (subscriptions).get(i);
+                    if (listValue instanceof CharSequence) {
+                        sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
+                    } else {
+                        sb.append(Objects.toString(listValue, ""));
+                    }
+                    if (i < listSize - 1) {
+                        sb.append(",");
+                    } else {
+                        sb.append("]");
+                    }
+                }
+            } else {
+                sb.append("[]");
+            }
+            sb.append(',');
+        }
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

@@ -2,7 +2,6 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.Getter;
 import lombok.experimental.Accessors;
 
 /**
@@ -12,7 +11,6 @@ import lombok.experimental.Accessors;
 @Accessors(chain = true)
 public class PubRel extends ControlPacket {
 
-    @Getter
     private short packetIdentifier;
 
     public PubRel(ByteBuf buf) {
@@ -39,7 +37,11 @@ public class PubRel extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = this.packet.readShort();
+        this.packetIdentifier = _buf().readShort();
+    }
+
+    public short packetIdentifier() {
+        return this.packetIdentifier;
     }
 
 }

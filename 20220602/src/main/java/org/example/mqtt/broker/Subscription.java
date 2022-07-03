@@ -27,11 +27,18 @@ public interface Subscription {
      *
      * @return the session
      */
-    Session session();
+    ServerSession session();
 
-    static Subscription from(String topicFilter, int qos, Session session) {
+    static Subscription from(String topicFilter, int qos, ServerSession session) {
         return new DefaultSubscription(topicFilter, qos, session);
     }
+
+    /**
+     * update qos
+     *
+     * @param qos the new qos
+     */
+    Subscription qos(int qos);
 
     /**
      * @author zhanfeng.zhang
@@ -41,8 +48,14 @@ public interface Subscription {
     class DefaultSubscription implements Subscription {
 
         private final String topicFilter;
-        private final int qos;
-        private final Session session;
+        private final ServerSession session;
+        private int qos;
+
+        public DefaultSubscription(String topicFilter, int qos, ServerSession session) {
+            this.topicFilter = topicFilter;
+            this.session = session;
+            this.qos = qos;
+        }
 
         @Override
         public String topicFilter() {
@@ -55,7 +68,13 @@ public interface Subscription {
         }
 
         @Override
-        public Session session() {
+        public Subscription qos(int qos) {
+            this.qos = qos;
+            return this;
+        }
+
+        @Override
+        public ServerSession session() {
             return session;
         }
 

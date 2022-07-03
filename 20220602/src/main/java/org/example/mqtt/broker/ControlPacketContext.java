@@ -1,6 +1,7 @@
 package org.example.mqtt.broker;
 
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -10,6 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * @date 2022/06/26
  */
 @Data
+@Slf4j
 public class ControlPacketContext {
 
     public static final int PUB_REC = 1 << 2;
@@ -24,16 +26,22 @@ public class ControlPacketContext {
     public static final int SENDING = 1 << 11;
     public static final int SENT = 1 << 12;
 
-    private AtomicInteger status;
+    public static final int OUT = 1;
+    public static final int IN = 0;
+
+    private final Publish packet;
+    private final int type;
+    private final AtomicInteger status;
     private long markedMillis;
-    private Publish packet;
+    private int retryTimes;
 
     private ControlPacketContext next;
 
-    public ControlPacketContext(Publish packet, int status) {
+    public ControlPacketContext(Publish packet, int status, int type) {
         this.packet = packet;
         this.status = new AtomicInteger(status);
         this.markedMillis = System.currentTimeMillis();
+        this.type = type;
     }
 
     public Publish packet() {
@@ -121,6 +129,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacket retryPacket() {
+        this.retryTimes += 1;
         int s = status.get();
         if (packet().atLeastOnce()) {
             switch (s) {
@@ -150,7 +159,7 @@ public class ControlPacketContext {
                 default:
             }
         }
-        return null;
+        throw new IllegalStateException();
     }
 
 }

@@ -3,6 +3,8 @@ package org.example.mqtt.broker;
 import io.netty.channel.Channel;
 import org.example.mqtt.model.ControlPacket;
 
+import java.util.List;
+
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/23
@@ -50,5 +52,19 @@ public interface Session extends AutoCloseable {
      * @return Returns {@code true} if the {@link Session} is bound with a {@link Channel}.
      */
     boolean isBound();
+
+    /**
+     * the Subscribe that the session was registered
+     *
+     * @return List<Subscription>
+     */
+    List<Subscription> subscriptions();
+
+    /**
+     * next packetIdentifier to use
+     *
+     * @return packetIdentifier
+     */
+    short nextPacketIdentifier();
 
 }

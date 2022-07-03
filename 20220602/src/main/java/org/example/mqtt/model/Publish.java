@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 
 import java.util.Objects;
@@ -35,13 +34,11 @@ public class Publish extends ControlPacket {
      * Publish to Publish use Zero-Copy of ByteBuf for payload
      *
      * @param origin source
+     * @param packetIdentifier packet ID
      * @return a Publish Packet that have the save data as source
      */
-    public static Publish retained(Publish origin) {
-        ByteBuf retainedPayload = origin.payload.retainedSlice();
-        return new Publish(origin._0byte, origin.remainingLength,
-                origin.packetIdentifier,
-                retainedPayload, origin.topicName);
+    public static Publish outgoing(Publish origin, boolean dup, String topicName, byte qos, short packetIdentifier) {
+        return outgoing(origin.retain(), qos, dup, topicName, packetIdentifier, origin.payload);
     }
 
     public static Publish outgoing(boolean retain, byte qos, boolean dup,
@@ -95,7 +92,7 @@ public class Publish extends ControlPacket {
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
         // important: use retainedSlice() to increase the refCnt
-        this.payload = payload.retainedSlice();
+        this.payload = payload;
     }
 
     static byte build_0Byte(boolean retain, byte qos, boolean dup) {
@@ -112,12 +109,12 @@ public class Publish extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.topicName = packet.readCharSequence(this.packet.readShort(), UTF_8).toString();
+        ByteBuf buf = _buf();
+        this.topicName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         if (needAck()) {
-            this.packetIdentifier = packet.readShort();
+            this.packetIdentifier = buf.readShort();
         }
-        // important: use realRetainedSlice to retain packet
-        this.payload = packet.readRetainedSlice(packet.readableBytes());
+        this.payload = buf.readSlice(buf.readableBytes());
     }
 
     @Override
@@ -169,16 +166,6 @@ public class Publish extends ControlPacket {
         return qos() == EXACTLY_ONCE;
     }
 
-    @Override
-    public String toString() {
-        return "Publish{" +
-                "topicName='" + topicName + '\'' +
-                ", packetIdentifier=" + packetIdentifier +
-                ", payload=" + payload +
-                ", _0byte=" + _0byte +
-                '}';
-    }
-
     public boolean atMostOnce() {
         return qos() == AT_MOST_ONCE;
     }
@@ -218,7 +205,32 @@ public class Publish extends ControlPacket {
 
     private void updateQos(byte qos) {
         int clearQoS = this._0byte & 0xF9;
-        this._0byte = (byte) (clearQoS & qos);
+        this._0byte = (byte) (clearQoS | (qos << 1));
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        if (topicName != null) {
+            sb.append("\"topicName\":\"").append(topicName).append('\"').append(',');
+        }
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        sb.append("\"qos\":").append(qos()).append(",");
+        sb.append("\"dup\":").append(dup()).append(",");
+        sb.append("\"retain\":").append(retain()).append(",");
+        if (payload != null) {
+            sb.append("\"payload\":");
+            String objectStr = payload.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

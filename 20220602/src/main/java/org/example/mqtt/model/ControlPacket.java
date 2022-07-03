@@ -24,7 +24,7 @@ public abstract class ControlPacket {
     public static final byte PINGRESP = (byte) 0xD0;
     public static final byte DISCONNECT = (byte) 0xE0;
 
-    protected ByteBuf packet;
+    private ByteBuf packet;
     protected byte _0byte;
     protected int remainingLength;
 

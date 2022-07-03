@@ -8,6 +8,7 @@ import lombok.experimental.Accessors;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -70,7 +71,7 @@ public class Subscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = this.packet;
+        final ByteBuf buf = _buf();
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
         while (buf.isReadable()) {
@@ -127,6 +128,46 @@ public class Subscribe extends ControlPacket {
             return this.qos;
         }
 
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("{");
+            if (topicFilter != null) {
+                sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
+            }
+            sb.append("\"qos\":").append(qos).append(',');
+            return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        if (subscriptions != null) {
+            sb.append("\"subscriptions\":");
+            if (!(subscriptions).isEmpty()) {
+                sb.append("[");
+                final int listSize = (subscriptions).size();
+                for (int i = 0; i < listSize; i++) {
+                    final Object listValue = (subscriptions).get(i);
+                    if (listValue instanceof CharSequence) {
+                        sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
+                    } else {
+                        sb.append(Objects.toString(listValue, ""));
+                    }
+                    if (i < listSize - 1) {
+                        sb.append(",");
+                    } else {
+                        sb.append("]");
+                    }
+                }
+            } else {
+                sb.append("[]");
+            }
+            sb.append(',');
+        }
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

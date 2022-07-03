@@ -1,5 +1,6 @@
 package org.example.mqtt.codec;
 
+import com.alibaba.fastjson.JSON;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -8,13 +9,11 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.DefaultServerSession;
-import org.example.mqtt.broker.ServerSession;
+import org.example.mqtt.broker.*;
 import org.example.mqtt.model.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -125,8 +124,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 connAck = ConnAck.acceptedWithStoredSession();
             }
             if (this.session == null) {
-                DefaultServerSession newSession = new DefaultServerSession();
-                newSession.clientIdentifier(connect.clientIdentifier());
+                DefaultServerSession newSession = new DefaultServerSession(connect.clientIdentifier());
                 newSession.cleanSession(connect.cleanSession());
                 this.session = newSession;
             }
@@ -135,6 +133,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 this.session.bind(ctx.channel());
                 this.session.register(broker);
             });
+            log.info("Connect accepted: {}, {}", connect.clientIdentifier(), connect);
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
             ctx.writeAndFlush(PingResp.from());
@@ -175,12 +174,23 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         if (cause instanceof ReadTimeoutException) {
             log.error("channel read timeout, now close the channel");
         }
-        log.error("channel fire unexpected exception. now close the session", cause);
+        log.error("exceptionCaught {}. now close the session", curSessionClientIdentifier(), cause);
         closeSession(ctx);
     }
 
     private boolean existSession() {
         return session != null;
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.info("channelInactive {}", curSessionClientIdentifier());
+        closeSession(ctx);
+        super.channelInactive(ctx);
+    }
+
+    private String curSessionClientIdentifier() {
+        return Optional.ofNullable(session).map(Session::clientIdentifier).orElse(null);
     }
 
 }

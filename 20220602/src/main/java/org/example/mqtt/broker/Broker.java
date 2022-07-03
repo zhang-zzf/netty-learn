@@ -43,6 +43,6 @@ public interface Broker extends AutoCloseable {
 
     Set<Integer> supportProtocolLevel();
 
-    void bind(ServerSession session);
+    void connect(ServerSession session);
 
 }

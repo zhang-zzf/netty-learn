@@ -35,4 +35,11 @@ public class UnsubAck extends ControlPacket {
         return buf;
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

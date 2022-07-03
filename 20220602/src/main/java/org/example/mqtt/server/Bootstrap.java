@@ -20,7 +20,7 @@ import org.example.mqtt.codec.SessionHandler;
 public class Bootstrap {
 
     public static void main(String[] args) throws InterruptedException {
-        final int port = 8888;
+        final int port = 1883;
         final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
         final Broker broker = new DefaultBroker();
         // 配置 bootstrap
@@ -31,9 +31,10 @@ public class Bootstrap {
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
+                        SessionHandler sessionHandler = new SessionHandler(broker, packet -> 0x00, 3);
                         ch.pipeline()
                                 .addLast(new Codec())
-                                .addLast(new SessionHandler(broker, packet -> 0x00, 3));
+                                .addLast(SessionHandler.HANDLER_NAME, sessionHandler);
                     }
                 });
         try {

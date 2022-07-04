@@ -50,10 +50,10 @@ public class Connect extends ControlPacket {
                 username, password);
     }
 
-    public Connect(byte _0byte, int remainingLength, String protocolName,
-                   byte protocolLevel, byte connectFlags, short keepAlive,
-                   String clientIdentifier, String willTopic, ByteBuf willMessage,
-                   String username, ByteBuf password) {
+    private Connect(byte _0byte, int remainingLength, String protocolName,
+                    byte protocolLevel, byte connectFlags, short keepAlive,
+                    String clientIdentifier, String willTopic, ByteBuf willMessage,
+                    String username, ByteBuf password) {
         super(_0byte, remainingLength);
         this.protocolName = protocolName;
         this.protocolLevel = protocolLevel;
@@ -80,14 +80,16 @@ public class Connect extends ControlPacket {
         payload.writeShort(clientIdentifier.length());
         payload.writeCharSequence(clientIdentifier, UTF_8);
         if (willFlag()) {
-            payload.writeShort(willTopic.length());
-            payload.writeCharSequence(willTopic, UTF_8);
+            byte[] bytes = willTopic.getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
             payload.writeShort(willMessage.readableBytes());
             payload.writeBytes(willMessage);
         }
         if (usernameFlag()) {
-            payload.writeShort(username.length());
-            payload.writeCharSequence(username, UTF_8);
+            byte[] bytes = username.getBytes(UTF_8);
+            payload.writeShort(bytes.length);
+            payload.writeBytes(bytes);
         }
         if (passwordFlag()) {
             payload.writeShort(password.readableBytes());
@@ -169,22 +171,23 @@ public class Connect extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        protocolName = packet.readCharSequence(packet.readShort(), UTF_8).toString();
-        protocolLevel = packet.readByte();
-        connectFlags = packet.readByte();
-        keepAlive = packet.readShort();
-        clientIdentifier = packet.readCharSequence(packet.readShort(), UTF_8).toString();
+        ByteBuf buf = _buf();
+        protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+        protocolLevel = buf.readByte();
+        connectFlags = buf.readByte();
+        keepAlive = buf.readShort();
+        clientIdentifier = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         if (willFlag()) {
-            willTopic = packet.readCharSequence(packet.readShort(), UTF_8).toString();
-            willMessage = Unpooled.buffer(packet.readShort());
-            packet.readBytes(willMessage);
+            willTopic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+            willMessage = Unpooled.buffer(buf.readShort());
+            buf.readBytes(willMessage);
         }
         if (usernameFlag()) {
-            username = packet.readCharSequence(packet.readShort(), UTF_8).toString();
+            username = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         }
         if (passwordFlag()) {
-            password = Unpooled.buffer(packet.readShort());
-            packet.readBytes(password);
+            password = Unpooled.buffer(buf.readShort());
+            buf.readBytes(password);
         }
     }
 
@@ -202,6 +205,51 @@ public class Connect extends ControlPacket {
 
     public Integer protocolLevel() {
         return Integer.valueOf(protocolLevel);
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        if (protocolName != null) {
+            sb.append("\"protocolName\":\"").append(protocolName).append('\"').append(',');
+        }
+        sb.append("\"protocolLevel\":").append(protocolLevel).append(',');
+        sb.append("\"connectFlags\":").append(connectFlags).append(',');
+        sb.append("\"keepAlive\":").append(keepAlive).append(',');
+        if (clientIdentifier != null) {
+            sb.append("\"clientIdentifier\":\"").append(clientIdentifier).append('\"').append(',');
+        }
+        if (willTopic != null) {
+            sb.append("\"willTopic\":\"").append(willTopic).append('\"').append(',');
+        }
+        if (willMessage != null) {
+            sb.append("\"willMessage\":");
+            String objectStr = willMessage.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
+        if (username != null) {
+            sb.append("\"username\":\"").append(username).append('\"').append(',');
+        }
+        if (password != null) {
+            sb.append("\"password\":");
+            String objectStr = password.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

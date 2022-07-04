@@ -7,12 +7,10 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.jvm.DefaultBroker;
 import org.example.mqtt.codec.Codec;
 import org.example.mqtt.codec.SessionHandler;
-import org.example.mqtt.model.Connect;
 
 /**
  * @author zhanfeng.zhang
@@ -22,7 +20,7 @@ import org.example.mqtt.model.Connect;
 public class Bootstrap {
 
     public static void main(String[] args) throws InterruptedException {
-        final int port = 8888;
+        final int port = 1883;
         final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
         final Broker broker = new DefaultBroker();
         // 配置 bootstrap
@@ -33,9 +31,10 @@ public class Bootstrap {
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
+                        SessionHandler sessionHandler = new SessionHandler(broker, packet -> 0x00, 3);
                         ch.pipeline()
                                 .addLast(new Codec())
-                                .addLast(new SessionHandler(broker, packet -> 0x00, 3));
+                                .addLast(SessionHandler.HANDLER_NAME, sessionHandler);
                     }
                 });
         try {

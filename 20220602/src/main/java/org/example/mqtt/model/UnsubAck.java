@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -9,10 +8,22 @@ import lombok.Getter;
  */
 public class UnsubAck extends ControlPacket {
 
-    @Getter
-    private final short packetIdentifier;
+    private short packetIdentifier;
 
-    public UnsubAck(short packetIdentifier) {
+    public UnsubAck(ByteBuf packet) {
+        super(packet);
+    }
+
+    @Override
+    protected void initPacket() {
+        this.packetIdentifier = _buf().readShort();
+    }
+
+    public static UnsubAck from(short packetIdentifier) {
+        return new UnsubAck(packetIdentifier);
+    }
+
+    private UnsubAck(short packetIdentifier) {
         super((byte) 0xB0, 0x02);
         this.packetIdentifier = packetIdentifier;
     }
@@ -22,6 +33,13 @@ public class UnsubAck extends ControlPacket {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

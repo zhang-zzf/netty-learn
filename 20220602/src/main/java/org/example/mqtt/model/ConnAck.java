@@ -1,17 +1,11 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
-import lombok.Setter;
-import lombok.experimental.Accessors;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-@Setter
-@Getter
-@Accessors(chain = true)
 public class ConnAck extends ControlPacket {
 
     public static final byte ACCEPTED = 0x00;
@@ -23,15 +17,15 @@ public class ConnAck extends ControlPacket {
     private boolean sp;
     private int returnCode;
 
-    public ConnAck() {
+    private ConnAck() {
         this(false, 0x00);
     }
 
-    public ConnAck(int returnCode) {
+    private ConnAck(int returnCode) {
         this(false, returnCode);
     }
 
-    public ConnAck(boolean sp, int returnCode) {
+    private ConnAck(boolean sp, int returnCode) {
         super((byte) 0x20, 0x02);
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0
@@ -40,6 +34,14 @@ public class ConnAck extends ControlPacket {
         }
         this.sp = sp;
         this.returnCode = returnCode;
+    }
+
+    public static ConnAck from(int returnCode) {
+        return new ConnAck(returnCode);
+    }
+
+    public ConnAck(ByteBuf packet) {
+        super(packet);
     }
 
     public static ConnAck accepted() {
@@ -57,12 +59,30 @@ public class ConnAck extends ControlPacket {
         return new ConnAck(0x03);
     }
 
+    public static ConnAck acceptedWithStoredSession() {
+        return new ConnAck(true, 0x00);
+    }
+
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeByte(sp ? 0x01 : 0x00);
         buf.writeByte(returnCode);
         return buf;
+    }
+
+    @Override
+    protected void initPacket() {
+        this.sp = _buf().readByte() != 0x00;
+        this.returnCode = _buf().readByte();
+    }
+
+    public boolean sp() {
+        return this.sp;
+    }
+
+    public int returnCode() {
+        return this.returnCode;
     }
 
 }

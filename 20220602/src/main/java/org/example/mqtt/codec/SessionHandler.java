@@ -1,6 +1,8 @@
 package org.example.mqtt.codec;
 
+import com.alibaba.fastjson.JSON;
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutException;
@@ -11,6 +13,7 @@ import org.example.mqtt.broker.*;
 import org.example.mqtt.model.*;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 /**
@@ -24,7 +27,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
     public static final String HANDLER_NAME = "sessionHandler";
     public static final String ACTIVE_IDLE_TIMEOUT_HANDLER = "activeIdleTimeoutHandler";
 
-    private Session session;
+    private ServerSession session;
     private final Broker broker;
     private final Authenticator authenticator;
     private final int activeIdleTimeoutSecond;
@@ -73,8 +76,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
     /**
      * @return true if channelRead0 close the session otherwise false;
      */
-    private boolean channelRead0(ChannelHandlerContext ctx, ControlPacket msg) throws Exception {
-        ControlPacket cp = msg;
+    private boolean channelRead0(ChannelHandlerContext ctx, ControlPacket cp) throws Exception {
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
@@ -104,29 +106,37 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
-                ctx.writeAndFlush(new ConnAck(authenticate));
+                ctx.writeAndFlush(ConnAck.from(authenticate));
                 return closeSession(ctx);
             }
             // keep alive
             if (connect.keepAlive() > 0) {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
-            // broker try accept the Connect packet
-            ServerSession session = new DefaultServerSession(broker);
-            Session accepted = broker.accepted(connect);
-            if (accepted != null) {
-                this.session = accepted;
-                ctx.writeAndFlush(ConnAck.accepted());
-                // this.session.bindChannel()
-            } else {
-                // just close the Channel
-                log.error("Broker does not accept the Connect, now send an ConnAck and close channel");
-                ctx.writeAndFlush(ConnAck.serverUnavailable());
-                return closeSession(ctx);
+            // now accept the Connect
+            ConnAck connAck = ConnAck.accepted();
+            ServerSession preSession = broker.session(connect.clientIdentifier());
+            if (connect.cleanSession() && preSession != null) {
+                preSession.close();
             }
+            if (!connect.cleanSession() && preSession != null) {
+                this.session = preSession;
+                connAck = ConnAck.acceptedWithStoredSession();
+            }
+            if (this.session == null) {
+                DefaultServerSession newSession = new DefaultServerSession(connect.clientIdentifier());
+                newSession.cleanSession(connect.cleanSession());
+                this.session = newSession;
+            }
+            ctx.writeAndFlush(connAck).addListener((ChannelFutureListener) future -> {
+                // bind channel
+                this.session.bind(ctx.channel());
+                this.session.register(broker);
+            });
+            log.info("Connect accepted: {}, {}", connect.clientIdentifier(), connect);
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
-            ctx.writeAndFlush(new PingResp());
+            ctx.writeAndFlush(PingResp.from());
         } else {
             // let the session handle the packet
             session.messageReceived(cp);
@@ -164,12 +174,23 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
         if (cause instanceof ReadTimeoutException) {
             log.error("channel read timeout, now close the channel");
         }
-        log.error("channel fire unexpected exception. now close the session", cause);
+        log.error("exceptionCaught {}. now close the session", curSessionClientIdentifier(), cause);
         closeSession(ctx);
     }
 
     private boolean existSession() {
         return session != null;
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+        log.info("channelInactive {}", curSessionClientIdentifier());
+        closeSession(ctx);
+        super.channelInactive(ctx);
+    }
+
+    private String curSessionClientIdentifier() {
+        return Optional.ofNullable(session).map(Session::clientIdentifier).orElse(null);
     }
 
 }

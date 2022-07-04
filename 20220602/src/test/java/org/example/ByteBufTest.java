@@ -1,6 +1,7 @@
 package org.example;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.util.IllegalReferenceCountException;
@@ -132,7 +133,7 @@ class ByteBufTest {
     }
 
     /**
-     * 测试 Unpooled.DirectBuffer() 的内存释放
+     * 测试 Unpooled.directBuffer() 的内存释放
      */
     @Test
     void givenUnpooledDirectBuffer_whenRelease_then() {
@@ -176,7 +177,6 @@ class ByteBufTest {
     }
 
     /**
-     * 测试 PooledByteBufAllocator.heapBuffer() 的内存释放
      * <p>slice()</p>
      * <p>验证结果：source buffer release 后，访问 slice() 的 buffer 抛出 IllegalReferenceCountException </p>
      */
@@ -189,17 +189,77 @@ class ByteBufTest {
         ByteBuf noRetainedSlice = directBuffer.readSlice(8);
         // release directBuffer
         then(directBuffer.release()).isTrue();
-        Throwable throwable = catchThrowable(() -> noRetainedSlice.readLong());
+        Throwable throwable = catchThrowable(noRetainedSlice::readLong);
         then(throwable).isNotNull().isInstanceOf(IllegalReferenceCountException.class);
     }
 
     /**
-     * 测试 ByteBuf#readRetainedSlice() 的内存释放
+     * 测试 PooledByteBuf#retainedSlice() 的内存释放
      * <p>retainedSlice()</p>
      * <p>ByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
      */
     @Test
-    void givenByteBuf_whenRetainedSlice_then2() {
+    void givenPooledByteBuf_whenRetainedSlice_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        //
+        // will increase the source bufffer's refCnt
+        ByteBuf retainedSlice = directBuffer.retainedSlice();
+        then(directBuffer.refCnt()).isEqualTo(2);
+        // slice buf.refCnt() == 1
+        then(retainedSlice.refCnt()).isEqualTo(1);
+    }
+
+    /**
+     * 测试 UnpooledByteBuf#retainedSlice() 的内存释放
+     * <p>retainedSlice()</p>
+     * <p>ByteBuf#readRetainedSlice() 后，生成 UnpooledSlicedByteBuf 和源 ByteBuf 共享 refCnt </p>
+     */
+    @Test
+    void givenUnpooledByteBuf_whenRetainedSlice_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = Unpooled.buffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        //
+        // will increase the source bufffer's refCnt
+        ByteBuf retainedSlice = directBuffer.retainedSlice();
+        then(directBuffer.refCnt()).isEqualTo(2);
+        then(retainedSlice.refCnt()).isEqualTo(2);
+    }
+
+    /**
+     * 测试 PooledByteBuf#slice() / UnpooledByteBuf#slice() 的内存释放
+     * <p>slice()</p>
+     * <p>ByteBuf#slice() 后，生成 UnpooledSlicedByteBuf 和源 ByteBuf 共享 refCnt </p>
+     */
+    @Test
+    void givenByteBuf_whenSliceAndRetain_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        // will increase the source bufffer's refCnt
+        ByteBuf slice = directBuffer.slice().retain();
+        then(directBuffer.refCnt()).isEqualTo(2);
+        then(slice.refCnt()).isEqualTo(2);
+        // 使用 Unpooled ByteBuf
+        ByteBuf unpooled = Unpooled.buffer();
+        ByteBuf unpooledSliceByteBuf = unpooled.slice();
+        unpooledSliceByteBuf.retain();
+        then(unpooled.refCnt()).isEqualTo(2);
+        then(unpooledSliceByteBuf).isEqualTo(2);
+    }
+
+    /**
+     * 测试 PooledByteBuf#readRetainedSlice() 的内存释放
+     * <p>readRetainedSlice() 会更改 source 的 readerIndex </p>
+     * <p>ByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
+     */
+    @Test
+    void givenPooledByteBuf_whenReadRetainedSlice_then2() {
         // 使用 PoolByteBufAllocator
         ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
         then(directBuffer.refCnt()).isEqualTo(1);
@@ -212,11 +272,30 @@ class ByteBufTest {
         then(retainedSlice.refCnt()).isEqualTo(1);
     }
 
+    /**
+     * 测试 UnpooledByteBuf#readRetainedSlice() 的内存释放
+     * <p>readRetainedSlice() 会更改 source 的 readerIndex </p>
+     * <p>UnpooledByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2,
+     * 新生成的 UnpooledSliceByteBuf ref==2 和源 ByteBuf 共享 refCnt </p>
+     */
+    @Test
+    void givenUnpooledByteBuf_whenReadRetainedSlice_then() {
+        // 使用 PoolByteBufAllocator
+        ByteBuf directBuffer = Unpooled.buffer();
+        then(directBuffer.refCnt()).isEqualTo(1);
+        directBuffer.writeLong(Integer.MAX_VALUE);
+        //
+        // will increase the source bufffer's refCnt
+        ByteBuf retainedSlice = directBuffer.readRetainedSlice(8);
+        then(directBuffer.refCnt()).isEqualTo(2);
+        // slice buf.refCnt() == 2
+        then(retainedSlice.refCnt()).isEqualTo(2);
+    }
 
     /**
-     * 测试 ByteBuf#readRetainedSlice() 的内存释放
-     * <p>retainedSlice()</p>
-     * <p>ByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
+     * 测试 PooledByteBuf#readRetainedSlice() 的内存释放
+     * <p>readRetainedSlice()</p>
+     * <p>PooledByteBuf#readRetainedSlice() 后，ByteBuf 的 refCnt == 2, 新生成的 slice 的 refCnt == 1</p>
      * <p>source ByteBuf 和 slice ByteBuf 分别管理自己的 refCnt。</p>
      * <p>核心点：slice ByteBuf released 后会引发 source ByteBuf 的 refCnt 减1</p>
      */
@@ -254,11 +333,75 @@ class ByteBufTest {
     }
 
     /**
+     * CompositeByteBuf#release() Composite 被释放后，不管底层有没有被释放， Composite 都不可以再被访问
+     */
+    @Test
+    void givenCompositeByteBuf_whenRetainedAndReleaseComposite2_then() {
+        ByteBuf header = Unpooled.buffer(8);
+        header.writeInt(Integer.MAX_VALUE);
+        header.retain();
+        ByteBuf body = Unpooled.buffer(32);
+        body.writeLong(Long.MAX_VALUE);
+        CompositeByteBuf req = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, body);
+        then(req.refCnt()).isEqualTo(1);
+        // release CompositeByteBuf 会 release 底层的每个 ByteBuf
+        then(req.release()).isTrue();
+        then(req.refCnt()).isEqualTo(0);
+        then(header.refCnt()).isEqualTo(1);
+        then(catchThrowable(req::readInt)).isNotNull();
+        //
+        then(catchThrowable(header::readInt)).isNull();
+    }
+
+    /**
+     * CompositeByteBuf#release() 实际上是 release 底层的每个 Component
+     */
+    @Test
+    void givenCompositeByteBuf_whenRetainedAndReleaseComposite_then() {
+        ByteBuf header = Unpooled.buffer(8);
+        header.writeInt(Integer.MAX_VALUE);
+        ByteBuf body = Unpooled.buffer(32);
+        body.writeLong(Long.MAX_VALUE);
+        CompositeByteBuf req = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, body);
+        then(req.refCnt()).isEqualTo(1);
+        // release CompositeByteBuf 会 release 底层的每个 ByteBuf
+        then(req.release()).isTrue();
+        then(header.refCnt()).isEqualTo(0);
+        then(body.refCnt()).isEqualTo(0);
+        //
+        // 访问底层 Component 会抛出异常
+        then(catchThrowable(header::readInt)).isNotNull();
+    }
+
+    /**
+     * CompositeByteBuf 底层的 Component 被释放，导致 CompositeByteBuf 访问抛出异常。
+     */
+    @Test
+    void givenCompositeByteBuf_whenRetainedAndRelease_then() {
+        ByteBuf header = Unpooled.buffer(8);
+        header.writeInt(Integer.MAX_VALUE);
+        ByteBuf body = Unpooled.buffer(32);
+        body.writeLong(Long.MAX_VALUE);
+        CompositeByteBuf req = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, body);
+        // 释放底层 Component
+        then(header.release()).isTrue();
+        then(req.refCnt()).isEqualTo(1);
+        Throwable throwable = catchThrowable(req::readInt);
+        then(throwable).isNotNull();
+    }
+
+    /**
      * 系统支持 Unicode, 每个中文算一个 char
      * <p>Java 中每个 char 占用 2 个 byte，如何表示 ? 中国：U+4E2DU+56FD</p>
      */
     @Test
-    public void given中文_whenUTF8_then() {
+    void given中文_whenUTF8_then() {
         //你好，世界。！unicode          =>  \u4f60\u597d\uff0c\u4e16\u754c\u3002\uff01 共7个字符
         //你好，世界。！UTF_8            =>  E4BDA0,E5A5BD,EFBC8C,E4B896,E7958C,E38082,EFBC81 共21个字节
         // 'Hello, World!\n' unicode  => 'Hello, World!\n'  共 14 个字符

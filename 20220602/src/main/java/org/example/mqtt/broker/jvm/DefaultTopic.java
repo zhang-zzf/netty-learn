@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.jvm;
 
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Session;
 import org.example.mqtt.broker.Topic;
 
@@ -15,16 +16,16 @@ import java.util.concurrent.ConcurrentMap;
  */
 public class DefaultTopic implements Topic {
 
-    private final TopicFilter topicFilter;
-    private final ConcurrentMap<Session, Integer> subscribers;
+    private final String topicFilter;
+    private final ConcurrentMap<ServerSession, Integer> subscribers;
 
-    public DefaultTopic(TopicFilter topicFilter) {
+    public DefaultTopic(String topicFilter) {
         this.topicFilter = topicFilter;
         this.subscribers = new ConcurrentHashMap<>();
     }
 
     @Override
-    public TopicFilter topicFilter() {
+    public String topicFilter() {
         return topicFilter;
     }
 
@@ -34,7 +35,7 @@ public class DefaultTopic implements Topic {
     }
 
     @Override
-    public void addSubscriber(Session session, int qos) {
+    public void addSubscriber(ServerSession session, int qos) {
         subscribers.put(session, qos);
     }
 
@@ -44,7 +45,7 @@ public class DefaultTopic implements Topic {
     }
 
     @Override
-    public Map<Session, Integer> subscribers() {
+    public Map<ServerSession, Integer> subscribers() {
         return subscribers;
     }
 
@@ -55,43 +56,6 @@ public class DefaultTopic implements Topic {
 
     @Override
     public void close() throws Exception {
-
-    }
-
-    public static class DefaultTopicFilter implements TopicFilter {
-
-        private final String value;
-
-        public DefaultTopicFilter(String value) {
-            this.value = value;
-        }
-
-        @Override
-        public String value() {
-            return value;
-        }
-
-        @Override
-        public boolean match(String topicName) {
-            return value.equals(topicName);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            DefaultTopicFilter that = (DefaultTopicFilter) o;
-            return value.equals(that.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(value);
-        }
 
     }
 

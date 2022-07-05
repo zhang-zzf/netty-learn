@@ -85,4 +85,16 @@ public class ConnAck extends ControlPacket {
         return this.returnCode;
     }
 
+    public boolean connectionAccepted() {
+        return this.returnCode == ACCEPTED;
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"sp\":").append(sp).append(',');
+        sb.append("\"returnCode\":").append(returnCode).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

@@ -51,7 +51,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
         }
         ConnAck connAck = (ConnAck) this.response;
         if (!connAck.connectionAccepted()) {
-            log.warn("syncConnect server reject: {}", connAck);
+            log.warn("syncConnect server refuse Connect: {}", connAck);
             return false;
         }
         return true;
@@ -60,6 +60,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     private boolean doWait(long timeoutMillis, Predicate<ControlPacket> condition) {
         lock.lock();
         try {
+            this.response = null;
             long currentTimeMillis = System.currentTimeMillis();
             while (!condition.test(this.response)) {
                 if (!serverResponse.await(timeoutMillis, TimeUnit.MILLISECONDS)) {

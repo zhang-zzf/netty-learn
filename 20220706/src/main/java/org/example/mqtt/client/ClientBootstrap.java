@@ -48,7 +48,7 @@ public class ClientBootstrap {
                     protected void initChannel(NioSocketChannel ch) throws Exception {
                         ch.pipeline()
                                 .addLast(new Codec())
-                                .addLast(new ClientHandler(payload, sendQos.byteValue(), topicQos.byteValue()))
+                                .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue()))
                         ;
                     }
                 });
@@ -92,7 +92,7 @@ public class ClientBootstrap {
 
     }
 
-    public static class ClientHandler extends ChannelInboundHandlerAdapter {
+    public static class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
         final int period = 10;
         final ByteBuf payload;
@@ -104,7 +104,7 @@ public class ClientBootstrap {
 
         ScheduledFuture<?> publishSendTask;
 
-        public ClientHandler(ByteBuf payload, byte sendQos, byte topicQos) {
+        public ClientSessionHandler(ByteBuf payload, byte sendQos, byte topicQos) {
             this.payload = payload;
             this.sendQos = sendQos;
             this.topicQos = topicQos;
@@ -125,6 +125,21 @@ public class ClientBootstrap {
 
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+            if (msg instanceof ControlPacket) {
+                try {
+                    channelRead0(ctx, msg);
+                } finally {
+                    /**
+                     * release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+                     */
+                    ((ControlPacket) msg)._buf().release();
+                }
+            } else {
+                super.channelRead(ctx, msg);
+            }
+        }
+
+        public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ConnAck) {
                 // send subscribe
                 ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
@@ -138,7 +153,6 @@ public class ClientBootstrap {
             } else {
                 session.messageReceived((ControlPacket) msg);
             }
-            super.channelRead(ctx, msg);
         }
 
         @Override

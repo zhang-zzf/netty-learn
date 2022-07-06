@@ -29,10 +29,10 @@ public class BrokerBootstrap {
                 .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
-                        SessionHandler sessionHandler = new SessionHandler(broker, packet -> 0x00, 3);
+                        ServerSessionHandler sessionHandler = new ServerSessionHandler(broker, packet -> 0x00, 3);
                         ch.pipeline()
                                 .addLast(new Codec())
-                                .addLast(SessionHandler.HANDLER_NAME, sessionHandler);
+                                .addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
                     }
                 });
         try {

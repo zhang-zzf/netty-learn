@@ -3,7 +3,7 @@ package org.example.mqtt.codec;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageCodec;
-import org.example.mqtt.broker.SessionHandler;
+import org.example.mqtt.broker.ServerSessionHandler;
 import org.example.mqtt.model.ControlPacket;
 
 import java.util.List;
@@ -32,7 +32,7 @@ public class Codec extends ByteToMessageCodec<ControlPacket> {
         // must release it after or it will cause memory leak
         ByteBuf packet = in.readRetainedSlice(packetLength);
         /**
-         * The packet ByteBuf will be released by {@link SessionHandler#channelRead(ChannelHandlerContext, Object)}
+         * The packet ByteBuf will be released by {@link ServerSessionHandler#channelRead(ChannelHandlerContext, Object)}
          */
         out.add(ControlPacket.from(packet));
     }

@@ -21,7 +21,7 @@ import java.util.Set;
  */
 @Slf4j
 @RequiredArgsConstructor
-public class SessionHandler extends ChannelInboundHandlerAdapter {
+public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     public static final String HANDLER_NAME = "sessionHandler";
     public static final String ACTIVE_IDLE_TIMEOUT_HANDLER = "activeIdleTimeoutHandler";

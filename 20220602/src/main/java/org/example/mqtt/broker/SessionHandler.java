@@ -133,7 +133,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
                 this.session.bind(ctx.channel());
                 this.session.register(broker);
             });
-            log.info("Connect accepted: {}, {}", connect.clientIdentifier(), connect);
+            log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
             ctx.writeAndFlush(PingResp.from());
@@ -171,10 +171,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        if (cause instanceof ReadTimeoutException) {
-            log.error("channel read timeout, now close the channel");
-        }
-        log.error("exceptionCaught {}. now close the session", curSessionClientIdentifier(), cause);
+        log.error("client({}) exceptionCaught. now close the session", curSessionClientIdentifier(), cause);
         closeSession(ctx);
     }
 
@@ -184,7 +181,7 @@ public class SessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("channelInactive {}", curSessionClientIdentifier());
+        log.info("client({}) channelInactive", curSessionClientIdentifier());
         closeSession(ctx);
         super.channelInactive(ctx);
     }

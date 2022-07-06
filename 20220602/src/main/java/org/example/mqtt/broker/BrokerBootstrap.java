@@ -15,7 +15,7 @@ import org.example.mqtt.codec.Codec;
  * @date 2022/07/01
  */
 @Slf4j
-public class Bootstrap {
+public class BrokerBootstrap {
 
     public static void main(String[] args) throws InterruptedException {
         final int port = 1883;

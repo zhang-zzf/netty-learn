@@ -92,12 +92,12 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 .collect(toList());
         broker().deregister(subscriptions);
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
-        log.info("doReceiveUnsubscribe resp: {}, {}", clientIdentifier(), unsubAck);
+        log.info("client({}) doReceiveUnsubscribe resp: {}", clientIdentifier(), unsubAck);
         channel().writeAndFlush(unsubAck);
     }
 
     private void doReceiveSubscribe(Subscribe packet) {
-        log.info("doReceiveSubscribe req: {}, {}", clientIdentifier(), packet);
+        log.info("client({}) doReceiveSubscribe req: {}", clientIdentifier(), packet);
         List<Subscription> subscriptions = packet.subscriptions().stream()
                 .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
                 .collect(toList());
@@ -107,7 +107,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 .map(s -> new Subscribe.Subscription(s.topicFilter(), s.qos()))
                 .collect(toList());
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permittedSubscriptions);
-        log.info("doReceiveSubscribe resp: {}, {}", clientIdentifier(), subAck);
+        log.info("client({}) doReceiveSubscribe resp: {}", clientIdentifier(), subAck);
         channel().writeAndFlush(subAck);
         doUpdateSessionSubscriptions(permitted);
     }

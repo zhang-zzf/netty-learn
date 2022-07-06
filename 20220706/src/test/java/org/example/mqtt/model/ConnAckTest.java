@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.BDDAssertions.then;
-import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * @author zhanfeng.zhang

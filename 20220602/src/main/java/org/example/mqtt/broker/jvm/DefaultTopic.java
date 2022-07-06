@@ -1,11 +1,10 @@
 package org.example.mqtt.broker.jvm;
 
 import org.example.mqtt.broker.ServerSession;
-import org.example.mqtt.broker.Session;
+import org.example.mqtt.session.Session;
 import org.example.mqtt.broker.Topic;
 
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;

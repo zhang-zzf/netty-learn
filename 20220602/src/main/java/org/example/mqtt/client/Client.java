@@ -1,15 +1,16 @@
 package org.example.mqtt.client;
 
-import org.example.mqtt.model.ConnAck;
-import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.*;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/7/5
  */
-public abstract class Client {
+public abstract class Client implements AutoCloseable {
 
     abstract ClientSession clientSession();
+
+    abstract String clientIdentifier();
 
     /**
      * 发起 Connect 请求
@@ -18,9 +19,29 @@ public abstract class Client {
      * @param connect ControlPacket
      */
     public boolean connect(Connect connect) {
-        ClientSession session = clientSession();
-        return session.syncConnect(connect);
+        return clientSession().syncConnect(connect);
     }
 
+    public void subscribe(Subscribe subscribe) {
+        clientSession().syncSubscribe(subscribe);
+    }
+
+    public void unsubscribe(Unsubscribe unsubscribe) {
+        clientSession().syncUnSubscribe(unsubscribe);
+    }
+
+    public void send(Publish publish) {
+        clientSession().syncSend(publish);
+    }
+
+    @Override
+    public void close() throws Exception {
+        clientSession().send(Disconnect.from()).sync();
+        clientSession().close();
+    }
+
+    public void messageReceived(Publish packet) {
+
+    }
 
 }

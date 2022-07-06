@@ -42,4 +42,8 @@ public class UnsubAck extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
+    public short packetIdentifier() {
+        return this.packetIdentifier;
+    }
+
 }

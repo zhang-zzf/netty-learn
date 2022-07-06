@@ -55,7 +55,7 @@ public class SubAck extends ControlPacket {
         return buf;
     }
 
-    public List<Subscribe.Subscription> subscriptionList() {
+    public List<Subscribe.Subscription> subscriptions() {
         return this.subscriptions;
     }
 

@@ -1,6 +1,9 @@
 package org.example.mqtt.broker;
 
+import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
 import org.example.mqtt.model.*;
 
 import java.util.ArrayList;
@@ -48,24 +51,24 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void send(ControlPacket packet) {
+    public Future<Void> send(ControlPacket packet) {
         if (packet == null) {
-            return;
+            throw new IllegalArgumentException();
         }
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
             /**
-             * {@link AbstractSession#callbackAfterPublishRemovedFromQueue(ControlPacketContext)} will release the payload
+             * {@link AbstractSession#publishSendSuccess(ControlPacketContext)} will release the payload
              */
             publish.payload().retain();
-            sendInEventLoop(publish);
+            return sendInEventLoop(publish);
         } else {
-            log.error("server send non-Publish packet");
+            throw new IllegalArgumentException();
         }
     }
 
     @Override
-    protected void callbackAfterPublishRemovedFromQueue(ControlPacketContext cpx) {
+    protected void publishSendSuccess(ControlPacketContext cpx) {
         if (cpx.getType() == ControlPacketContext.IN) {
             return;
         } else if (cpx.getType() == ControlPacketContext.OUT) {
@@ -74,10 +77,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
              */
             cpx.packet().payload().release();
         }
+        super.publishSendSuccess(cpx);
     }
 
     @Override
-    protected void doHandleReceivedPublish(Publish packet) {
+    protected void publishReceived(Publish packet, Future<Void> promise) {
         broker.onward(packet);
     }
 

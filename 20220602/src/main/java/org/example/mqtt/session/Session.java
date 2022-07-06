@@ -1,6 +1,8 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
+import io.netty.util.concurrent.Future;
+import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.model.ControlPacket;
 
 import java.util.List;
@@ -23,7 +25,7 @@ public interface Session extends AutoCloseable {
      *
      * @param message message
      */
-    void send(ControlPacket message);
+    Future<Void> send(ControlPacket message);
 
     /**
      * receive a message from client

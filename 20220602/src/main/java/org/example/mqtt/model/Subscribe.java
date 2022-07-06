@@ -108,6 +108,11 @@ public class Subscribe extends ControlPacket {
         return true;
     }
 
+    public Subscribe packetIdentifier(short packetIdentifier) {
+        this.packetIdentifier = packetIdentifier;
+        return this;
+    }
+
     /**
      * @author zhanfeng.zhang
      * @date 2022/06/23
@@ -136,6 +141,28 @@ public class Subscribe extends ControlPacket {
             }
             sb.append("\"qos\":").append(qos).append(',');
             return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Subscription that = (Subscription) o;
+            return topicFilter.equals(that.topicFilter);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(topicFilter);
+        }
+
+        public Subscription qos(int qos) {
+            this.qos = qos;
+            return this;
         }
 
     }

@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.jvm;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.session.Session;
 import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Publish;
 

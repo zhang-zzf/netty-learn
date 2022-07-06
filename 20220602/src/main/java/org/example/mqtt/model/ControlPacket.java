@@ -9,6 +9,9 @@ import io.netty.buffer.Unpooled;
  */
 public abstract class ControlPacket {
 
+    public static final int _0_BYTE_LENGTH = 1;
+    public static final int MIN_PACKET_LENGTH = 2;
+
     public static final byte CONNECT = 0x10;
     public static final byte CONNACK = 0x20;
     public static final byte PUBLISH = 0x30;
@@ -113,6 +116,30 @@ public abstract class ControlPacket {
         }
     }
 
+    public static int tryPickupPacket(ByteBuf in) {
+        int packetLength = -1;
+        if (in.readableBytes() < MIN_PACKET_LENGTH) {
+            return packetLength;
+        }
+        in.markReaderIndex();
+        try {
+            in.readByte();
+            int remainingLength = readRemainingLength(in);
+            if (in.readableBytes() < remainingLength) {
+                return packetLength;
+            }
+            // fixed header length + remainingLength
+            packetLength = (_0_BYTE_LENGTH + remainingLengthByteCnt(remainingLength)) + remainingLength;
+        } finally {
+            in.resetReaderIndex();
+        }
+        return packetLength;
+    }
+
+    private static int remainingLengthByteCnt(int remainingLength) {
+        return remainingLengthToByteBuf(remainingLength).readableBytes();
+    }
+
     /**
      * validate the packet after build it
      */
@@ -133,7 +160,7 @@ public abstract class ControlPacket {
         return type(this._0byte);
     }
 
-    private int readRemainingLength(ByteBuf buf) {
+    private static int readRemainingLength(ByteBuf buf) {
         int rl = 0;
         int multiplier = 1;
         while (true) {
@@ -161,7 +188,13 @@ public abstract class ControlPacket {
         ByteBuf buf = Unpooled.buffer(8);
         buf.writeByte(this._0byte);
         // remainingLength field
-        int rl = this.remainingLength;
+        buf.writeBytes(remainingLengthToByteBuf(this.remainingLength));
+        return buf;
+    }
+
+    private static ByteBuf remainingLengthToByteBuf(int remainingLength) {
+        ByteBuf buf = Unpooled.buffer(4);
+        int rl = remainingLength;
         do {
             int encodedByte = rl % 128;
             rl /= 128;

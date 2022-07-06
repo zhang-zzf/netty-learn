@@ -1,6 +1,5 @@
-package org.example.mqtt.codec;
+package org.example.mqtt.broker;
 
-import com.alibaba.fastjson.JSON;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
@@ -9,7 +8,8 @@ import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.*;
+import org.example.mqtt.session.Session;
+import org.example.mqtt.codec.Codec;
 import org.example.mqtt.model.*;
 
 import java.util.List;

@@ -1,4 +1,4 @@
-package org.example.mqtt.server;
+package org.example.mqtt.broker;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -7,10 +7,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.jvm.DefaultBroker;
 import org.example.mqtt.codec.Codec;
-import org.example.mqtt.codec.SessionHandler;
 
 /**
  * @author zhanfeng.zhang

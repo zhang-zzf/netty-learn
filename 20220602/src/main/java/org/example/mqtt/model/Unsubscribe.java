@@ -119,4 +119,9 @@ public class Unsubscribe extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
+    public Unsubscribe packetIdentifier(short packetIdentifier) {
+        this.packetIdentifier = packetIdentifier;
+        return this;
+    }
+
 }

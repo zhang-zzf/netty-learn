@@ -1,5 +1,7 @@
 package org.example.mqtt.broker;
 
+import org.example.mqtt.session.Session;
+
 import java.util.Map;
 import java.util.Set;
 

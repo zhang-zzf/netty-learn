@@ -1,5 +1,6 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.session;
 
+import io.netty.util.concurrent.Promise;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
@@ -32,15 +33,17 @@ public class ControlPacketContext {
     private final Publish packet;
     private final int type;
     private final AtomicInteger status;
+    private final Promise<?> promise;
     private long markedMillis;
     private int retryTimes;
 
     private ControlPacketContext next;
 
-    public ControlPacketContext(Publish packet, int status, int type) {
+    public ControlPacketContext(Publish packet, int status, int type, Promise<Void> promise) {
         this.packet = packet;
         this.status = new AtomicInteger(status);
         this.markedMillis = System.currentTimeMillis();
+        this.promise = promise;
         this.type = type;
     }
 

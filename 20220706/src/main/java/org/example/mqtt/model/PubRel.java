@@ -44,4 +44,11 @@ public class PubRel extends ControlPacket {
         return this.packetIdentifier;
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

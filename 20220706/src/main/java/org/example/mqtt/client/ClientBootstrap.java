@@ -18,6 +18,7 @@ import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.Session;
 
+import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -30,13 +31,17 @@ import java.util.concurrent.TimeUnit;
 public class ClientBootstrap {
 
     public static void main(String[] args) throws InterruptedException {
-        String remoteHost = args[0];
-        Integer remotePort = Integer.valueOf(args[1]);
+        // require args
+        String[] remoteAddr = args[0].split(":");
+        String[] localAddr = args[1].split(":");
+        InetSocketAddress remote = new InetSocketAddress(remoteAddr[0], Integer.valueOf(remoteAddr[1]));
+        InetSocketAddress local = new InetSocketAddress(localAddr[0], Integer.valueOf(localAddr[1]));
         Integer connections = Integer.valueOf(args[2]);
         Integer payloadLength = Integer.valueOf(args[3]);
         Integer sendQos = Integer.valueOf(args[4]);
         Integer topicQos = args.length == 6 ? Integer.valueOf(args[5]) : sendQos;
         ByteBuf payload = Unpooled.copiedBuffer(new byte[payloadLength]);
+        // start config bootstrap
         final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
         // 配置 bootstrap
         final Bootstrap bootstrap = new Bootstrap()
@@ -54,7 +59,7 @@ public class ClientBootstrap {
                 });
         try {
             for (int i = 0; i < connections; i++) {
-                doConnect(bootstrap, remoteHost, remotePort);
+                doConnect(bootstrap, remote, local);
             }
             Thread.currentThread().join();
         } finally {
@@ -62,14 +67,18 @@ public class ClientBootstrap {
         }
     }
 
-    private static void doConnect(Bootstrap bootstrap, String remoteHost, Integer remotePort) {
+    private static void doConnect(Bootstrap bootstrap, InetSocketAddress remoteAddr, InetSocketAddress localAddr) {
         ChannelFutureListener channelCloseListener = future -> {
-            Runnable task = () -> doConnect(bootstrap, remoteHost, remotePort);
+            Runnable task = () -> doConnect(bootstrap, remoteAddr, localAddr);
             // 延迟 10S 尝试重新连接
             future.channel().eventLoop().schedule(task, 10, TimeUnit.SECONDS);
         };
-        bootstrap.connect(remoteHost, remotePort).addListener((ChannelFutureListener) future -> {
-            future.channel().closeFuture().addListener(channelCloseListener);
+        bootstrap.connect(remoteAddr, localAddr).addListener((ChannelFutureListener) future -> {
+            if (future.isSuccess()) {
+                future.channel().closeFuture().addListener(channelCloseListener);
+            } else {
+                log.error("doConnect({}->{}) failed", localAddr, remoteAddr, future.cause());
+            }
         });
 
     }

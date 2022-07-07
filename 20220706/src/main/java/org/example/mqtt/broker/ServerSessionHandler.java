@@ -180,7 +180,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("client({}) channelInactive", curSessionClientIdentifier());
+        log.info("Session({}) channelInactive", curSessionClientIdentifier());
         closeSession(ctx);
         super.channelInactive(ctx);
     }

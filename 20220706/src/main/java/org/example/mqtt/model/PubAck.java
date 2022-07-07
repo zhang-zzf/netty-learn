@@ -37,4 +37,11 @@ public class PubAck extends ControlPacket {
         this.packetIdentifier = _buf().readShort();
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

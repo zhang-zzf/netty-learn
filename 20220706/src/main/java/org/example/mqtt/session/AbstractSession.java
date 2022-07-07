@@ -69,7 +69,8 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    protected boolean cleanSession() {
+    @Override
+    public boolean cleanSession() {
         return cleanSession;
     }
 
@@ -134,7 +135,7 @@ public abstract class AbstractSession implements Session {
 
     private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> queue) {
         if (packet.exactlyOnce() && existSamePacket(packet, queue)) {
-            log.info("qos2 same packet: {}", packet);
+            log.info("Session({}) qos2 same packet: {}", clientIdentifier(), packet);
             return true;
         }
         return false;
@@ -194,6 +195,7 @@ public abstract class AbstractSession implements Session {
         while (timeoutIt.hasNext()) {
             ControlPacketContext next = timeoutIt.next();
             if (controlPacketTimeout(next)) {
+                log.warn("Session({}) clean timeout Publish", clientIdentifier());
                 timeoutIt.remove();
                 publishSendFailed(next);
             }
@@ -218,6 +220,7 @@ public abstract class AbstractSession implements Session {
     }
 
     protected void publishSendFailed(ControlPacketContext cpx) {
+        log.info("Session({}) send Publish failed. {}", clientIdentifier(), cpx);
         cpx.getPromise().tryFailure(new TimeoutException("cpx timeout"));
     }
 
@@ -268,13 +271,13 @@ public abstract class AbstractSession implements Session {
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubComp nothing
-            log.error("Client PubComp nothing. {}", packetIdentifier);
+            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, outQueue);
             return;
         }
         if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubComp the right PacketIdentifier.
-            log.error("Client may have lost some PubComp. need: {}, actual: {}, ",
-                    cpx.packet().packetIdentifier(), packetIdentifier);
+            log.error("Session({}) may have lost some PubComp. need: {}, actual: {}, queue: {}",
+                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
             /* just drop it; */
             return;
         }
@@ -304,13 +307,14 @@ public abstract class AbstractSession implements Session {
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRec nothing
-            log.error("Client PubRec nothing. {}", packetIdentifier);
+            log.error("Session({}) PubRec nothing. {}, queue: {}",
+                    clientIdentifier(), packetIdentifier, outQueue);
             return;
         }
         if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubRec the right PacketIdentifier.
-            log.error("Client may have lost some PubRec. need: {}, actual: {}, ",
-                    cpx.packet().packetIdentifier(), packetIdentifier);
+            log.error("Session({}) may have lost some PubRec. need: {}, actual: {}, queue: {}", clientIdentifier,
+                    cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
             /* just drop it; */
             return;
         }
@@ -330,13 +334,13 @@ public abstract class AbstractSession implements Session {
         // now cpx point to the first QoS 1 ControlPacketContext or null
         if (cpx == null) {
             // Client PubAck nothing
-            log.error("Client PubAck nothing. {}", packetIdentifier);
+            log.error("Session({}) PubAck nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, outQueue);
             return;
         }
         if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubAck the right PacketIdentifier.
-            log.error("Client may have lost some PubAck. need: {}, actual: {}, ",
-                    cpx.packet().packetIdentifier(), packetIdentifier);
+            log.error("Session({}) may have lost some PubAck. need: {}, actual: {}, queue: {}",
+                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
             /* just drop it; */
             return;
         }
@@ -355,13 +359,13 @@ public abstract class AbstractSession implements Session {
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRel nothing
-            log.error("Client PubRel nothing. {}, {}", clientIdentifier(), packetIdentifier);
+            log.error("Session({}) PubRel nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, inQueue);
             return;
         }
         if (cpx.packet().packetIdentifier() != packetIdentifier) {
             // Client does not PubRel the right PacketIdentifier.
-            log.error("Client may have lost some PubRel. need: {}, actual: {}, ",
-                    cpx.packet().packetIdentifier(), packetIdentifier);
+            log.error("Session({}) may have lost some PubRel. need: {}, actual: {}, queue: {} ",
+                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, inQueue);
             /* just drop it; */
             return;
         }
@@ -380,7 +384,7 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePublish(Publish packet) {
         if (packet.needAck() && existSamePacket(packet, inQueue)) {
-            log.warn("receive same Publish packet: {}", packet.packetIdentifier());
+            log.warn("Session({}) send same Publish packet: {}", clientIdentifier(), packet.packetIdentifier());
             return;
         }
         Promise<Void> promise = newPromise();
@@ -435,12 +439,12 @@ public abstract class AbstractSession implements Session {
                 this.retryTask = null;
                 return;
             }
-            doSendTimeoutControlPacket(inQueue.peek());
-            doSendTimeoutControlPacket(outQueue.peek());
+            retrySendControlPacket(inQueue.peek());
+            retrySendControlPacket(outQueue.peek());
         }, 1, 1, TimeUnit.SECONDS);
     }
 
-    private void doSendTimeoutControlPacket(ControlPacketContext cpx) {
+    private void retrySendControlPacket(ControlPacketContext cpx) {
         if (!isBound()) {
             return;
         }
@@ -449,10 +453,12 @@ public abstract class AbstractSession implements Session {
         }
         // find the first cpx that need retry send
         if (shouldRetrySend(cpx)) {
-            doWrite(cpx.retryPacket()).addListener((ChannelFutureListener) future -> {
+            ControlPacket retryPacket = cpx.retryPacket();
+            log.info("Session({}) retry send Publish({}). retryPacket: {}", clientIdentifier(), cpx, retryPacket);
+            doWrite(retryPacket).addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
                     // resend all the packet
-                    doSendTimeoutControlPacket(cpx.next());
+                    retrySendControlPacket(cpx.next());
                 }
             });
         }

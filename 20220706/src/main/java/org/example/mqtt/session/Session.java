@@ -69,4 +69,11 @@ public interface Session extends AutoCloseable {
      */
     short nextPacketIdentifier();
 
+    /**
+     * whether the session is cleanSession
+     *
+     * @return true if session is CleanSession otherwise false
+     */
+    boolean cleanSession();
+
 }

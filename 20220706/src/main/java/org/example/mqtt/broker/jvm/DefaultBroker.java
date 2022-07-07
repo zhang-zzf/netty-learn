@@ -1,9 +1,12 @@
 package org.example.mqtt.broker.jvm;
 
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.session.Session;
-import org.example.mqtt.broker.*;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.ServerSession;
+import org.example.mqtt.broker.Subscription;
+import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.session.Session;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -68,14 +71,24 @@ public class DefaultBroker implements Broker {
     public void disconnect(Session session) {
         // todo other clean job
         // remove the session from the broker
-        sessionMap.remove(session.clientIdentifier(), session);
+        boolean removed = sessionMap.remove(session.clientIdentifier(), session);
+        if (!removed) {
+            log.error("Session({}) disconnect failed.", session.clientIdentifier());
+        } else {
+            log.info("Session({}) disconnect success.", session.clientIdentifier());
+        }
         // clean all the subscription that the session registered
         for (Subscription sub : session.subscriptions()) {
             Topic topic = topicMap.get(sub.topicFilter());
             if (topic != null) {
                 topic.removeSubscriber(sub.session());
                 if (topic.isEmpty()) {
-                    topicMap.remove(sub.topicFilter(), topic);
+                    boolean topicRemoved = topicMap.remove(sub.topicFilter(), topic);
+                    if (topicRemoved) {
+                        log.info("Topic({}) has none Subscriber, and broker remove it.", topic);
+                    } else{
+                        log.error("Topic({}) has none Subscriber, but broker remove it failed.", topic);
+                    }
                 }
             }
         }
@@ -117,8 +130,10 @@ public class DefaultBroker implements Broker {
 
     @Override
     public void connect(ServerSession session) {
-        sessionMap.putIfAbsent(session.clientIdentifier(), session);
-
+        ServerSession existSession = sessionMap.putIfAbsent(session.clientIdentifier(), session);
+        if (existSession.cleanSession()) {
+            log.error("Session({}) cleanSession was not removed from broker.", existSession.clientIdentifier());
+        }
     }
 
     @Override

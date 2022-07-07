@@ -165,4 +165,37 @@ public class ControlPacketContext {
         throw new IllegalStateException();
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        if (packet != null) {
+            sb.append("\"packet\":");
+            String objectStr = packet.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
+        sb.append("\"type\":").append(type).append(',');
+        if (status != null) {
+            sb.append("\"status\":");
+            String objectStr = status.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
+        sb.append("\"markedMillis\":").append(markedMillis).append(',');
+        sb.append("\"retryTimes\":").append(retryTimes).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

@@ -11,15 +11,12 @@ import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
-import java.util.AbstractQueue;
-import java.util.Iterator;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.example.mqtt.model.ControlPacket.*;
+import static org.example.mqtt.model.Publish.AT_LEAST_ONCE;
 import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
 import static org.example.mqtt.session.ControlPacketContext.*;
 
@@ -39,7 +36,7 @@ import static org.example.mqtt.session.ControlPacketContext.*;
 public abstract class AbstractSession implements Session {
 
     private final String clientIdentifier;
-    private final AtomicInteger pocketIdentifier = new AtomicInteger(0);
+    private final AtomicInteger pocketIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
     private boolean cleanSession;
 
     private Queue<ControlPacketContext> inQueue = new ControlPacketContextQueue();
@@ -51,7 +48,7 @@ public abstract class AbstractSession implements Session {
     /**
      * bind to the same EventLoop that the channel was bind to.
      */
-    private volatile EventLoop eventLoop;
+    private EventLoop eventLoop;
     private Channel channel;
 
     protected AbstractSession(String clientIdentifier) {
@@ -85,6 +82,10 @@ public abstract class AbstractSession implements Session {
     protected Promise<Void> sendInEventLoop(ControlPacket packet) {
         if (this.eventLoop == null) {
             throw new IllegalStateException();
+        }
+        if (isBound() && this.eventLoop != channel.eventLoop()) {
+            log.error("Session({}) bind wrong Thread", clientIdentifier());
+            this.eventLoop = channel.eventLoop();
         }
         DefaultPromise<Void> promise = newPromise();
         // make sure use the safe thread that the session wad bound to
@@ -124,18 +125,21 @@ public abstract class AbstractSession implements Session {
         // very little chance
         if (qos2DuplicateCheck(outgoing, outQueue)) {
             promise.trySuccess(null);
+            log.info("Session({}) send same qos2 packet: {}", clientIdentifier(), outgoing);
             return;
         }
         // enqueue
-        outQueue.offer(new ControlPacketContext(outgoing, ControlPacketContext.CREATED, OUT, promise));
+        outQueue.offer(new ControlPacketContext(outgoing, ControlPacketContext.INIT, OUT, promise));
         // start send some packet
         doSendPublishPacket(outQueue.peek());
-        tryCleanQueue(outQueue);
+        tryCleanOutQueue();
+        if (!outQueue.isEmpty()) {
+            startRetryTask();
+        }
     }
 
     private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> queue) {
         if (packet.exactlyOnce() && existSamePacket(packet, queue)) {
-            log.info("Session({}) qos2 same packet: {}", clientIdentifier(), packet);
             return true;
         }
         return false;
@@ -161,11 +165,12 @@ public abstract class AbstractSession implements Session {
         }
         final ControlPacketContext cpxToUse = cpx;
         // mark first and then send data
-        cpxToUse.markStatus(ControlPacketContext.CREATED, ControlPacketContext.SENDING);
+        cpxToUse.markStatus(INIT, SENDING);
+        // there is no concurrency problem, but the doWrite is async progress.
         // send data and add send complete listener
         doWrite(cpxToUse.packet()).addListener((ChannelFutureListener) future -> {
             if (future.isSuccess()) {
-                cpxToUse.markStatus(ControlPacketContext.SENDING, ControlPacketContext.SENT);
+                cpxToUse.markStatus(SENDING, SENT);
                 // send the next packet in the queue if needed
                 doSendPublishPacket(cpxToUse.next());
             }
@@ -189,44 +194,65 @@ public abstract class AbstractSession implements Session {
         return cpx;
     }
 
-    private void tryCleanQueue(Queue<ControlPacketContext> queue) {
-        // clean all timeout cpx
-        Iterator<ControlPacketContext> timeoutIt = queue.iterator();
-        while (timeoutIt.hasNext()) {
-            ControlPacketContext next = timeoutIt.next();
-            if (controlPacketTimeout(next)) {
-                log.warn("Session({}) clean timeout Publish", clientIdentifier());
-                timeoutIt.remove();
-                publishSendFailed(next);
-            }
-        }
-        // clean all QoS 0 cpx
-        Iterator<ControlPacketContext> qos0It = queue.iterator();
-        while (qos0It.hasNext()) {
-            ControlPacketContext next = qos0It.next();
-            if (!next.packet().needAck()) {
-                qos0It.remove();
-                publishSendSuccess(next);
-            }
-        }
+    private void tryCleanOutQueue() {
         // just clean complete cpx from head
-        ControlPacketContext cpx = queue.peek();
+        ControlPacketContext cpx = outQueue.peek();
         // cpx always point to the first cpx in the queue
         while (cpx != null && cpx.complete()) {
-            queue.poll();
-            publishSendSuccess(cpx);
-            cpx = queue.peek();
+            outQueue.poll();
+            publishSent(cpx);
+            cpx = outQueue.peek();
+        }
+        Iterator<ControlPacketContext> it = outQueue.iterator();
+        while (it.hasNext()) {
+            ControlPacketContext next = it.next();
+            if (!next.packet().needAck()) {
+                // clean all QoS 0 cpx
+                it.remove();
+                publishSent(next);
+            } else if (controlPacketTimeout(next)) {
+                // clean all timeout cpx
+                it.remove();
+                log.warn("Session({}) clean timeout Publish({}) in outQueue after {}ms.",
+                        clientIdentifier(), cpx, cpx.elapseAfterLastMark());
+                cpx.timeout();
+            }
         }
     }
 
-    protected void publishSendFailed(ControlPacketContext cpx) {
-        log.info("Session({}) send Publish failed. {}", clientIdentifier(), cpx);
-        cpx.getPromise().tryFailure(new TimeoutException("cpx timeout"));
+    private void tryCleanInQueue() {
+        // just clean complete cpx from head
+        ControlPacketContext cpx = inQueue.peek();
+        // cpx always point to the first cpx in the queue
+        while (cpx != null && cpx.complete()) {
+            inQueue.poll();
+            publishReceived(cpx);
+            cpx = inQueue.peek();
+        }
+        Iterator<ControlPacketContext> it = inQueue.iterator();
+        while (it.hasNext()) {
+            ControlPacketContext next = it.next();
+            if (!next.packet().needAck()) {
+                // clean all QoS 0 cpx
+                it.remove();
+                publishReceived(cpx);
+            } else if (controlPacketTimeout(next)) {
+                // clean all timeout cpx
+                it.remove();
+                log.warn("Session({}) clean timeout Publish({}) in inQueue after {}ms",
+                        clientIdentifier(), cpx, cpx.elapseAfterLastMark());
+                cpx.timeout();
+            }
+        }
+    }
+
+    protected void publishReceived(ControlPacketContext cpx) {
+        cpx.success();
     }
 
     private boolean controlPacketTimeout(ControlPacketContext cpx) {
-        int timeoutMillis = retryPeriodInMillis > 0 ? 2 * retryPeriodInMillis : 3000;
-        return (System.currentTimeMillis() - cpx.getMarkedMillis() >= timeoutMillis);
+        int timeoutMillis = retryPeriodInMillis > 0 ? 2 * retryPeriodInMillis : 30000;
+        return (cpx.elapseAfterLastMark() >= timeoutMillis);
     }
 
     /**
@@ -234,8 +260,8 @@ public abstract class AbstractSession implements Session {
      *
      * @param cpx Publish
      */
-    protected void publishSendSuccess(ControlPacketContext cpx) {
-        cpx.getPromise().trySuccess(null);
+    protected void publishSent(ControlPacketContext cpx) {
+        cpx.success();
     }
 
     @Override
@@ -281,9 +307,9 @@ public abstract class AbstractSession implements Session {
             /* just drop it; */
             return;
         }
-        cpx.markStatus(ControlPacketContext.PUB_REC, ControlPacketContext.PUB_COMP);
+        cpx.markStatus(PUB_REC, PUB_COMP);
         // try clean the queue
-        tryCleanQueue(outQueue);
+        tryCleanOutQueue();
     }
 
     private ControlPacketContext findFirst(Queue<ControlPacketContext> queue, int qos) {
@@ -318,7 +344,7 @@ public abstract class AbstractSession implements Session {
             /* just drop it; */
             return;
         }
-        cpx.markStatus(ControlPacketContext.SENT, ControlPacketContext.PUB_REC);
+        cpx.markStatus(SENT, PUB_REC);
         // send PubRel packet.
         doWrite(cpx.pubRel());
         // no need clean the queue
@@ -330,7 +356,7 @@ public abstract class AbstractSession implements Session {
     private void doReceivePubAck(PubAck packet) {
         short packetIdentifier = packet.getPacketIdentifier();
         // only look for the first QoS 1 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findFirst(outQueue, Publish.AT_LEAST_ONCE);
+        ControlPacketContext cpx = findFirst(outQueue, AT_LEAST_ONCE);
         // now cpx point to the first QoS 1 ControlPacketContext or null
         if (cpx == null) {
             // Client PubAck nothing
@@ -344,9 +370,9 @@ public abstract class AbstractSession implements Session {
             /* just drop it; */
             return;
         }
-        cpx.markStatus(ControlPacketContext.SENT, ControlPacketContext.PUB_ACK);
+        cpx.markStatus(SENT, PUB_ACK);
         // try clean the queue
-        tryCleanQueue(outQueue);
+        tryCleanOutQueue();
     }
 
     /**
@@ -369,12 +395,12 @@ public abstract class AbstractSession implements Session {
             /* just drop it; */
             return;
         }
-        cpx.markStatus(ONWARD, PUB_REL);
+        cpx.markStatus(HANDLED, PUB_REL);
         // ack PubComp to Client
         doWrite(cpx.pubComp()).addListener((ChannelFutureListener) future -> {
             if (future.isSuccess()) {
                 cpx.markStatus(PUB_REL, PUB_COMP);
-                tryCleanQueue(inQueue);
+                tryCleanInQueue();
             }
         });
     }
@@ -384,22 +410,33 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePublish(Publish packet) {
         if (packet.needAck() && existSamePacket(packet, inQueue)) {
-            log.warn("Session({}) send same Publish packet: {}", clientIdentifier(), packet.packetIdentifier());
+            log.warn("Session({}) receive same Publish packet: {}", clientIdentifier(), packet.packetIdentifier());
             return;
         }
-        Promise<Void> promise = newPromise();
-        ControlPacketContext cpx = new ControlPacketContext(packet, RECEIVED, IN, promise);
+        Promise<Void> receiveProgress = newPromise();
+        ControlPacketContext cpx = new ControlPacketContext(packet, INIT, IN, receiveProgress);
         inQueue.offer(cpx);
-        publishReceived(packet, promise);
-        cpx.markStatus(RECEIVED, ONWARD);
-        // now cpx is ONWARD
+        boolean handled = false;
+        try {
+            handled = onPublish(packet, receiveProgress);
+        } catch (Exception e) {
+            log.error("Session({}) throw exception when handle Publish", clientIdentifier(), e);
+        }
+        if (!handled) {
+            log.error("Session({}) handle Publish failed", clientIdentifier());
+            // wait for retry
+            // current no retry
+            // return;
+        }
+        cpx.markStatus(INIT, HANDLED);
+        // now cpx is HANDLED
         if (packet.atMostOnce()) {
-            tryCleanQueue(inQueue);
+            tryCleanInQueue();
         } else if (packet.atLeastOnce()) {
             doWrite(cpx.pubAck()).addListener((ChannelFutureListener) future -> {
                 if (future.isSuccess()) {
-                    cpx.markStatus(ONWARD, PUB_ACK);
-                    tryCleanQueue(inQueue);
+                    cpx.markStatus(HANDLED, PUB_ACK);
+                    tryCleanInQueue();
                 }
             });
         } else if (packet.exactlyOnce()) {
@@ -417,21 +454,23 @@ public abstract class AbstractSession implements Session {
      *
      * @param packet the Publish packet that received from pair
      */
-    protected abstract void publishReceived(Publish packet, Future<Void> promise);
+    protected abstract boolean onPublish(Publish packet, Future<Void> promise);
 
     private ChannelFuture doWrite(ControlPacket packet) {
-        startRetryTask();
         return channel.writeAndFlush(packet)
                 .addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
     }
 
     private void startRetryTask() {
+        if (!isBound()) {
+            return;
+        }
         if (this.retryTask != null) {
             return;
         }
         this.retryTask = eventLoop.scheduleWithFixedDelay(() -> {
-            tryCleanQueue(inQueue);
-            tryCleanQueue(outQueue);
+            tryCleanInQueue();
+            tryCleanOutQueue();
             boolean emptyQueue = inQueue.isEmpty() && outQueue.isEmpty();
             if (!isBound() || emptyQueue) {
                 // cancel the scheduled task
@@ -446,6 +485,7 @@ public abstract class AbstractSession implements Session {
 
     private void retrySendControlPacket(ControlPacketContext cpx) {
         if (!isBound()) {
+            log.info("Session({}) retry send packet failed, Session was not bound with a channel", clientIdentifier());
             return;
         }
         if (cpx == null) {
@@ -464,11 +504,11 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private boolean shouldRetrySend(ControlPacketContext qosPacket) {
+    private boolean shouldRetrySend(ControlPacketContext cpx) {
         if (retryPeriodInMillis == 0) {
             return false;
         }
-        return (System.currentTimeMillis() - qosPacket.getMarkedMillis() >= retryPeriodInMillis);
+        return (cpx.elapseAfterLastMark() >= retryPeriodInMillis);
     }
 
     @Override
@@ -568,9 +608,9 @@ public abstract class AbstractSession implements Session {
                         throw new IllegalStateException();
                     }
                     nexted = false;
-                    prev.setNext(cur.next());
+                    prev.next(cur.next());
                     size -= 1;
-                    cur.setNext(null);
+                    cur.next(null);
                     cur = prev;
                     if (size == 0) {
                         tail = head;
@@ -589,7 +629,7 @@ public abstract class AbstractSession implements Session {
             if (cpx == null) {
                 throw new NullPointerException("cpx is null");
             }
-            tail.setNext(cpx);
+            tail.next(cpx);
             tail = cpx;
             size += 1;
             return true;
@@ -599,9 +639,9 @@ public abstract class AbstractSession implements Session {
         public ControlPacketContext poll() {
             ControlPacketContext node = head.next();
             if (node != null) {
-                head.setNext(node.next());
+                head.next(node.next());
                 // good for GC
-                node.setNext(null);
+                node.next(null);
                 size -= 1;
             }
             if (size == 0) {

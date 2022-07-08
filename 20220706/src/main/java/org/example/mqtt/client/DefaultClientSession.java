@@ -54,14 +54,16 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    protected void publishReceived(Publish packet, Future<Void> promise) {
+    protected boolean onPublish(Publish packet, Future<Void> promise) {
         promise.addListener((ChannelFutureListener) future -> {
             if (future.isSuccess()) {
                 client.messageReceived(packet);
             } else {
+                // 有待确定
                 throw new RuntimeException(future.cause());
             }
         });
+        return true;
     }
 
     @Override

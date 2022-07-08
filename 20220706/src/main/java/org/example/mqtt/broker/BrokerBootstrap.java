@@ -19,11 +19,12 @@ public class BrokerBootstrap {
 
     public static void main(String[] args) throws InterruptedException {
         final int port = 1883;
-        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
+        final NioEventLoopGroup workerGroup = new NioEventLoopGroup(8, (Runnable r) -> new Thread(r, "netty-worker"));
+        final NioEventLoopGroup bossGroup = new NioEventLoopGroup(2, (Runnable r) -> new Thread(r, "netty-boss"));
         final Broker broker = new DefaultBroker();
         // 配置 bootstrap
         final ServerBootstrap serverBootstrap = new ServerBootstrap()
-                .group(nioEventLoopGroup)
+                .group(bossGroup, workerGroup)
                 // 设置 Channel 类型，通过反射创建 Channel 对象
                 .channel(NioServerSocketChannel.class)
                 .childHandler(new ChannelInitializer<SocketChannel>() {
@@ -40,7 +41,8 @@ public class BrokerBootstrap {
             log.info("server listened at {}", port);
             serverChannel.closeFuture().sync();
         } finally {
-            nioEventLoopGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
         }
     }
 

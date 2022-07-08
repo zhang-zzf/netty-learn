@@ -5,13 +5,13 @@ import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/26
  */
-@Data
 @Slf4j
 public class ControlPacketContext {
 
@@ -20,10 +20,15 @@ public class ControlPacketContext {
     public static final int PUB_COMP = 1 << 4;
     public static final int PUB_ACK = 1 << 5;
 
-    public static final int RECEIVED = 1 << 6;
-    public static final int ONWARD = 1 << 7;
+    /**
+     * when Session receive a Publish packet(may from business layer)
+     */
+    public static final int INIT = 1 << 6;
+    /**
+     *
+     */
+    public static final int HANDLED = 1 << 7;
 
-    public static final int CREATED = 1 << 10;
     public static final int SENDING = 1 << 11;
     public static final int SENT = 1 << 12;
 
@@ -56,38 +61,7 @@ public class ControlPacketContext {
     }
 
     public boolean canPublish() {
-        return status.get() == CREATED;
-    }
-
-
-    public ControlPacketContext markStatus() {
-        return markStatus(status.get());
-    }
-
-    public ControlPacketContext markStatus(int expect) {
-        int update = expect;
-        if (expect == RECEIVED) {
-            update = ONWARD;
-        } else if (expect == ONWARD) {
-            if (packet().atLeastOnce()) {
-                update = PUB_ACK;
-            }
-            if (packet().exactlyOnce()) {
-                update = PUB_REC;
-            }
-        } else if (expect == PUB_REC) {
-            update = PUB_REL;
-        } else if (expect == PUB_REL) {
-            update = PUB_COMP;
-        } else if (expect == SENT) {
-            if (packet().atLeastOnce()) {
-                update = PUB_ACK;
-            }
-            if (packet().exactlyOnce()) {
-                update = PUB_REC;
-            }
-        }
-        return markStatus(expect, update);
+        return status.get() == INIT;
     }
 
     public ControlPacketContext markStatus(int expect, int update) {
@@ -101,7 +75,7 @@ public class ControlPacketContext {
     public boolean complete() {
         int s = status.get();
         if (packet().atMostOnce()) {
-            if (s == ONWARD || s == SENT) {
+            if (s == HANDLED || s == SENT) {
                 return true;
             }
         }
@@ -135,11 +109,11 @@ public class ControlPacketContext {
         this.retryTimes += 1;
         int s = status.get();
         if (packet().atLeastOnce()) {
-            switch (s) {
-                case ONWARD:
+            switch (type) {
+                case IN:
                     // receive message case
                     return pubAck();
-                case SENT:
+                case OUT:
                     // send message case
                     return packet();
                 default:
@@ -147,18 +121,16 @@ public class ControlPacketContext {
         }
         if (packet().exactlyOnce()) {
             switch (s) {
-                // receive message case
-                case ONWARD:
-                    return pubRec();
-                // receive message case
-                case PUB_REL:
-                    return pubComp();
-                // send message case
                 case SENT:
+                    // sender case
                     return packet();
-                // send message case
+                case HANDLED:
+                    // receiver case
+                    return pubRec();
                 case PUB_REC:
                     return pubRel();
+                case PUB_REL:
+                    return pubComp();
                 default:
             }
         }
@@ -196,6 +168,23 @@ public class ControlPacketContext {
         sb.append("\"markedMillis\":").append(markedMillis).append(',');
         sb.append("\"retryTimes\":").append(retryTimes).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public void timeout() {
+        promise.tryFailure(new TimeoutException());
+    }
+
+    public void success() {
+        promise.trySuccess(null);
+    }
+
+    public long elapseAfterLastMark() {
+        return System.currentTimeMillis() - markedMillis;
+    }
+
+    public ControlPacketContext next(ControlPacketContext next) {
+        this.next = next;
+        return this;
     }
 
 }

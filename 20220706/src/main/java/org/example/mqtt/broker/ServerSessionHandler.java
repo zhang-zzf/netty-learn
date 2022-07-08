@@ -7,9 +7,9 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.session.Session;
 import org.example.mqtt.codec.Codec;
 import org.example.mqtt.model.*;
+import org.example.mqtt.session.Session;
 
 import java.util.List;
 import java.util.Optional;
@@ -82,15 +82,15 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             log.error("channelRead the first Packet is not Connect, now close channel");
             return closeSession(ctx);
         }
-        // A Client can only send the CONNECT Packet once over a Network Connection.
-        // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
-        // and disconnect the Client
-        if (existSession() && cp instanceof Connect) {
-            log.error("channelRead send Connect packet more than once, now close session");
-            return closeSession(ctx);
-        }
         // the first Connect Packet
         if (cp instanceof Connect) {
+            // A Client can only send the CONNECT Packet once over a Network Connection.
+            // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
+            // and disconnect the Client
+            if (existSession()) {
+                log.error("channelRead send Connect packet more than once, now close session");
+                return closeSession(ctx);
+            }
             Connect connect = (Connect) cp;
             // The Server MUST respond to the CONNECT Packet
             // with a CONNACK return code 0x01 (unacceptable protocol level) and then
@@ -129,8 +129,13 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
             ctx.writeAndFlush(connAck).addListener((ChannelFutureListener) future -> {
                 // bind channel
-                this.session.bind(ctx.channel());
-                this.session.register(broker);
+                try {
+                    this.session.bind(ctx.channel());
+                    this.session.register(broker);
+                } catch (Exception e) {
+                    log.error("Session({}) unexpected exception when bind", session.clientIdentifier(), e);
+                    closeSession(ctx);
+                }
             });
             log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
         } else if (cp instanceof PingReq) {

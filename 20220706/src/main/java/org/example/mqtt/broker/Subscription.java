@@ -78,6 +78,16 @@ public interface Subscription {
             return session;
         }
 
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("{");
+            if (topicFilter != null) {
+                sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
+            }
+            sb.append("\"qos\":").append(qos).append(',');
+            return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
     }
 
 }

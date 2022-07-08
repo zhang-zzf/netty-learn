@@ -77,7 +77,7 @@ public class ClientBootstrap {
             if (future.isSuccess()) {
                 future.channel().closeFuture().addListener(channelCloseListener);
             } else {
-                log.error("doConnect({}->{}) failed", localAddr, remoteAddr, future.cause());
+                log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
             }
         });
 
@@ -90,7 +90,8 @@ public class ClientBootstrap {
         }
 
         @Override
-        public void publishReceived(Publish packet, Future<Void> promise) {
+        public boolean onPublish(Publish packet, Future<Void> promise) {
+            return true;
             // todo 统计
         }
 

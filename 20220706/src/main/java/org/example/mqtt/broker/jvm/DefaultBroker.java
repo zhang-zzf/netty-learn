@@ -49,8 +49,8 @@ public class DefaultBroker implements Broker {
             for (Map.Entry<ServerSession, Integer> subscriber : topic.subscribers().entrySet()) {
                 ServerSession session = subscriber.getKey();
                 if (!session.isRegistered()) {
-                    log.error("Session deregister from the broker, but there is a subscribe linked to the session." +
-                            "{}", session.clientIdentifier());
+                    log.error("Session({}) subscription link to a deregister session. {}",
+                            session.clientIdentifier(), session);
                     continue;
                 }
                 byte qos = subscriber.getValue().byteValue();
@@ -86,7 +86,7 @@ public class DefaultBroker implements Broker {
                     boolean topicRemoved = topicMap.remove(sub.topicFilter(), topic);
                     if (topicRemoved) {
                         log.info("Topic({}) has none Subscriber, and broker remove it.", topic);
-                    } else{
+                    } else {
                         log.error("Topic({}) has none Subscriber, but broker remove it failed.", topic);
                     }
                 }
@@ -131,7 +131,7 @@ public class DefaultBroker implements Broker {
     @Override
     public void connect(ServerSession session) {
         ServerSession existSession = sessionMap.putIfAbsent(session.clientIdentifier(), session);
-        if (existSession.cleanSession()) {
+        if (existSession != null && existSession.cleanSession()) {
             log.error("Session({}) cleanSession was not removed from broker.", existSession.clientIdentifier());
         }
     }

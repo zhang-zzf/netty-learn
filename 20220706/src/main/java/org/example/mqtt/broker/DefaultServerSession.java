@@ -2,12 +2,13 @@ package org.example.mqtt.broker;
 
 import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
-import org.example.mqtt.model.*;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.model.ControlPacket.*;
@@ -20,7 +21,7 @@ import static org.example.mqtt.model.ControlPacket.*;
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
     private Broker broker;
-    private boolean registered;
+    private volatile boolean registered;
     private List<Subscription> subscriptions = new ArrayList<>();
 
     public DefaultServerSession(String clientIdentifier) {
@@ -58,7 +59,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
             /**
-             * {@link AbstractSession#publishSendSuccess(ControlPacketContext)} will release the payload
+             * {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
             return sendInEventLoop(publish);
@@ -68,21 +69,18 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    protected void publishSendSuccess(ControlPacketContext cpx) {
-        if (cpx.getType() == ControlPacketContext.IN) {
-            return;
-        } else if (cpx.getType() == ControlPacketContext.OUT) {
-            /**
-             * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
-             */
-            cpx.packet().payload().release();
-        }
-        super.publishSendSuccess(cpx);
+    protected void publishSent(ControlPacketContext cpx) {
+        /**
+         * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
+         */
+        cpx.packet().payload().release();
+        super.publishSent(cpx);
     }
 
     @Override
-    protected void publishReceived(Publish packet, Future<Void> promise) {
+    protected boolean onPublish(Publish packet, Future<Void> promise) {
         broker.onward(packet);
+        return true;
     }
 
     private void doReceiveUnsubscribe(Unsubscribe packet) {
@@ -158,6 +156,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             this.registered = false;
         }
         super.close();
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"registered\":").append(registered).append(',');
+        sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
+        sb.append("\"cleanSession\":").append(cleanSession()).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

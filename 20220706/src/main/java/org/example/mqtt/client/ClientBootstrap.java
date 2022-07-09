@@ -11,6 +11,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.codec.Codec;
@@ -39,7 +40,8 @@ public class ClientBootstrap {
         Integer connections = Integer.valueOf(args[2]);
         Integer payloadLength = Integer.valueOf(args[3]);
         Integer sendQos = Integer.valueOf(args[4]);
-        Integer topicQos = args.length == 6 ? Integer.valueOf(args[5]) : sendQos;
+        Integer topicQos = Integer.valueOf(args[5]);
+        Integer period = Integer.valueOf(args[6]);
         ByteBuf payload = Unpooled.copiedBuffer(new byte[payloadLength]);
         // start config bootstrap
         final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
@@ -53,7 +55,7 @@ public class ClientBootstrap {
                     protected void initChannel(NioSocketChannel ch) throws Exception {
                         ch.pipeline()
                                 .addLast(new Codec())
-                                .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue()))
+                                .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue(), period))
                         ;
                     }
                 });
@@ -67,20 +69,23 @@ public class ClientBootstrap {
         }
     }
 
+    @SneakyThrows
     private static void doConnect(Bootstrap bootstrap, InetSocketAddress remoteAddr, InetSocketAddress localAddr) {
         ChannelFutureListener channelCloseListener = future -> {
             Runnable task = () -> doConnect(bootstrap, remoteAddr, localAddr);
             // 延迟 10S 尝试重新连接
             future.channel().eventLoop().schedule(task, 10, TimeUnit.SECONDS);
         };
-        bootstrap.connect(remoteAddr, localAddr).addListener((ChannelFutureListener) future -> {
-            if (future.isSuccess()) {
-                future.channel().closeFuture().addListener(channelCloseListener);
-            } else {
-                log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
-            }
-        });
-
+        bootstrap.connect(remoteAddr, localAddr)
+                .addListener((ChannelFutureListener) future -> {
+                    if (future.isSuccess()) {
+                        future.channel().closeFuture().addListener(channelCloseListener);
+                    } else {
+                        log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
+                    }
+                })
+                .sync()
+        ;
     }
 
     public static class ClientTestSession extends AbstractSession {
@@ -104,7 +109,7 @@ public class ClientBootstrap {
 
     public static class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
-        final int period = 10;
+        final int period;
         final ByteBuf payload;
         final byte sendQos;
         final byte topicQos;
@@ -114,10 +119,11 @@ public class ClientBootstrap {
 
         ScheduledFuture<?> publishSendTask;
 
-        public ClientSessionHandler(ByteBuf payload, byte sendQos, byte topicQos) {
+        public ClientSessionHandler(ByteBuf payload, byte sendQos, byte topicQos, int period) {
             this.payload = payload;
             this.sendQos = sendQos;
             this.topicQos = topicQos;
+            this.period = period;
         }
 
         @Override

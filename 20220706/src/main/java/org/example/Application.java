@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.BrokerBootstrap;
 import org.example.mqtt.client.ClientBootstrap;
+import org.example.mqtt.test.BrokerBootstrapForTest;
 
 /**
  * @author zhang.zzf
@@ -18,7 +19,13 @@ public class Application {
         if (clientMode) {
             ClientBootstrap.main(args);
         } else {
-            BrokerBootstrap.main(args);
+            boolean testMode = Boolean.getBoolean("mqtt.test.server");
+            if (testMode) {
+                // test mode
+                BrokerBootstrapForTest.main(args);
+            } else {
+                BrokerBootstrap.main(args);
+            }
         }
     }
 

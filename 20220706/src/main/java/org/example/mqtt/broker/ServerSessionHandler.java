@@ -123,7 +123,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
                 connAck = ConnAck.acceptedWithStoredSession();
             }
             if (this.session == null) {
-                DefaultServerSession newSession = new DefaultServerSession(connect.clientIdentifier());
+                DefaultServerSession newSession = newServerSession(connect);
                 newSession.cleanSession(connect.cleanSession());
                 this.session = newSession;
             }
@@ -146,6 +146,10 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             session.messageReceived(cp);
         }
         return false;
+    }
+
+    protected DefaultServerSession newServerSession(Connect connect) {
+        return new DefaultServerSession(connect.clientIdentifier());
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {

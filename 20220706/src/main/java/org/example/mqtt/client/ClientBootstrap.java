@@ -11,7 +11,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.codec.Codec;
@@ -69,23 +68,26 @@ public class ClientBootstrap {
         }
     }
 
-    @SneakyThrows
     private static void doConnect(Bootstrap bootstrap, InetSocketAddress remoteAddr, InetSocketAddress localAddr) {
         ChannelFutureListener channelCloseListener = future -> {
             Runnable task = () -> doConnect(bootstrap, remoteAddr, localAddr);
             // 延迟 10S 尝试重新连接
             future.channel().eventLoop().schedule(task, 10, TimeUnit.SECONDS);
         };
-        bootstrap.connect(remoteAddr, localAddr)
-                .addListener((ChannelFutureListener) future -> {
-                    if (future.isSuccess()) {
-                        future.channel().closeFuture().addListener(channelCloseListener);
-                    } else {
-                        log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
-                    }
-                })
-                .sync()
-        ;
+        try {
+            bootstrap.connect(remoteAddr, localAddr)
+                    .addListener((ChannelFutureListener) future -> {
+                        if (future.isSuccess()) {
+                            future.channel().closeFuture().addListener(channelCloseListener);
+                        } else {
+                            log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
+                        }
+                    })
+                    .sync()
+            ;
+        } catch (Throwable e) {
+            log.error("doConnect.sync({} ->{}) failed", localAddr, remoteAddr, e);
+        }
     }
 
     public static class ClientTestSession extends AbstractSession {

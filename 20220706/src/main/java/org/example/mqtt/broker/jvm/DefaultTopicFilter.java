@@ -7,6 +7,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -22,7 +23,8 @@ public class DefaultTopicFilter implements TopicFilter {
     private final Object EMPTY = new Object();
     private final ConcurrentMap<String, Object> preciseTopicFilter = new ConcurrentHashMap<>();
 
-    private final ConcurrentMap<String, Node> fuzzyTree = new ConcurrentHashMap<>();
+    // fuzzy filter topic tree
+    private final Node root = new Node();
 
     @Override
     public Set<String> match(String topicName) {
@@ -46,17 +48,11 @@ public class DefaultTopicFilter implements TopicFilter {
     }
 
     private void addToFuzzyTopicTree(String topicFilter) {
-        String[] topicLevel = topicFilter.split(LEVEL_SEPARATOR);
-        ConcurrentMap<String, Node> curLevel = fuzzyTree;
-        for (int i = 0; i < topicLevel.length; i++) {
-            Node n = lastLevel(i, topicLevel) ? new Node(topicFilter) : new Node();
-            Node previous = curLevel.putIfAbsent(topicLevel[i], n);
-            if (previous != null) {
-                previous.topic(topicFilter);
-                curLevel = previous.childLevel();
-            } else {
-                curLevel = n.childLevel();
-            }
+        String[] topicLevels = topicFilter.split(LEVEL_SEPARATOR);
+        Node parent = root;
+        for (int i = 0; i < topicLevels.length; i++) {
+            Node n = lastLevel(i, topicLevels) ? new Node(topicFilter) : new Node();
+            parent = parent.addChild(topicLevels[i], n);
         }
     }
 
@@ -77,18 +73,25 @@ public class DefaultTopicFilter implements TopicFilter {
     }
 
     private void removeFromFuzzyTopicTree(String topicFilter) {
-        String[] topicLevel = topicFilter.split(LEVEL_SEPARATOR);
-        ConcurrentMap<String, Node> curLevel = this.fuzzyTree;
-        for (int i = 0; i < topicLevel.length; i++) {
-            Node n = curLevel.get(topicLevel[i]);
-            if (n == null) {
-                return;
-            }
-            if (lastLevel(i, topicLevel)) {
-                // todo Not ThreadSafe
-                n.topic(null);
-            }
+        dfsRemove(topicFilter.split(LEVEL_SEPARATOR), 0, root);
+    }
+
+    private void dfsRemove(String[] topicLevels, int levelIdx, Node parent) {
+        if (levelIdx >= topicLevels.length) {
+            return;
         }
+        String topicLevel = topicLevels[levelIdx];
+        Node n = parent.child(topicLevel);
+        if (n == null) {
+            return;
+        }
+        if (lastLevel(levelIdx, topicLevels)) {
+            n.topic(null);
+        } else {
+            dfsRemove(topicLevels, levelIdx + 1, n);
+        }
+        // try clean child node if needed.
+        parent.tryCleanChild(topicLevel, n);
     }
 
     private Set<String> fuzzyMatch(String topicName) {
@@ -96,30 +99,30 @@ public class DefaultTopicFilter implements TopicFilter {
         if (topicName == null || topicName.isEmpty()) {
             return ret;
         }
-        dfsFuzzyMatch(topicName.split(LEVEL_SEPARATOR), 0, fuzzyTree, ret);
+        dfsFuzzyMatch(topicName.split(LEVEL_SEPARATOR), 0, root, ret);
         return ret;
     }
 
-    private void dfsFuzzyMatch(String[] topicLevels, int levelIdx, ConcurrentMap<String, Node> nodes, Set<String> ret) {
+    private void dfsFuzzyMatch(String[] topicLevels, int levelIdx, Node parent, Set<String> ret) {
         if (levelIdx >= topicLevels.length) {
             return;
         }
         String topicLevel = topicLevels[levelIdx];
-        Node levelNode;
-        if ((levelNode = nodes.get(topicLevel)) != null) {
+        Node n;
+        if ((n = parent.child(topicLevel)) != null) {
             if (lastLevel(levelIdx, topicLevels)) {
-                addNode(ret, levelNode);
+                addNode(ret, n);
             }
-            dfsFuzzyMatch(topicLevels, levelIdx + 1, levelNode.childLevel(), ret);
+            dfsFuzzyMatch(topicLevels, levelIdx + 1, n, ret);
         }
-        if ((levelNode = nodes.get(MULTI_LEVEL_WILDCARD)) != null) {
-            addNode(ret, levelNode);
+        if ((n = parent.child(MULTI_LEVEL_WILDCARD)) != null) {
+            addNode(ret, n);
         }
-        if ((levelNode = nodes.get(SINGLE_LEVEL_WILDCARD)) != null) {
+        if ((n = parent.child(SINGLE_LEVEL_WILDCARD)) != null) {
             if (lastLevel(levelIdx, topicLevels)) {
-                addNode(ret, levelNode);
+                addNode(ret, n);
             }
-            dfsFuzzyMatch(topicLevels, levelIdx + 1, levelNode.childLevel(), ret);
+            dfsFuzzyMatch(topicLevels, levelIdx + 1, n, ret);
         }
     }
 
@@ -142,8 +145,9 @@ public class DefaultTopicFilter implements TopicFilter {
         /**
          * null 表示本节点不是 topicFilter
          */
-        private String topic;
-        final ConcurrentMap<String, Node> childLevel = new ConcurrentHashMap<>();
+        private volatile String topic;
+        private final AtomicInteger childNum = new AtomicInteger(0);
+        private final ConcurrentMap<String, Node> childLevel = new ConcurrentHashMap<>();
 
         public Node(String topic) {
             this.topic = topic;
@@ -153,10 +157,6 @@ public class DefaultTopicFilter implements TopicFilter {
 
         }
 
-        public ConcurrentMap<String, Node> childLevel() {
-            return this.childLevel;
-        }
-
         public String topic() {
             return this.topic;
         }
@@ -164,6 +164,34 @@ public class DefaultTopicFilter implements TopicFilter {
         public Node topic(String topicFilter) {
             this.topic = topicFilter;
             return this;
+        }
+
+        public void tryCleanChild(String topicLevel, Node child) {
+            if (!shouldClean()) {
+                return;
+            }
+            if (childLevel.remove(topicLevel, child)) {
+                childNum.decrementAndGet();
+            }
+        }
+
+        public Node addChild(String topicLevel, Node child) {
+            Node nextNode;
+            if ((nextNode = childLevel.putIfAbsent(topicLevel, child)) == null) {
+                childNum.getAndIncrement();
+                nextNode = child;
+            } else {
+                nextNode.topic = topicLevel;
+            }
+            return nextNode;
+        }
+
+        public Node child(String topicLevel) {
+            return childLevel.get(topicLevel);
+        }
+
+        public boolean shouldClean() {
+            return childNum.get() == 0 && topic == null;
         }
 
     }

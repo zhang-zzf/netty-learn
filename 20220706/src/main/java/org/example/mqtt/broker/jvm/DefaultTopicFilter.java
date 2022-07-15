@@ -62,13 +62,17 @@ public class DefaultTopicFilter implements TopicFilter {
         boolean added = false;
         while (!added) {
             for (int i = 0; i < topicLevels.length; i++) {
-                Node n = lastLevel(i, topicLevels) ? new Node(topicFilter) : new Node();
+                boolean lastLevel = lastLevel(i, topicLevels);
+                Node n = lastLevel ? new Node(topicFilter) : new Node();
                 parent = parent.addChild(topicLevels[i], n);
                 if (parent == null) {
                     break;
                 }
+                if (lastLevel && n != parent) {
+                    parent.topic(topicFilter);
+                }
             }
-            added = true;
+            added = (parent != null);
         }
     }
 
@@ -209,8 +213,6 @@ public class DefaultTopicFilter implements TopicFilter {
             Node nextNode;
             if ((nextNode = childLevel.putIfAbsent(topicLevel, child)) == null) {
                 nextNode = child;
-            } else {
-                nextNode.topic = topicLevel;
             }
             return nextNode;
         }

@@ -23,7 +23,7 @@ public class DefaultTopicFilter implements TopicFilter {
     private final ConcurrentMap<String, Object> preciseTopicFilter = new ConcurrentHashMap<>();
 
     // fuzzy TopicFilter tree
-    private final Node root = new Node();
+    private final Node root = new Node("*", null);
 
     @Override
     public Set<String> match(String topicName) {
@@ -50,7 +50,8 @@ public class DefaultTopicFilter implements TopicFilter {
         if (topicFilter == null) {
             return false;
         }
-        if (topicFilter.indexOf(MULTI_LEVEL_WILDCARD) != topicFilter.length() - 1) {
+        int idx;
+        if ((idx = topicFilter.indexOf(MULTI_LEVEL_WILDCARD)) != -1 && idx != topicFilter.length() - 1) {
             return false;
         }
         return true;
@@ -62,14 +63,11 @@ public class DefaultTopicFilter implements TopicFilter {
         boolean added = false;
         while (!added) {
             for (int i = 0; i < topicLevels.length; i++) {
-                boolean lastLevel = lastLevel(i, topicLevels);
-                Node n = lastLevel ? new Node(topicFilter) : new Node();
-                parent = parent.addChild(topicLevels[i], n);
+                String level = topicLevels[i];
+                Node n = lastLevel(i, topicLevels) ? new Node(level, topicFilter) : new Node(level);
+                parent = parent.addChild(n);
                 if (parent == null) {
                     break;
-                }
-                if (lastLevel && n != parent) {
-                    parent.topic(topicFilter);
                 }
             }
             added = (parent != null);
@@ -107,7 +105,9 @@ public class DefaultTopicFilter implements TopicFilter {
             dfsRemove(topicLevels, levelIdx + 1, n);
         }
         // try clean child node if needed.
-        parent.removeChild(topicLevel, n);
+        if (n.canDelete()) {
+            parent.removeChild(n);
+        }
     }
 
     private Set<String> fuzzyMatch(String topicName) {
@@ -158,67 +158,73 @@ public class DefaultTopicFilter implements TopicFilter {
 
     public static class Node {
 
+        private final String level;
         /**
          * null 表示本节点不是 topicFilter
          */
-        // guarded by this lock
-        private volatile String topic;
-        // guarded by this lock
-        private final ConcurrentMap<String, Node> childLevel = new ConcurrentHashMap<>();
-        // guarded by this lock
+        private volatile String topicFilter;
+        /**
+         * child Nodes
+         */
+        private final ConcurrentMap<String, Node> childNodes = new ConcurrentHashMap<>();
+
         private boolean deleted;
 
-        public Node(String topic) {
-            this.topic = topic;
+        public Node(String level, String topicFilter) {
+            this.level = level;
+            this.topicFilter = topicFilter;
         }
 
-        public Node() {
-
+        public Node(String level) {
+            this(level, null);
         }
 
         public String topic() {
-            return this.topic;
+            return this.topicFilter;
         }
 
         public Node topic(String topicFilter) {
-            this.topic = topicFilter;
+            this.topicFilter = topicFilter;
             return this;
         }
 
-        public synchronized void removeChild(String topicLevel, Node child) {
-            if (child.canDelete()) {
-                // delete child from this node
-                synchronized (child) {
-                    if (child.canDelete() && childLevel.remove(topicLevel, child)) {
-                        child.markNodeDeleted();
-                    }
-                }
-            }
-        }
-
-        // must by guarded by this lock
-        private synchronized void markNodeDeleted() {
-            this.deleted = true;
-        }
-
         public synchronized boolean canDelete() {
-            return this.topic == null && this.childLevel.isEmpty();
+            return this.topicFilter == null && this.childNodes.isEmpty();
         }
 
-        public synchronized Node addChild(String topicLevel, Node child) {
-            if (this.deleted) {
+        public synchronized Node addChild(Node child) {
+            if (deleted()) {
                 // this node has been deleted
                 return null;
             }
             Node nextNode;
-            if ((nextNode = childLevel.putIfAbsent(topicLevel, child)) == null) {
+            if ((nextNode = childNodes.putIfAbsent(child.level, child)) == null) {
                 nextNode = child;
+            } else {
+                // the child Node is a TopicFilter. must update the exist node in the lock.
+                if (child.topic() == null) {
+                    nextNode.topic(child.topic());
+                }
             }
             return nextNode;
         }
 
-        public Node child(String topicLevel) {
-            return childLevel.get(topicLevel);
+        public synchronized void removeChild(Node node) {
+            synchronized (node) {
+                if (!node.deleted() && node.canDelete()) {
+                    node.deleted = true;
+                    // important: must check child node status before remove it from parent.childNodes
+                    this.childNodes.remove(node.level, node);
+                }
+            }
+        }
+
+        private boolean deleted() {
+            return deleted;
+        }
+
+        public Node child(String level) {
+            return childNodes.get(level);
         }
 
     }

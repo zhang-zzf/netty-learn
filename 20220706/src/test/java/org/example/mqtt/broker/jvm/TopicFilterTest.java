@@ -3,6 +3,7 @@ package org.example.mqtt.broker.jvm;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.TopicFilter;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.util.*;
@@ -16,7 +17,7 @@ import static org.assertj.core.api.BDDAssertions.then;
  * @date 2022/7/15
  */
 @Slf4j
-class SingleThreadTopicFilterTest {
+class TopicFilterTest {
 
     TopicFilter tf;
 
@@ -40,26 +41,14 @@ class SingleThreadTopicFilterTest {
     /**
      * 包含 wildcards 的 TopicFilter 流程 UT
      * <p>正向测试流程：测试接口语义的正确性</p>
-     */
-    @Test
-    void givenDefaultTopicFilter_whenAddWildcardsTopicFilter_thenSuccess() {
-        String topicFilter = "a/#";
-        tf.add(topicFilter);
-        Set<String> match = tf.match("a/b");
-        then(match).contains(topicFilter);
-    }
-
-    /**
-     * 包含 wildcards 的 TopicFilter 流程 UT
-     * <p>正向测试流程：测试接口语义的正确性</p>
      * <p>TopicFilter: a/b/#; Topic: a/b -> not Match </p>
      */
     @Test
-    void givenDefaultTopicFilter_whenAddWildcardsTopicFilter2_thenMatchFailed() {
+    void givenDefaultTopicFilter_whenAddWildcardsTopicFilter2_thenMatch() {
         String topicFilter = "a/b/#";
         tf.add(topicFilter);
         Set<String> match = tf.match("a/b");
-        then(match).isEmpty();
+        then(match).contains(topicFilter);
     }
 
     /**
@@ -107,14 +96,14 @@ class SingleThreadTopicFilterTest {
      * 包含 wildcards 的 TopicFilter 流程 UT
      * <p>正向测试流程：测试接口语义的正确性</p>
      * <p>add TopicFilter: a/b/#</p>
-     * <p>topic: a/b -> not match </p>
+     * <p>topic: a/c -> not match </p>
      * <p>add TopicFilter: a/+</p>
      * <p>topic: a/b -> match </p>
      */
     @Test
     void givenDefaultTopicFilter_whenAddWildcardsTopicFilter5_thenMatchSuccess() {
         tf.add("a/b/#");
-        then(tf.match("a/b")).isEmpty();
+        then(tf.match("a/c")).isEmpty();
         tf.add("a/+");
         then(tf.match("a/b")).contains("a/+");
     }
@@ -177,6 +166,7 @@ class SingleThreadTopicFilterTest {
      * </pre>
      */
     @Test
+    @Disabled
     void givenTopicFilter_whenAdd10000000_when() throws InterruptedException {
         Runnable task = () -> {
             int totalLevel = 7, cntPerLevel = 9;
@@ -258,6 +248,7 @@ class SingleThreadTopicFilterTest {
      * </pre>
      */
     @Test
+    @Disabled
     void givenTopicFilter_whenAdd10000000_whenTestMultiThreadRead() throws InterruptedException {
         int totalLevel = 7, cntPerLevel = 9;
         int total = 0;

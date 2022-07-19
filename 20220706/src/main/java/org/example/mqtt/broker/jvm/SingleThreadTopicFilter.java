@@ -121,11 +121,14 @@ public class SingleThreadTopicFilter implements TopicFilter {
     }
 
     private void dfsFuzzyMatch(String[] topicLevels, int levelIdx, Node parent, Set<String> ret) {
-        if (levelIdx >= topicLevels.length) {
+        Node n;
+        if (levelIdx == topicLevels.length) {
+            if ((n = parent.child(MULTI_LEVEL_WILDCARD)) != null) {
+                addNode(ret, n);
+            }
             return;
         }
         String topicLevel = topicLevels[levelIdx];
-        Node n;
         if ((n = parent.child(topicLevel)) != null) {
             if (lastLevel(levelIdx, topicLevels)) {
                 addNode(ret, n);

@@ -1,9 +1,10 @@
 package org.example.mqtt.broker.jvm;
 
+import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.TopicFilter;
 import org.junit.jupiter.api.Test;
 
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,6 +16,7 @@ import static org.assertj.core.api.BDDAssertions.then;
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/7/15
  */
+@Slf4j
 class DefaultTopicFilterTest {
 
     /**
@@ -182,6 +184,7 @@ class DefaultTopicFilterTest {
         t1.join();
         t2.join();
     }
+
     /**
      * 包含 wildcards 的 TopicFilter 流程 UT
      * <p>正向测试流程：测试接口语义的正确性</p>
@@ -224,5 +227,57 @@ class DefaultTopicFilterTest {
         }
     }
 
+
+    /**
+     * TopicFilter 1000W 压力测试
+     * <p>分析内存占用</p>
+     * <p>7层分析查询效率</p>
+     */
+    @Test
+    void givenTopicFilter_whenAdd10000000_when() throws InterruptedException {
+        int totalLevel = 4, cntPerLevel = 9;
+        TopicFilter tf = new DefaultTopicFilter();
+        int total = 0;
+        List<List<String>> topic = new ArrayList<>();
+        for (int i = 0; i < totalLevel; i++) {
+            List<String> list = new ArrayList<>(10);
+            if (i == 0) {
+                for (int j = 0; j < cntPerLevel; j++) {
+                    list.add(UUID.randomUUID().toString());
+                }
+            } else {
+                List<String> level = topic.get(i - 1);
+                for (String l : level) {
+                    for (int j = 0; j < cntPerLevel; j++) {
+                        String str = UUID.randomUUID().toString();
+                        list.add(l + "/" + str);
+                    }
+                }
+            }
+            topic.add(list);
+            for (String s : list) {
+                tf.add(s + "/+");
+                tf.add(s + "/#");
+                total += 2;
+            }
+            log.info("now tf has {} topicFilter", total);
+        }
+        long nanoTime = System.nanoTime();
+        Random random = new Random();
+        int testCnt = 10000000;
+        for (int i = 0; i < testCnt; i++) {
+            int l = random.nextInt(totalLevel);
+            int c = random.nextInt(cntPerLevel);
+            String t = topic.get(l).get(c);
+            Set<String> match = tf.match(t);
+            if (l == 0) {
+                then(match).isEmpty();
+            } else {
+                then(match).isNotEmpty();
+            }
+        }
+        long useTime = System.nanoTime() - nanoTime;
+        log.info("test {} cnt, use time: {}ns, {}ns/per", testCnt, useTime, useTime / testCnt);
+    }
 
 }

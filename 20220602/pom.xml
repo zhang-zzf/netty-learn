@@ -55,7 +55,7 @@
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
-            <version>1.18.8</version>
+            <version>1.18.24</version>
         </dependency>
 
         <!-- test -->
@@ -173,27 +173,6 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
-            <!-- ${user.home}/.m2/toolchains.xml -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-toolchains-plugin</artifactId>
-                <version>1.1</version>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>toolchain</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <configuration>
-                    <toolchains>
-                        <jdk>
-                            <version>1.8</version>
-                            <vendor>sun</vendor>
-                        </jdk>
-                    </toolchains>
-                </configuration>
             </plugin>
         </plugins>
 

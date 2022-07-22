@@ -250,7 +250,7 @@ class ByteBufTest {
         ByteBuf unpooledSliceByteBuf = unpooled.slice();
         unpooledSliceByteBuf.retain();
         then(unpooled.refCnt()).isEqualTo(2);
-        then(unpooledSliceByteBuf).isEqualTo(2);
+        then(unpooledSliceByteBuf.refCnt()).isEqualTo(2);
     }
 
     /**

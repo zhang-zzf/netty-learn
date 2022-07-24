@@ -39,17 +39,23 @@ public abstract class AbstractSession implements Session {
     private final AtomicInteger pocketIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
     private boolean cleanSession;
 
-    private Queue<ControlPacketContext> inQueue = new ControlPacketContextQueue();
-    private Queue<ControlPacketContext> outQueue = new ControlPacketContextQueue();
+    private final Queue<ControlPacketContext> inQueue = new ControlPacketContextQueue();
+    private final Queue<ControlPacketContext> outQueue = new ControlPacketContextQueue();
 
-    private ScheduledFuture retryTask;
-    private final int retryPeriodInMillis = 0;
+    // protected by eventLoop.thread
+    private ScheduledFuture<?> retryTask;
+    private final int retryPeriodInMillis = 60 * 1000;
 
     /**
      * bind to the same EventLoop that the channel was bind to.
      */
-    private EventLoop eventLoop;
-    private Channel channel;
+    private volatile EventLoop eventLoop;
+    private volatile Channel channel;
+
+    /**
+     * 是否发送 Publish Packet
+     */
+    private volatile Thread sendingPublishThread;
 
     protected AbstractSession(String clientIdentifier) {
         this.clientIdentifier = clientIdentifier;
@@ -63,6 +69,14 @@ public abstract class AbstractSession implements Session {
         }
         if (channel != null) {
             channel.close();
+            channel = null;
+        }
+        for (ControlPacketContext cpx : outQueue) {
+            if (cpx.inSending()) {
+                // re mark the SENDING cpx
+                cpx.markStatus(SENDING, INIT);
+                break;
+            }
         }
     }
 
@@ -76,38 +90,63 @@ public abstract class AbstractSession implements Session {
         if (packet == null) {
             throw new IllegalArgumentException();
         }
-        return sendInEventLoop(packet);
+        if (PUBLISH == packet.type()) {
+            return sendPublishInEventLoop((Publish) packet);
+        } else {
+            DefaultPromise<Void> promise = newPromise();
+            doSendPacket(packet, promise);
+            return promise;
+        }
+        // return sendInEventLoop(packet);
     }
 
-    protected Promise<Void> sendInEventLoop(ControlPacket packet) {
-        if (this.eventLoop == null) {
+    protected Promise<Void> sendPublishInEventLoop(Publish publish) {
+        if (eventLoop == null) {
             throw new IllegalStateException();
-        }
-        if (isBound() && this.eventLoop != channel.eventLoop()) {
-            log.error("Session({}) bind wrong Thread", clientIdentifier());
-            this.eventLoop = channel.eventLoop();
         }
         DefaultPromise<Void> promise = newPromise();
         // make sure use the safe thread that the session wad bound to
         if (eventLoop.inEventLoop()) {
-            invokeSend(packet, promise);
+            invokeSendPublish(publish, promise);
         } else {
-            eventLoop.execute(() -> invokeSend(packet, promise));
+            eventLoop.execute(() -> invokeSendPublish(publish, promise));
         }
         return promise;
     }
 
-    private void invokeSend(ControlPacket packet, Promise promise) {
+    private void invokeSendPublish(Publish packet, Promise<Void> promise) {
         // send immediately if can or queue the packet
         // put Publish packet into queue
-        if (PUBLISH == packet.type()) {
-            doSendPublish((Publish) packet, promise);
-        } else {
-            doSendPacket(packet, promise);
+        try {
+            sendingPublishThread = Thread.currentThread();
+            doSendPublish(packet, promise);
+        } finally {
+            sendingPublishThread = null;
         }
     }
 
-    private void doSendPacket(ControlPacket packet, Promise promise) {
+    private void doSendPublish(Publish outgoing, Promise<Void> promise) {
+        // very little chance
+        if (qos2DuplicateCheck(outgoing, outQueue)) {
+            promise.trySuccess(null);
+            log.info("Session({}) send same qos2 packet: {}", clientIdentifier(), outgoing);
+            return;
+        }
+        // enqueue
+        outQueue.offer(new ControlPacketContext(outgoing, ControlPacketContext.INIT, OUT, promise));
+        // start send some packet
+        doSendPublishAndClean();
+    }
+
+    private void doSendPublishAndClean() {
+        doSendPublishPacket(outQueue.peek());
+        tryCleanOutQueue();
+        if (!outQueue.isEmpty()) {
+            startRetryTask();
+        }
+    }
+
+    private void doSendPacket(ControlPacket packet, Promise<Void> promise) {
         if (!isBound()) {
             promise.tryFailure(new IllegalStateException("Session was not bound to Channel"));
             return;
@@ -121,23 +160,6 @@ public abstract class AbstractSession implements Session {
         });
     }
 
-    private void doSendPublish(Publish outgoing, Promise promise) {
-        // very little chance
-        if (qos2DuplicateCheck(outgoing, outQueue)) {
-            promise.trySuccess(null);
-            log.info("Session({}) send same qos2 packet: {}", clientIdentifier(), outgoing);
-            return;
-        }
-        // enqueue
-        outQueue.offer(new ControlPacketContext(outgoing, ControlPacketContext.INIT, OUT, promise));
-        // start send some packet
-        doSendPublishPacket(outQueue.peek());
-        tryCleanOutQueue();
-        if (!outQueue.isEmpty()) {
-            startRetryTask();
-        }
-    }
-
     private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> queue) {
         if (packet.exactlyOnce() && existSamePacket(packet, queue)) {
             return true;
@@ -146,9 +168,8 @@ public abstract class AbstractSession implements Session {
     }
 
     private boolean existSamePacket(Publish packet, Queue<ControlPacketContext> queue) {
-        Iterator<ControlPacketContext> it = queue.iterator();
-        while (it.hasNext()) {
-            if (it.next().equals(packet)) {
+        for (ControlPacketContext controlPacketContext : queue) {
+            if (controlPacketContext.packet().equals(packet)) {
                 return true;
             }
         }
@@ -214,8 +235,8 @@ public abstract class AbstractSession implements Session {
                 // clean all timeout cpx
                 it.remove();
                 log.warn("Session({}) clean timeout Publish({}) in outQueue after {}ms.",
-                        clientIdentifier(), cpx, cpx.elapseAfterLastMark());
-                cpx.timeout();
+                        clientIdentifier(), next, next.elapseAfterLastMark());
+                next.timeout();
             }
         }
     }
@@ -235,13 +256,13 @@ public abstract class AbstractSession implements Session {
             if (!next.packet().needAck()) {
                 // clean all QoS 0 cpx
                 it.remove();
-                publishReceived(cpx);
+                publishReceived(next);
             } else if (controlPacketTimeout(next)) {
                 // clean all timeout cpx
                 it.remove();
                 log.warn("Session({}) clean timeout Publish({}) in inQueue after {}ms",
-                        clientIdentifier(), cpx, cpx.elapseAfterLastMark());
-                cpx.timeout();
+                        clientIdentifier(), next, next.elapseAfterLastMark());
+                next.timeout();
             }
         }
     }
@@ -251,8 +272,10 @@ public abstract class AbstractSession implements Session {
     }
 
     private boolean controlPacketTimeout(ControlPacketContext cpx) {
-        int timeoutMillis = retryPeriodInMillis > 0 ? 2 * retryPeriodInMillis : 30000;
-        return (cpx.elapseAfterLastMark() >= timeoutMillis);
+        if (retryPeriodInMillis == 0) {
+            return false;
+        }
+        return (cpx.elapseAfterLastMark() >= 2 * retryPeriodInMillis);
     }
 
     /**
@@ -462,15 +485,10 @@ public abstract class AbstractSession implements Session {
     }
 
     private void startRetryTask() {
-        if (!isBound()) {
-            return;
-        }
-        if (this.retryTask != null) {
+        if (!isBound() || this.retryTask != null) {
             return;
         }
         this.retryTask = eventLoop.scheduleWithFixedDelay(() -> {
-            tryCleanInQueue();
-            tryCleanOutQueue();
             boolean emptyQueue = inQueue.isEmpty() && outQueue.isEmpty();
             if (!isBound() || emptyQueue) {
                 // cancel the scheduled task
@@ -480,6 +498,8 @@ public abstract class AbstractSession implements Session {
             }
             retrySendControlPacket(inQueue.peek());
             retrySendControlPacket(outQueue.peek());
+            tryCleanInQueue();
+            tryCleanOutQueue();
         }, 1, 1, TimeUnit.SECONDS);
     }
 
@@ -534,9 +554,18 @@ public abstract class AbstractSession implements Session {
     @Override
     public void bind(Channel channel) {
         this.channel = channel;
+        while (sendingPublishThread != null && !channel.eventLoop().inEventLoop(sendingPublishThread)) {
+            // spin
+        }
         this.eventLoop = channel.eventLoop();
         // try start retry task
-        this.startRetryTask();
+        this.eventLoop.submit(()->{
+            // start send some packet
+            // send Publish from outQueue immediately
+            doSendPublishAndClean();
+            // try resend timeout packet in inQueue
+            startRetryTask();
+        });
     }
 
     @Override

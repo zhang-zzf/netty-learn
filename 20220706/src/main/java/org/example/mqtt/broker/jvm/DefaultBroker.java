@@ -39,9 +39,10 @@ public class DefaultBroker implements Broker {
                 if (!session.isRegistered()) {
                     continue;
                 }
+                String topicFilter = topic.topicFilter();
                 int qos = Math.min(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                Publish outgoing = Publish.outgoing(packet, (byte) qos, session.nextPacketIdentifier());
+                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, session.nextPacketIdentifier());
                 session.send(outgoing);
             }
         }

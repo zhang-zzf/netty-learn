@@ -158,14 +158,14 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         // Client as if the network had failed
         ReadTimeoutHandler handler = new ReadTimeoutHandler(keepAlive * 3 / 2);
         ctx.pipeline().addBefore(HANDLER_NAME, "clientKeepAliveHandler", handler);
-        log.info("addClientKeepAliveHandler done");
+        log.debug("addClientKeepAliveHandler done");
     }
 
     private void addActiveIdleTimeoutHandler(ChannelHandlerContext ctx) {
         ReadTimeoutHandler handler = new ReadTimeoutHandler(activeIdleTimeoutSecond);
         ctx.pipeline().addBefore(HANDLER_NAME, ACTIVE_IDLE_TIMEOUT_HANDLER, handler);
         this.activeIdleTimeoutHandler = handler;
-        log.info("addActiveIdleTimeoutHandler done");
+        log.debug("addActiveIdleTimeoutHandler done");
     }
 
     private void removeActiveIdleTimeoutHandler(ChannelHandlerContext ctx) {
@@ -174,7 +174,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
         ctx.pipeline().remove(ACTIVE_IDLE_TIMEOUT_HANDLER);
         this.activeIdleTimeoutHandler = null;
-        log.info("removeActiveIdleTimeoutHandler done");
+        log.debug("removeActiveIdleTimeoutHandler done");
     }
 
     @Override
@@ -189,7 +189,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("Session({}) channelInactive", curSessionClientIdentifier());
+        log.info("Client({}) channelInactive", curSessionClientIdentifier());
         closeSession(ctx);
         super.channelInactive(ctx);
     }

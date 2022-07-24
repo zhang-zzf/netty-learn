@@ -61,7 +61,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
              * {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
-            return sendInEventLoop(publish);
+            return sendPublishInEventLoop(publish);
         } else {
             throw new IllegalArgumentException();
         }
@@ -118,7 +118,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     protected void doReceiveDisconnect(Disconnect packet) {
-        log.info("doReceiveDisconnect resp: {}", clientIdentifier());
+        log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
         this.close();
     }
 

@@ -78,7 +78,7 @@ public class BrokerBootstrapForTest {
                     Publish outgoing = Publish.outgoing(packet, false,
                             (byte) packet.qos(), nextPacketIdentifier());
                     outgoing.payload().retain();
-                    sendInEventLoop(outgoing);
+                    sendPublishInEventLoop(outgoing);
                     return true;
                 }
             };

@@ -37,8 +37,8 @@ public class Publish extends ControlPacket {
      * @param packetIdentifier packet ID
      * @return a Publish Packet that have the save data as source
      */
-    public static Publish outgoing(Publish origin, byte qos, short packetIdentifier) {
-        return outgoing(origin.retain(), qos, false, origin.topicName, packetIdentifier, origin.payload);
+    public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
+        return outgoing(origin.retain(), qos, false, topicName, packetIdentifier, origin.payload);
     }
 
     /**

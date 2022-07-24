@@ -15,12 +15,7 @@ import java.util.concurrent.*;
 @Slf4j
 public class SingleThreadTopicFilter implements TopicFilter {
 
-    public static final String LEVEL_SEPARATOR = "/";
-    public static final String MULTI_LEVEL_WILDCARD = "#";
-    public static final String SINGLE_LEVEL_WILDCARD = "+";
-
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
-
     private final Object EMPTY = new Object();
     private final ConcurrentMap<String, Object> preciseTopicFilter = new ConcurrentHashMap<>();
 

@@ -2,10 +2,10 @@ package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future;
-import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.Subscribe;
 
-import java.util.List;
+import java.util.Set;
 
 /**
  * @author zhanfeng.zhang
@@ -60,7 +60,7 @@ public interface Session extends AutoCloseable {
      *
      * @return List<Subscription>
      */
-    List<Subscription> subscriptions();
+    Set<Subscribe.Subscription> subscriptions();
 
     /**
      * next packetIdentifier to use

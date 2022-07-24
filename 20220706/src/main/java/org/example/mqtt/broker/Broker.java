@@ -1,7 +1,8 @@
 package org.example.mqtt.broker;
 
-import org.example.mqtt.session.Session;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.Unsubscribe;
 
 import java.util.List;
 import java.util.Set;
@@ -17,7 +18,7 @@ public interface Broker extends AutoCloseable {
      *
      * @param packet data
      */
-    void onward(Publish packet);
+    void forward(Publish packet);
 
     ServerSession session(String clientIdentifier);
 
@@ -26,21 +27,19 @@ public interface Broker extends AutoCloseable {
      *
      * @param session Session
      */
-    void disconnect(Session session);
+    void disconnect(ServerSession session);
 
     /**
      * register a subscription between the session and the topic
      *
-     * @param subscriptions the topic and the qos
      */
-    List<Subscription> register(List<Subscription> subscriptions);
+    List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe);
 
     /**
      * deregister a subscription between the session and the topic
      *
-     * @param subscriptions the topic and the qos
      */
-    void deregister(List<Subscription> subscriptions);
+    void deregister(ServerSession session, Unsubscribe packet);
 
     Set<Integer> supportProtocolLevel();
 

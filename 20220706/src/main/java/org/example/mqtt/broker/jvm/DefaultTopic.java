@@ -3,8 +3,8 @@ package org.example.mqtt.broker.jvm;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
-import org.example.mqtt.session.Session;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -19,11 +19,10 @@ import java.util.concurrent.ConcurrentMap;
 public class DefaultTopic implements Topic {
 
     private final String topicFilter;
-    private final ConcurrentMap<ServerSession, Integer> subscribers;
+    private final ConcurrentMap<ServerSession, Integer> subscribers = new ConcurrentHashMap<>(1);
 
     public DefaultTopic(String topicFilter) {
         this.topicFilter = topicFilter;
-        this.subscribers = new ConcurrentHashMap<>();
     }
 
     @Override
@@ -32,55 +31,18 @@ public class DefaultTopic implements Topic {
     }
 
     @Override
-    public Set<Session> retainedSession() {
-        throw new UnsupportedOperationException();
+    public Map<ServerSession, Integer> subscribers() {
+        return Collections.unmodifiableMap(subscribers);
     }
 
     @Override
-    public void addSubscriber(ServerSession session, int qos) {
+    public void subscribe(ServerSession session, int qos) {
         subscribers.put(session, qos);
     }
 
     @Override
-    public void removeSubscriber(Session session) {
-        Integer removed = subscribers.remove(session);
-        if (removed != null) {
-            log.info("Session({}) unsubscribe from Topic({}) success", session.clientIdentifier(), this);
-        } else {
-            log.error("Session({}) unsubscribe from Topic({}) failed", session.clientIdentifier(), this);
-        }
-    }
-
-    @Override
-    public Map<ServerSession, Integer> subscribers() {
-        return subscribers;
-    }
-
-    @Override
-    public boolean isEmpty() {
-        return subscribers.isEmpty();
-    }
-
-    @Override
-    public void close() throws Exception {
-
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
-        if (o == null || getClass() != o.getClass()) {
-            return false;
-        }
-        DefaultTopic that = (DefaultTopic) o;
-        return topicFilter.equals(that.topicFilter);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(topicFilter);
+    public void unsubscribe(ServerSession session, int qos) {
+        subscribers.remove(session, qos);
     }
 
     @Override
@@ -88,6 +50,21 @@ public class DefaultTopic implements Topic {
         final StringBuilder sb = new StringBuilder("{");
         if (topicFilter != null) {
             sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
+        }
+        if (subscribers != null) {
+            sb.append("\"subscribers\":");
+            if (!(subscribers).isEmpty()) {
+                sb.append("{");
+                final Set<?> mapKeySet = (subscribers).keySet();
+                for (Object mapKey : mapKeySet) {
+                    final Object mapValue = (subscribers).get(mapKey);
+                    sb.append("\"").append(mapKey).append("\":\"").append(Objects.toString(mapValue, "")).append("\",");
+                }
+                sb.replace(sb.length() - 1, sb.length(), "}");
+            } else {
+                sb.append("{}");
+            }
+            sb.append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

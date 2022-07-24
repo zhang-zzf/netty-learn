@@ -6,11 +6,10 @@ import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
 
-import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Objects;
+import java.util.Set;
 
-import static java.util.stream.Collectors.toList;
 import static org.example.mqtt.model.ControlPacket.*;
 
 /**
@@ -22,7 +21,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private Broker broker;
     private volatile boolean registered;
-    private List<Subscription> subscriptions = new ArrayList<>();
+    private Set<Subscribe.Subscription> subscriptions = new HashSet<>();
 
     public DefaultServerSession(String clientIdentifier) {
         super(clientIdentifier);
@@ -47,7 +46,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public List<Subscription> subscriptions() {
+    public Set<Subscribe.Subscription> subscriptions() {
         return subscriptions;
     }
 
@@ -79,16 +78,13 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     protected boolean onPublish(Publish packet, Future<Void> promise) {
-        broker.onward(packet);
+        broker.forward(packet);
         return true;
     }
 
     private void doReceiveUnsubscribe(Unsubscribe packet) {
         log.info("doReceiveUnsubscribe req: {}, {}", clientIdentifier(), packet);
-        List<Subscription> subscriptions = packet.subscriptions().stream()
-                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
-                .collect(toList());
-        broker().deregister(subscriptions);
+        broker().deregister(this, packet);
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
         log.info("client({}) doReceiveUnsubscribe resp: {}", clientIdentifier(), unsubAck);
         channel().writeAndFlush(unsubAck);
@@ -96,25 +92,20 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private void doReceiveSubscribe(Subscribe packet) {
         log.info("client({}) doReceiveSubscribe req: {}", clientIdentifier(), packet);
-        List<Subscription> subscriptions = packet.subscriptions().stream()
-                .map(s -> Subscription.from(s.topicFilter(), s.qos(), this))
-                .collect(toList());
         // register the Subscribe
-        List<Subscription> permitted = broker().register(subscriptions);
-        List<Subscribe.Subscription> permittedSubscriptions = permitted.stream()
-                .map(s -> new Subscribe.Subscription(s.topicFilter(), s.qos()))
-                .collect(toList());
-        SubAck subAck = SubAck.from(packet.packetIdentifier(), permittedSubscriptions);
+        List<Subscribe.Subscription> permitted = broker().subscribe(this, packet);
+        SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
         log.info("client({}) doReceiveSubscribe resp: {}", clientIdentifier(), subAck);
         channel().writeAndFlush(subAck);
         doUpdateSessionSubscriptions(permitted);
     }
 
-    private void doUpdateSessionSubscriptions(List<Subscription> permitted) {
-        for (Subscription p : permitted) {
+    private void doUpdateSessionSubscriptions(List<Subscribe.Subscription> permitted) {
+        for (Subscribe.Subscription p : permitted) {
             boolean exists = false;
-            for (Subscription sub : this.subscriptions) {
-                if (sub.topicFilter().endsWith(p.topicFilter())) {
+            // todo 参考 mqtt 协议：待优化
+            for (Subscribe.Subscription sub : this.subscriptions) {
+                if (sub.topicFilter().equals(p.topicFilter())) {
                     sub.qos(p.qos());
                     exists = true;
                     break;

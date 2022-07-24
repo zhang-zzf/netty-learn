@@ -12,7 +12,6 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.codec.Codec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
@@ -21,6 +20,7 @@ import org.example.mqtt.session.Session;
 import java.net.InetSocketAddress;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -103,7 +103,7 @@ public class ClientBootstrap {
         }
 
         @Override
-        public List<Subscription> subscriptions() {
+        public Set<Subscribe.Subscription> subscriptions() {
             return null;
         }
 

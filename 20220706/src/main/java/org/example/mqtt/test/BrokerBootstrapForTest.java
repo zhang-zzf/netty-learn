@@ -57,7 +57,7 @@ public class BrokerBootstrapForTest {
     public static class BrokerForTest extends DefaultBroker {
 
         @Override
-        public void onward(Publish packet) {
+        public void forward(Publish packet) {
             // doNothing
         }
 
@@ -75,7 +75,7 @@ public class BrokerBootstrapForTest {
                 @Override
                 protected boolean onPublish(Publish packet, Future<Void> promise) {
                     // use a shadow copy of the origin Publish
-                    Publish outgoing = Publish.outgoing(packet, false, "test/topic",
+                    Publish outgoing = Publish.outgoing(packet, false,
                             (byte) packet.qos(), nextPacketIdentifier());
                     outgoing.payload().retain();
                     sendInEventLoop(outgoing);

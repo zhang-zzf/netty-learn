@@ -8,10 +8,31 @@ import java.util.Set;
  */
 public interface TopicFilter {
 
+    String LEVEL_SEPARATOR = "/";
+    String MULTI_LEVEL_WILDCARD = "#";
+    String SINGLE_LEVEL_WILDCARD = "+";
+
+
+    /**
+     * match
+     *
+     * @param topicName topicName
+     * @return the TopicFilter that match the topicName
+     */
     Set<String> match(String topicName);
 
+    /**
+     * add TopicFilter
+     *
+     * @param topicFilter TopicFilter
+     */
     void add(String topicFilter);
 
+    /**
+     * remove TopicFilter
+     *
+     * @param topicFilter TopicFilter
+     */
     void remove(String topicFilter);
 
 }

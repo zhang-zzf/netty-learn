@@ -77,6 +77,7 @@ public class Subscribe extends ControlPacket {
         while (buf.isReadable()) {
             String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
             byte qos = buf.readByte();
+            // todo TopicFilter rule check
             this.subscriptions.add(new Subscription(topic, qos));
         }
     }
@@ -99,11 +100,26 @@ public class Subscribe extends ControlPacket {
             if ((qos & 0xFC) != 0) {
                 return false;
             }
+            // todo TopicFilter check
+            if (!topicFilterValidate(sub.topicFilter)) {
+                return false;
+            }
             if (qos == 0 || qos == 1 || qos == 2) {
                 continue;
             } else {
                 return false;
             }
+        }
+        return true;
+    }
+
+    private boolean topicFilterValidate(String topicFilter) {
+        if (topicFilter == null) {
+            return false;
+        }
+        int idx;
+        if ((idx = topicFilter.indexOf("#")) != -1 && idx != topicFilter.length() - 1) {
+            return false;
         }
         return true;
     }

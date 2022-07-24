@@ -4,10 +4,8 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.session.AbstractSession;
-import org.example.mqtt.broker.Subscription;
 import org.example.mqtt.model.*;
 
-import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -67,8 +65,8 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    public List<Subscription> subscriptions() {
-        return new ArrayList(subscriptions);
+    public Set<Subscribe.Subscription> subscriptions() {
+        return subscriptions;
     }
 
     @Override

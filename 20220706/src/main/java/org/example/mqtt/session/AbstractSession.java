@@ -553,11 +553,12 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void bind(Channel channel) {
-        this.channel = channel;
         while (sendingPublishThread != null && !channel.eventLoop().inEventLoop(sendingPublishThread)) {
             // spin
         }
         this.eventLoop = channel.eventLoop();
+        // important: must eventLoop first then channel
+        this.channel = channel;
         // try start retry task
         this.eventLoop.submit(()->{
             // start send some packet

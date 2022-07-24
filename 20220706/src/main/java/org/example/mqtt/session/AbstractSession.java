@@ -557,7 +557,7 @@ public abstract class AbstractSession implements Session {
             // spin
         }
         this.eventLoop = channel.eventLoop();
-        // important: must eventLoop first then channel
+        // better: eventLoop first then channel
         this.channel = channel;
         // try start retry task
         this.eventLoop.submit(()->{

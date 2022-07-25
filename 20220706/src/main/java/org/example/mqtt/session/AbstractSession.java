@@ -126,6 +126,10 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPublish(Publish outgoing, Promise<Void> promise) {
+        // Client offline check for QoS 0 (atMostOnce) Publish packet
+        if (!isBound() && outgoing.atMostOnce()) {
+            promise.tryFailure(new IllegalStateException("Client is Down"));
+        }
         // very little chance
         if (qos2DuplicateCheck(outgoing, outQueue)) {
             promise.trySuccess(null);
@@ -161,10 +165,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private boolean qos2DuplicateCheck(Publish packet, Queue<ControlPacketContext> queue) {
-        if (packet.exactlyOnce() && existSamePacket(packet, queue)) {
-            return true;
-        }
-        return false;
+        return packet.exactlyOnce() && existSamePacket(packet, queue);
     }
 
     private boolean existSamePacket(Publish packet, Queue<ControlPacketContext> queue) {
@@ -336,9 +337,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private ControlPacketContext findFirst(Queue<ControlPacketContext> queue, int qos) {
-        Iterator<ControlPacketContext> it = queue.iterator();
-        while (it.hasNext()) {
-            ControlPacketContext cpx = it.next();
+        for (ControlPacketContext cpx : queue) {
             if (cpx.packet().qos() == qos) {
                 return cpx;
             }
@@ -560,7 +559,7 @@ public abstract class AbstractSession implements Session {
         // better: eventLoop first then channel
         this.channel = channel;
         // try start retry task
-        this.eventLoop.submit(()->{
+        this.eventLoop.submit(() -> {
             // start send some packet
             // send Publish from outQueue immediately
             doSendPublishAndClean();

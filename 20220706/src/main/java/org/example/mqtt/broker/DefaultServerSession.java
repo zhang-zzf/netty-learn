@@ -57,8 +57,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
-            /**
-             * {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
+            /*
+              {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
             return sendPublishInEventLoop(publish);

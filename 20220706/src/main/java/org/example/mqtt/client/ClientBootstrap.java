@@ -18,10 +18,10 @@ import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.Session;
 
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static java.util.Collections.singletonList;
 
 /**
  * @author zhanfeng.zhang
@@ -36,8 +36,8 @@ public class ClientBootstrap {
         String[] localAddr = args[1].split(":");
         InetSocketAddress remote = new InetSocketAddress(remoteAddr[0], Integer.valueOf(remoteAddr[1]));
         InetSocketAddress local = new InetSocketAddress(localAddr[0], Integer.valueOf(localAddr[1]));
-        Integer connections = Integer.valueOf(args[2]);
-        Integer payloadLength = Integer.valueOf(args[3]);
+        int connections = Integer.parseInt(args[2]);
+        int payloadLength = Integer.parseInt(args[3]);
         Integer sendQos = Integer.valueOf(args[4]);
         Integer topicQos = Integer.valueOf(args[5]);
         Integer period = Integer.valueOf(args[6]);
@@ -131,7 +131,9 @@ public class ClientBootstrap {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             String clientIdentifier = ctx.channel().localAddress().toString();
-            topic = "client/" + clientIdentifier;
+            String[] ipAndPort = clientIdentifier.substring(1).split(":");
+            // client_127.0.0.1/51324
+            topic = "client_" + ipAndPort[0] + "/" + ipAndPort[1];
             session = new ClientTestSession(clientIdentifier);
             // bind the channel
             session.bind(ctx.channel());
@@ -147,8 +149,8 @@ public class ClientBootstrap {
                 try {
                     channelRead0(ctx, msg);
                 } finally {
-                    /**
-                     * release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+                    /*
+                      release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
                      */
                     ((ControlPacket) msg)._buf().release();
                 }
@@ -160,8 +162,10 @@ public class ClientBootstrap {
         public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ConnAck) {
                 // send subscribe
+                // client_127.0.0.1/51324/#
+                String topicFilter = topic + "/#";
                 ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
-                        Arrays.asList(new Subscribe.Subscription(topic, topicQos))));
+                        singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
             } else if (msg instanceof SubAck) {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {

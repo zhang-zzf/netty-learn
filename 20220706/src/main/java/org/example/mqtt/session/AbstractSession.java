@@ -446,6 +446,7 @@ public abstract class AbstractSession implements Session {
         }
         if (!handled) {
             log.error("Session({}) handle Publish failed", clientIdentifier());
+            // todo
             // wait for retry
             // current no retry
             // return;

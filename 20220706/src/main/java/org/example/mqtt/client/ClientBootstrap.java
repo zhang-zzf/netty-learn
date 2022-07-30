@@ -3,10 +3,7 @@ package org.example.mqtt.client;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
@@ -20,6 +17,7 @@ import org.example.mqtt.session.Session;
 import java.net.InetSocketAddress;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
 
@@ -59,34 +57,31 @@ public class ClientBootstrap {
                     }
                 });
         try {
-            for (int i = 0; i < connections; i++) {
-                doConnect(bootstrap, remote, local);
+            AtomicInteger clientCnt = new AtomicInteger(0);
+            Runnable task = () -> {
+                while (clientCnt.get() < connections) {
+                    try {
+                        ChannelFuture future = bootstrap.connect(remote, local).sync();
+                        if (future.isSuccess()) {
+                            clientCnt.getAndIncrement();
+                            future.channel().closeFuture().addListener(f -> clientCnt.getAndDecrement());
+                        }
+                    } catch (InterruptedException e) {
+                        // ignore
+                    }
+                }
+            };
+            // 开始连接
+            task.run();
+            // 10 秒 检测一次
+            while (!Thread.currentThread().isInterrupted()) {
+                task.run();
+                // 主线程 sleep
+                Thread.sleep(10000);
             }
             Thread.currentThread().join();
         } finally {
             nioEventLoopGroup.shutdownGracefully();
-        }
-    }
-
-    private static void doConnect(Bootstrap bootstrap, InetSocketAddress remoteAddr, InetSocketAddress localAddr) {
-        ChannelFutureListener channelCloseListener = future -> {
-            Runnable task = () -> doConnect(bootstrap, remoteAddr, localAddr);
-            // 延迟 10S 尝试重新连接
-            future.channel().eventLoop().schedule(task, 10, TimeUnit.SECONDS);
-        };
-        try {
-            bootstrap.connect(remoteAddr, localAddr)
-                    .addListener((ChannelFutureListener) future -> {
-                        if (future.isSuccess()) {
-                            future.channel().closeFuture().addListener(channelCloseListener);
-                        } else {
-                            log.error("doConnect({} ->{}) failed", localAddr, remoteAddr, future.cause());
-                        }
-                    })
-                    .sync()
-            ;
-        } catch (Throwable e) {
-            log.error("doConnect.sync({} ->{}) failed", localAddr, remoteAddr, e);
         }
     }
 

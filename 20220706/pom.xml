@@ -112,7 +112,7 @@
                         </transformer>
                     </transformers>
                     <!-- 若打包出的 jar 运行报找不到类的错误，注释掉下面一行 -->
-                    <minimizeJar>true</minimizeJar>
+                    <!--<minimizeJar>true</minimizeJar>-->
                     <!-- 保留 origin jar-->
                     <shadedArtifactAttached>true</shadedArtifactAttached>
                     <shadedClassifierName>shaded</shadedClassifierName>

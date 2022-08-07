@@ -15,6 +15,8 @@ import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.Session;
 
 import java.net.InetSocketAddress;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,7 +43,7 @@ public class ClientBootstrap {
         Integer period = Integer.valueOf(args[6]);
         ByteBuf payload = Unpooled.copiedBuffer(new byte[payloadLength]);
         // start config bootstrap
-        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup();
+        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(4);
         // 配置 bootstrap
         final Bootstrap bootstrap = new Bootstrap()
                 .group(nioEventLoopGroup)
@@ -58,28 +60,48 @@ public class ClientBootstrap {
                 });
         try {
             AtomicInteger clientCnt = new AtomicInteger(0);
-            Runnable task = () -> {
-                while (clientCnt.get() < connections) {
-                    try {
-                        ChannelFuture future = bootstrap.connect(remote, local).sync();
-                        if (future.isSuccess()) {
-                            clientCnt.getAndIncrement();
-                            future.channel().closeFuture().addListener(f -> clientCnt.getAndDecrement());
-                        }
-                    } catch (InterruptedException e) {
-                        // ignore
-                    }
+            ChannelFutureListener connectListener = future -> {
+                if (future.isSuccess()) {
+                    clientCnt.getAndIncrement();
+                    future.channel().closeFuture().addListener((ChannelFuture f) -> {
+                        log.info("Channel closed: {}", f.channel());
+                        clientCnt.getAndDecrement();
+                    });
                 }
             };
-            // 开始连接
-            task.run();
-            // 10 秒 检测一次
-            while (!Thread.currentThread().isInterrupted()) {
-                task.run();
-                // 主线程 sleep
-                Thread.sleep(10000);
+            List<ChannelFuture> asyncStartClientFuture = new ArrayList<>(connections);
+            // 异步启动 connections
+            for (int i = 0; i < connections; i++) {
+                ChannelFuture f = bootstrap.connect(remote, local).addListener(connectListener);
+                asyncStartClientFuture.add(f);
             }
-            Thread.currentThread().join();
+            // 等待所有 client 启动完毕
+            for (ChannelFuture f : asyncStartClientFuture) {
+                f.sync();
+            }
+            // 10 秒 检测一次
+            // 同步检测是否有 connections 个 client
+            while (!Thread.currentThread().isInterrupted()) {
+                // 开始连接
+                if (clientCnt.get() >= connections) {
+                    Thread.sleep(10000);
+                    continue;
+                }
+                log.info("ClientBootstrap had clients: {}", clientCnt.get());
+                while (clientCnt.get() < connections) {
+                    try {
+                        bootstrap.connect(remote, local).sync().addListener(connectListener);
+                    } catch (Throwable e) {
+                        log.debug("connect to remote server failed", e);
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException interruptedException) {
+                            // ignore
+                        }
+                    }
+                }
+                log.info("ClientBootstrap now has clients: {}", clientCnt.get());
+            }
         } finally {
             nioEventLoopGroup.shutdownGracefully();
         }
@@ -134,7 +156,9 @@ public class ClientBootstrap {
             session.bind(ctx.channel());
             // ChannelActive send Connect
             log.info("client({}) channelActive", clientIdentifier);
-            session.send(Connect.from(session.clientIdentifier(), (short) 60));
+            int keepAlive = period * 4;
+            keepAlive = keepAlive > Short.MAX_VALUE ? Short.MAX_VALUE : keepAlive;
+            session.send(Connect.from(session.clientIdentifier(), (short) keepAlive));
             super.channelActive(ctx);
         }
 

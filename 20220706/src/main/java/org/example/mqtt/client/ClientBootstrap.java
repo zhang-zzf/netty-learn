@@ -58,15 +58,6 @@ public class ClientBootstrap {
                 });
         try {
             AtomicInteger clientCnt = new AtomicInteger(0);
-            ChannelFutureListener connectListener = future -> {
-                if (future.isSuccess()) {
-                    clientCnt.getAndIncrement();
-                    future.channel().closeFuture().addListener((ChannelFuture f) -> {
-                        log.info("Channel closed: {}", f.channel());
-                        clientCnt.getAndDecrement();
-                    });
-                }
-            };
             while (!Thread.currentThread().isInterrupted()) {
                 // 开始连接
                 if (clientCnt.get() >= connections) {
@@ -78,7 +69,14 @@ public class ClientBootstrap {
                 // 同步检测是否有 connections 个 client
                 while (clientCnt.get() < connections) {
                     try {
-                        bootstrap.connect(remote, local).sync().addListener(connectListener);
+                        ChannelFuture sync = bootstrap.connect(remote, local).sync();
+                        if (sync.isSuccess()) {
+                            clientCnt.getAndIncrement();
+                            sync.channel().closeFuture().addListener((ChannelFuture f) -> {
+                                log.info("Channel closed: {}", f.channel());
+                                clientCnt.getAndDecrement();
+                            });
+                        }
                     } catch (Throwable e) {
                         log.debug("connect to remote server failed", e);
                         try {

@@ -15,8 +15,6 @@ import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.Session;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -69,25 +67,15 @@ public class ClientBootstrap {
                     });
                 }
             };
-            List<ChannelFuture> asyncStartClientFuture = new ArrayList<>(connections);
-            // 异步启动 connections
-            for (int i = 0; i < connections; i++) {
-                ChannelFuture f = bootstrap.connect(remote, local).addListener(connectListener);
-                asyncStartClientFuture.add(f);
-            }
-            // 等待所有 client 启动完毕
-            for (ChannelFuture f : asyncStartClientFuture) {
-                f.sync();
-            }
-            // 10 秒 检测一次
-            // 同步检测是否有 connections 个 client
             while (!Thread.currentThread().isInterrupted()) {
                 // 开始连接
                 if (clientCnt.get() >= connections) {
+                    // 10 秒 检测一次
                     Thread.sleep(10000);
                     continue;
                 }
                 log.info("ClientBootstrap had clients: {}", clientCnt.get());
+                // 同步检测是否有 connections 个 client
                 while (clientCnt.get() < connections) {
                     try {
                         bootstrap.connect(remote, local).sync().addListener(connectListener);

@@ -2,6 +2,17 @@
 # Created by https://www.gitignore.io/api/java,macos,jetbrains
 # Edit at https://www.gitignore.io/?templates=java,macos,jetbrains
 
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
 ### Java ###
 # Compiled class file
 *.class
@@ -37,7 +48,6 @@ hs_err_pid*
 .idea/**/usage.statistics.xml
 .idea/**/dictionaries
 .idea/**/shelf
-.idea/**/vcs.xml
 
 # Generated files
 .idea/**/contentModel.xml
@@ -50,6 +60,11 @@ hs_err_pid*
 .idea/**/dynamic.xml
 .idea/**/uiDesigner.xml
 .idea/**/dbnavigator.xml
+.idea/**/compiler.xml
+.idea/**/encodings.xml
+.idea/**/jarRepositories.xml
+
+.idea/**/leetcode-pro/
 
 # Gradle
 .idea/**/gradle.xml
@@ -145,3 +160,4 @@ Temporary Items
 .apdisk
 
 # End of https://www.gitignore.io/api/java,macos,jetbrains
+/.idea/leetcode-pro/

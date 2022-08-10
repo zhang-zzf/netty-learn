@@ -6,6 +6,7 @@ import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.Duration;
 import java.util.Random;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -26,7 +27,12 @@ public class Application {
         // 启动打点
         new MicroMeterConfiguration().init();
         // Timer
-        Timer timer = Metrics.timer("com.github.zzf.timer.random", "type", "randomTest1");
+        Timer timer = Timer.builder("com.github.zzf.timer.random")
+                .publishPercentileHistogram()
+                .publishPercentiles(0.5, 0.8, 0.9, 0.95, 0.99)
+                .minimumExpectedValue(Duration.ofMillis(1))
+                .maximumExpectedValue(Duration.ofSeconds(10))
+                .register(Metrics.globalRegistry);
         Runnable timerTask = () -> timer.record(new Random().nextInt(100), TimeUnit.MILLISECONDS);
         // 1 ms 更新一次
         executorService.scheduleAtFixedRate(timerTask, 100, 1, TimeUnit.MILLISECONDS);

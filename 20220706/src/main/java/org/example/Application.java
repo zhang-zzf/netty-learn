@@ -2,6 +2,7 @@ package org.example;
 
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
+import org.example.config.micrometer.MicroMeterConfiguration;
 import org.example.mqtt.broker.BrokerBootstrap;
 import org.example.mqtt.client.ClientBootstrap;
 
@@ -16,12 +17,12 @@ public class Application {
         log.info("Application#main: {}", JSON.toJSONString(args));
         boolean clientMode = Boolean.getBoolean("mqtt.client.mode");
         if (clientMode) {
-            ClientBootstrap.main(args);
+            new Thread(() -> ClientBootstrap.main(args), "bootstrap-thread").start();
         } else {
-            BrokerBootstrap.main(args);
+            new Thread(() -> BrokerBootstrap.main(args), "bootstrap-thread").start();
         }
         // 启动 MicroMeter 打点框架
-
+        new MicroMeterConfiguration().init("20220706", 61999);
     }
 
 }

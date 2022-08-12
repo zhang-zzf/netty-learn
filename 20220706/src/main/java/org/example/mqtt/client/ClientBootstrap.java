@@ -28,7 +28,7 @@ import static java.util.Collections.singletonList;
 @Slf4j
 public class ClientBootstrap {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         // require args
         String[] remoteAddr = args[0].split(":");
         String[] localAddr = args[1].split(":");
@@ -88,6 +88,8 @@ public class ClientBootstrap {
                 }
                 log.info("ClientBootstrap now has clients: {}", clientCnt.get());
             }
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         } finally {
             nioEventLoopGroup.shutdownGracefully();
         }

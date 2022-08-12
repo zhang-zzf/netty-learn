@@ -17,7 +17,7 @@ import org.example.mqtt.codec.Codec;
 @Slf4j
 public class BrokerBootstrap {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         final int port = 1883;
         int cpuNum = Runtime.getRuntime().availableProcessors();
         final NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, (Runnable r) -> new Thread(r, "netty-worker"));
@@ -41,6 +41,8 @@ public class BrokerBootstrap {
             final Channel serverChannel = serverBootstrap.bind(port).sync().channel();
             log.info("server listened at {}", port);
             serverChannel.closeFuture().sync();
+        } catch (InterruptedException e) {
+            // ignore
         } finally {
             bossGroup.shutdownGracefully();
             workerGroup.shutdownGracefully();

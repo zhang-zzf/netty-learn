@@ -51,17 +51,9 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         ControlPacket cp = (ControlPacket) msg;
-        try {
-            cp.content().retain();
-            channelRead0(ctx, cp);
-            // fireChannelRead if need just before release the ControlPacket
-            ctx.fireChannelRead(cp);
-        } finally {
-            /**
-             * release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
-             */
-            cp.content().release();
-        }
+        channelRead0(ctx, cp);
+        // fireChannelRead if other handle need the ControlPacket just before release the ControlPacket
+        ctx.fireChannelRead(cp);
     }
 
     private boolean closeSession(ChannelHandlerContext ctx) throws Exception {

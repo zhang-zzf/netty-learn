@@ -37,7 +37,6 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
         this.client = client;
     }
 
-
     @Override
     public void messageReceived(ControlPacket packet) {
         switch (packet.type()) {

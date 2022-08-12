@@ -150,34 +150,24 @@ public class ClientBootstrap {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ControlPacket) {
-                try {
-                    channelRead0(ctx, msg);
-                } finally {
-                    /*
-                      release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
-                     */
-                    ((ControlPacket) msg).content().release();
+                ControlPacket cp = (ControlPacket) msg;
+                if (cp instanceof ConnAck) {
+                    // send subscribe
+                    // client_127.0.0.1/51324/#
+                    String topicFilter = topic + "/#";
+                    ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
+                            singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
+                } else if (cp instanceof SubAck) {
+                    // 开启定时任务发送 Publish
+                    publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
+                        session.send(Publish.outgoing(false, sendQos, false, topic,
+                                session.nextPacketIdentifier(), payload));
+                    }, 1, period, TimeUnit.SECONDS);
+                } else {
+                    session.messageReceived(cp);
                 }
             } else {
                 super.channelRead(ctx, msg);
-            }
-        }
-
-        public void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-            if (msg instanceof ConnAck) {
-                // send subscribe
-                // client_127.0.0.1/51324/#
-                String topicFilter = topic + "/#";
-                ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
-                        singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
-            } else if (msg instanceof SubAck) {
-                // 开启定时任务发送 Publish
-                publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
-                    session.send(Publish.outgoing(false, sendQos, false, topic,
-                            session.nextPacketIdentifier(), payload));
-                }, 1, period, TimeUnit.SECONDS);
-            } else {
-                session.messageReceived((ControlPacket) msg);
             }
         }
 

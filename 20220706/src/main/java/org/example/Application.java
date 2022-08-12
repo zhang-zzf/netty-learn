@@ -20,6 +20,8 @@ public class Application {
         } else {
             BrokerBootstrap.main(args);
         }
+        // 启动 MicroMeter 打点框架
+
     }
 
 }

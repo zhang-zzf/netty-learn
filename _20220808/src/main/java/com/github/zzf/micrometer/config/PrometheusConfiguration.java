@@ -12,7 +12,6 @@ import java.net.InetSocketAddress;
 
 @Slf4j
 public class PrometheusConfiguration {
-
     public void init(int port) {
         PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         // 添加到 GlobalRegistry

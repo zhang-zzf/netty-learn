@@ -141,15 +141,15 @@ public class Publish extends ControlPacket {
     }
 
     public boolean dup() {
-        return (_0byte & 0x08) != 0;
+        return (byte0 & 0x08) != 0;
     }
 
     public int qos() {
-        return (this._0byte & 0x06) >> 1;
+        return (this.byte0 & 0x06) >> 1;
     }
 
     public boolean retain() {
-        return (_0byte & 0x01) != 0;
+        return (byte0 & 0x01) != 0;
     }
 
     @Override
@@ -215,8 +215,8 @@ public class Publish extends ControlPacket {
     }
 
     private void updateQos(byte qos) {
-        int clearQoS = this._0byte & 0xF9;
-        this._0byte = (byte) (clearQoS | (qos << 1));
+        int clearQoS = this.byte0 & 0xF9;
+        this.byte0 = (byte) (clearQoS | (qos << 1));
     }
 
     @Override

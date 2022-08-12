@@ -82,7 +82,7 @@ public class Unsubscribe extends ControlPacket {
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the UNSUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (this._0byte != _0_BYTE) {
+        if (this.byte0 != _0_BYTE) {
             return false;
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.

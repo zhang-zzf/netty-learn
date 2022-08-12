@@ -115,7 +115,7 @@ public class Connect extends ControlPacket {
 
     @Override
     public boolean packetValidate() {
-        if (_0byte != 0x10) {
+        if (byte0 != 0x10) {
             return false;
         }
         // If the protocol name is incorrect the Server MAY disconnect the Client.

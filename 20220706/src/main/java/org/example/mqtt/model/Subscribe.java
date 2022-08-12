@@ -86,7 +86,7 @@ public class Subscribe extends ControlPacket {
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (this._0byte != (byte) 0x82) {
+        if (this.byte0 != (byte) 0x82) {
             return false;
         }
         //  The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.

@@ -26,12 +26,12 @@ public abstract class ControlPacket {
     public static final byte PINGRESP = (byte) 0xD0;
     public static final byte DISCONNECT = (byte) 0xE0;
 
-    protected byte _0byte;
+    protected byte byte0;
     protected int remainingLength;
     private ByteBuf packet;
 
-    protected ControlPacket(byte _0byte, int remainingLength) {
-        this._0byte = _0byte;
+    protected ControlPacket(byte byte0, int remainingLength) {
+        this.byte0 = byte0;
         this.remainingLength = remainingLength;
     }
 
@@ -44,7 +44,7 @@ public abstract class ControlPacket {
         this.packet = packet;
         packet.markReaderIndex();
         try {
-            this._0byte = packet.readByte();
+            this.byte0 = packet.readByte();
             this.remainingLength = readRemainingLength(packet);
             // should read all the bytes out of the packet.
             initPacket();
@@ -165,7 +165,7 @@ public abstract class ControlPacket {
     }
 
     public byte type() {
-        return type(this._0byte);
+        return type(this.byte0);
     }
 
     private static int readRemainingLength(ByteBuf buf) {
@@ -194,7 +194,7 @@ public abstract class ControlPacket {
 
     protected ByteBuf fixedHeaderByteBuf() {
         ByteBuf buf = Unpooled.buffer(8);
-        buf.writeByte(this._0byte);
+        buf.writeByte(this.byte0);
         // remainingLength field
         buf.writeBytes(remainingLengthToByteBuf(this.remainingLength));
         return buf;

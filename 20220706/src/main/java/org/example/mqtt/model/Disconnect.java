@@ -29,7 +29,7 @@ public class Disconnect extends ControlPacket {
 
     @Override
     public boolean packetValidate() {
-        return this._0byte == _0_BYTE;
+        return this.byte0 == _0_BYTE;
     }
 
     @Override

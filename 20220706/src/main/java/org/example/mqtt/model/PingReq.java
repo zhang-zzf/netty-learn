@@ -29,7 +29,7 @@ public class PingReq extends ControlPacket {
 
     @Override
     public boolean packetValidate() {
-        return _0byte == _0_BYTE;
+        return byte0 == _0_BYTE;
     }
 
     @Override

@@ -1,14 +1,12 @@
 package org.example.mqtt.model;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.DefaultByteBufHolder;
-import io.netty.buffer.Unpooled;
+import io.netty.buffer.*;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-public abstract class ControlPacket extends DefaultByteBufHolder {
+public abstract class ControlPacket {
 
     public static final int _0_BYTE_LENGTH = 1;
     public static final int MIN_PACKET_LENGTH = 2;
@@ -30,10 +28,9 @@ public abstract class ControlPacket extends DefaultByteBufHolder {
 
     protected byte _0byte;
     protected int remainingLength;
+    private ByteBuf packet;
 
     protected ControlPacket(byte _0byte, int remainingLength) {
-        // todo 待确认
-        super(null);
         this._0byte = _0byte;
         this.remainingLength = remainingLength;
     }
@@ -44,7 +41,7 @@ public abstract class ControlPacket extends DefaultByteBufHolder {
      * @param packet packet
      */
     protected ControlPacket(ByteBuf packet) {
-        super(packet);
+        this.packet = packet;
         packet.markReaderIndex();
         try {
             this._0byte = packet.readByte();
@@ -60,6 +57,15 @@ public abstract class ControlPacket extends DefaultByteBufHolder {
         } finally {
             packet.resetReaderIndex();
         }
+    }
+
+    /**
+     * the content of the ControlPacket;
+     *
+     * @return the content
+     */
+    public ByteBuf content() {
+        return this.packet;
     }
 
     /**

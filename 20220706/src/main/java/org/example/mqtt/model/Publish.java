@@ -38,7 +38,7 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
-        return outgoing(origin.retainedMessage(), qos, false, topicName, packetIdentifier, origin.payload);
+        return outgoing(origin.retain(), qos, false, topicName, packetIdentifier, origin.payload);
     }
 
     /**
@@ -49,7 +49,7 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, boolean dup, byte qos, short packetIdentifier) {
-        return outgoing(origin.retainedMessage(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
+        return outgoing(origin.retain(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
     }
 
     public static Publish outgoing(boolean retain, byte qos, boolean dup,
@@ -148,7 +148,7 @@ public class Publish extends ControlPacket {
         return (this._0byte & 0x06) >> 1;
     }
 
-    public boolean retainedMessage() {
+    public boolean retain() {
         return (_0byte & 0x01) != 0;
     }
 

@@ -34,7 +34,7 @@ public class PubRec extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = _buf().readShort();
+        this.packetIdentifier = content().readShort();
     }
 
     @Override

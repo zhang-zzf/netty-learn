@@ -26,7 +26,7 @@ class PublishTest {
         Publish in = (Publish) Publish.from(buf);
         then(in.packetValidate()).isTrue();
         then(in.atLeastOnce()).isTrue();
-        then(in.retain()).isFalse();
+        then(in.retainedMessage()).isFalse();
         then(in.dup()).isFalse();
         then(in.topicName()).isEqualTo(topicName);
         then(in.payload().readableBytes()).isEqualTo(3 * 8);

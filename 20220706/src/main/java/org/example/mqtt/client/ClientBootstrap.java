@@ -102,7 +102,6 @@ public class ClientBootstrap {
         @Override
         public boolean onPublish(Publish packet, Future<Void> promise) {
             return true;
-            // todo 统计
         }
 
         @Override
@@ -157,7 +156,7 @@ public class ClientBootstrap {
                     /*
                       release the ByteBuf retained from {@link Codec#decode(ChannelHandlerContext, ByteBuf, List)}
                      */
-                    ((ControlPacket) msg)._buf().release();
+                    ((ControlPacket) msg).content().release();
                 }
             } else {
                 super.channelRead(ctx, msg);

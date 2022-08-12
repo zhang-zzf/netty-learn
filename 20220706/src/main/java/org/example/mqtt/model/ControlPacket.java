@@ -1,13 +1,14 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.DefaultByteBufHolder;
 import io.netty.buffer.Unpooled;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
-public abstract class ControlPacket {
+public abstract class ControlPacket extends DefaultByteBufHolder {
 
     public static final int _0_BYTE_LENGTH = 1;
     public static final int MIN_PACKET_LENGTH = 2;
@@ -27,11 +28,12 @@ public abstract class ControlPacket {
     public static final byte PINGRESP = (byte) 0xD0;
     public static final byte DISCONNECT = (byte) 0xE0;
 
-    private ByteBuf packet;
     protected byte _0byte;
     protected int remainingLength;
 
     protected ControlPacket(byte _0byte, int remainingLength) {
+        // todo 待确认
+        super(null);
         this._0byte = _0byte;
         this.remainingLength = remainingLength;
     }
@@ -42,21 +44,21 @@ public abstract class ControlPacket {
      * @param packet packet
      */
     protected ControlPacket(ByteBuf packet) {
-        this.packet = packet.discardReadBytes();
-        this.packet.markReaderIndex();
+        super(packet);
+        packet.markReaderIndex();
         try {
-            this._0byte = this.packet.readByte();
-            this.remainingLength = readRemainingLength(this.packet);
+            this._0byte = packet.readByte();
+            this.remainingLength = readRemainingLength(packet);
             // should read all the bytes out of the packet.
             initPacket();
-            if (this.packet.isReadable()) {
+            if (packet.isReadable()) {
                 // control packet is illegal.
                 throw new IllegalArgumentException();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException(e);
         } finally {
-            this.packet.resetReaderIndex();
+            packet.resetReaderIndex();
         }
     }
 
@@ -204,10 +206,6 @@ public abstract class ControlPacket {
             buf.writeByte(encodedByte);
         } while (rl > 0);
         return buf;
-    }
-
-    public ByteBuf _buf() {
-        return this.packet;
     }
 
 }

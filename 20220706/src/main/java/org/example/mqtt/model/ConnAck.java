@@ -73,8 +73,9 @@ public class ConnAck extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.sp = _buf().readByte() != 0x00;
-        this.returnCode = _buf().readByte();
+        ByteBuf content = content();
+        this.sp = content.readByte() != 0x00;
+        this.returnCode = content.readByte();
     }
 
     public boolean sp() {

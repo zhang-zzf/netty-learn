@@ -7,7 +7,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.codec.Codec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.Session;
 
@@ -51,9 +50,16 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         ControlPacket cp = (ControlPacket) msg;
-        channelRead0(ctx, cp);
-        // fireChannelRead if other handle need the ControlPacket just before release the ControlPacket
-        ctx.fireChannelRead(cp);
+        try {
+            channelRead0(ctx, cp);
+            // fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
+            ctx.fireChannelRead(cp);
+        } finally {
+            /**
+             * release the ByteBuf retained from {@link org.example.mqtt.codec.Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+             */
+            cp.content().release();
+        }
     }
 
     private boolean closeSession(ChannelHandlerContext ctx) throws Exception {
@@ -81,6 +87,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
             if (existSession()) {
+                // todo should close the old session
                 log.error("channelRead send Connect packet more than once, now close session");
                 return closeSession(ctx);
             }

@@ -13,7 +13,6 @@ import java.util.List;
  */
 public class Codec extends ByteToMessageCodec<ControlPacket> {
 
-
     @Override
     protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) throws Exception {
         out.writeBytes(msg.toByteBuf());
@@ -26,12 +25,10 @@ public class Codec extends ByteToMessageCodec<ControlPacket> {
             // can not decode a packet
             return;
         }
-        // now we can decode a complete control packet.
-        // use readSlice() to use zero-copy of ByteBuf (mostly in the direct area).
-        ByteBuf packet = in.readSlice(packetLength);
-        /*
-          The packet ByteBuf will be released by {@link ServerSessionHandler#channelRead(ChannelHandlerContext, Object)}
-         */
+        // use readRetainedSlice() to use zero-copy of ByteBuf (mostly in the direct area).
+        // the retained ByteBuf must be released after the business deal with the ControlPacket,
+        // or it will cause memory leak
+        ByteBuf packet = in.readRetainedSlice(packetLength);
         out.add(ControlPacket.from(packet));
     }
 

@@ -11,13 +11,14 @@ import java.net.InetSocketAddress;
 
 @Slf4j
 public class PrometheusConfiguration {
-    public void init(int port) {
+
+    public InetSocketAddress init(InetSocketAddress exportAddress) {
         PrometheusMeterRegistry registry = new PrometheusMeterRegistry(PrometheusConfig.DEFAULT);
         // 添加到 GlobalRegistry
         Metrics.addRegistry(registry);
         // start a httpserver
         try {
-            HttpServer server = HttpServer.create(new InetSocketAddress(port), 0);
+            HttpServer server = HttpServer.create(exportAddress, 0);
             server.createContext("/metrics", httpExchange -> {
                 String response = registry.scrape();
                 httpExchange.sendResponseHeaders(200, response.getBytes().length);
@@ -26,11 +27,12 @@ public class PrometheusConfiguration {
                 }
             });
             new Thread(server::start, "prometheus-http-server").start();
-            log.info("prometheus exporter start success, port: {}", port);
+            InetSocketAddress listenedAddress = server.getAddress();
+            log.info("prometheus exporter start success, bound: {}", listenedAddress);
+            return listenedAddress;
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }
-
     }
 
 }

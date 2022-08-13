@@ -268,6 +268,11 @@ public abstract class AbstractSession implements Session {
         }
     }
 
+    /**
+     * 消息接受完成
+     *
+     * @param cpx the ControlPacketContext
+     */
     protected void publishReceived(ControlPacketContext cpx) {
         cpx.success();
     }
@@ -474,6 +479,7 @@ public abstract class AbstractSession implements Session {
 
     /**
      * do handle the Publish from the pair
+     * <p>the Session receive a Publish packet</p>
      *
      * @param packet the Publish packet that received from pair
      */

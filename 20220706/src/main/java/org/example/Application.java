@@ -13,7 +13,7 @@ import org.example.mqtt.client.ClientBootstrap;
 @Slf4j
 public class Application {
 
-    public static void main(String[] args) throws InterruptedException {
+    public static void main(String[] args) {
         log.info("Application#main: {}", JSON.toJSONString(args));
         boolean clientMode = Boolean.getBoolean("mqtt.client.mode");
         if (clientMode) {
@@ -22,7 +22,7 @@ public class Application {
             BrokerBootstrap.main(args);
         }
         // 启动 MicroMeter 打点框架
-        new MicroMeterConfiguration().init("20220706", 61999);
+        new MicroMeterConfiguration().init("20220706");
     }
 
 }

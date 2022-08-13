@@ -1,9 +1,16 @@
 package org.example.mqtt.client;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Timer;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.*;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
@@ -12,9 +19,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.codec.Codec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
 import org.example.mqtt.session.Session;
 
 import java.net.InetSocketAddress;
+import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -97,13 +107,46 @@ public class ClientBootstrap {
 
     public static class ClientTestSession extends AbstractSession {
 
+        final Timer publishReceived = Timer.builder("com.github.zzf.netty.client.msg")
+                .tag("type", "received")
+                .publishPercentileHistogram()
+                // 1μs
+                .minimumExpectedValue(Duration.ofNanos(1000))
+                .maximumExpectedValue(Duration.ofSeconds(10))
+                .register(Metrics.globalRegistry);
+        final Timer onPublish = Timer.builder("com.github.zzf.netty.client.msg")
+                .tag("type", "in")
+                .publishPercentileHistogram()
+                .minimumExpectedValue(Duration.ofNanos(1000))
+                .maximumExpectedValue(Duration.ofSeconds(10))
+                .register(Metrics.globalRegistry);
+
         protected ClientTestSession(String clientIdentifier) {
             super(clientIdentifier);
         }
 
         @Override
         public boolean onPublish(Publish packet, Future<Void> promise) {
+            ByteBuf payload = packet.payload();
+            // retain the payload that will be release by publishReceived() method
+            payload.retain();
+            long timeInNano = payload.getLong(0);
+            long useTime = System.nanoTime() - timeInNano;
+            onPublish.record(useTime, TimeUnit.NANOSECONDS);
+            log.debug("client sent -> server handle -> client onPublish: {}ns", useTime);
             return true;
+        }
+
+        @Override
+        protected void publishReceived(ControlPacketContext cpx) {
+            ByteBuf payload = cpx.packet().payload();
+            long timeInNano = payload.getLong(0);
+            long useTime = System.nanoTime() - timeInNano;
+            publishReceived.record(useTime, TimeUnit.NANOSECONDS);
+            log.debug("client sent -> server handle -> client publishReceived: {}ns", useTime);
+            // release the payload that retained by onPublish
+            payload.release();
+            super.publishReceived(cpx);
         }
 
         @Override
@@ -153,24 +196,46 @@ public class ClientBootstrap {
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ControlPacket) {
                 ControlPacket cp = (ControlPacket) msg;
-                if (cp instanceof ConnAck) {
-                    // send subscribe
-                    // client_127.0.0.1/51324/#
-                    String topicFilter = topic + "/#";
-                    ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
-                            singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
-                } else if (cp instanceof SubAck) {
-                    // 开启定时任务发送 Publish
-                    publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
-                        session.send(Publish.outgoing(false, sendQos, false, topic,
-                                session.nextPacketIdentifier(), payload));
-                    }, 1, period, TimeUnit.SECONDS);
-                } else {
-                    session.messageReceived(cp);
+                try {
+                    channelRead0(ctx, cp);
+                } finally {
+                    /**
+                     * release the ByteBuf retained from
+                     * {@link org.example.mqtt.codec.Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+                     */
+                    cp.content().release();
                 }
             } else {
                 super.channelRead(ctx, msg);
             }
+        }
+
+        private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
+            if (cp instanceof ConnAck) {
+                // send subscribe
+                // client_127.0.0.1/51324/#
+                String topicFilter = topic + "/#";
+                ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
+                        singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
+            } else if (cp instanceof SubAck) {
+                // 开启定时任务发送 Publish
+                publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
+                    ByteBuf timestamp = Unpooled.buffer(8).writeLong(System.nanoTime());
+                    CompositeByteBuf packet = Unpooled.compositeBuffer()
+                            .addComponents(true, timestamp, this.payload);
+                    session.send(Publish.outgoing(false, sendQos, false, topic,
+                            session.nextPacketIdentifier(), packet));
+                    logOutgoingMetrics();
+                }, 1, period, TimeUnit.SECONDS);
+            } else {
+                session.messageReceived(cp);
+            }
+        }
+
+        final Counter counter = Metrics.counter("com.github.zzf.netty.client.msg", "type", "out");
+
+        private void logOutgoingMetrics() {
+            counter.increment();
         }
 
         @Override

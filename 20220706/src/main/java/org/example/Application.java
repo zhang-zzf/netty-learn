@@ -19,7 +19,7 @@ public class Application {
         if (clientMode) {
             new Thread(() -> ClientBootstrap.main(args), "bootstrap-thread").start();
         } else {
-            new Thread(() -> BrokerBootstrap.main(args), "bootstrap-thread").start();
+            BrokerBootstrap.main(args);
         }
         // 启动 MicroMeter 打点框架
         new MicroMeterConfiguration().init("20220706", 61999);

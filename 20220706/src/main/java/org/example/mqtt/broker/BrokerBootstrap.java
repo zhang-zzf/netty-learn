@@ -1,7 +1,7 @@
 package org.example.mqtt.broker;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.Channel;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
@@ -24,29 +24,26 @@ public class BrokerBootstrap {
         final NioEventLoopGroup bossGroup = new NioEventLoopGroup(2, (Runnable r) -> new Thread(r, "netty-boss"));
         final Broker broker = new DefaultBroker();
         // 配置 bootstrap
-        final ServerBootstrap serverBootstrap = new ServerBootstrap()
+        new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class)
-                .childHandler(new ChannelInitializer<SocketChannel>() {
+                .channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ServerSessionHandler sessionHandler = new ServerSessionHandler(broker, packet -> 0x00, 3);
-                        ch.pipeline()
-                                .addLast(new Codec())
-                                .addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
+                        ch.pipeline().addLast(new Codec()).addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
                     }
-                });
-        try {
-            final Channel serverChannel = serverBootstrap.bind(port).sync().channel();
-            log.info("server listened at {}", port);
-            serverChannel.closeFuture().sync();
-        } catch (InterruptedException e) {
-            // ignore
-        } finally {
-            bossGroup.shutdownGracefully();
-            workerGroup.shutdownGracefully();
-        }
+                })
+                .bind(port)
+                .addListener((ChannelFutureListener) future -> {
+                    log.info("server listened at {}", port);
+                })
+                .channel().closeFuture().addListener((ChannelFutureListener) future -> {
+                    log.info("server was shutdown.");
+                    bossGroup.shutdownGracefully();
+                    workerGroup.shutdownGracefully();
+                })
+        ;
     }
 
 }

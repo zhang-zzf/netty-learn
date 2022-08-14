@@ -220,7 +220,9 @@ public class ClientBootstrap {
             } else if (cp instanceof SubAck) {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
-                    ByteBuf timestamp = Unpooled.buffer(8).writeLong(System.nanoTime());
+                    ByteBuf timestamp = Unpooled.buffer(16)
+                            .writeLong(System.nanoTime())
+                            .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);
                     session.send(Publish.outgoing(false, sendQos, false, topic,

@@ -5,9 +5,11 @@ import com.orbitz.consul.Consul;
 import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
 import io.micrometer.core.instrument.Metrics;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 
+@Slf4j
 public class MicroMeterConfiguration {
 
     public void init(String appName) {
@@ -31,6 +33,7 @@ public class MicroMeterConfiguration {
                 .build();
         AgentClient agentClient = Consul.builder().build().agentClient();
         agentClient.register(service);
+        log.info("service({}/{}) registered to consul", name, id);
         // shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> agentClient.deregister(serviceId)));
     }

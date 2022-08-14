@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.micrometer.MicroMeterConfiguration;
 import org.example.mqtt.broker.BrokerBootstrap;
+import org.example.mqtt.broker.metrics.BrokerBootstrapWithMetrics;
 import org.example.mqtt.client.ClientBootstrap;
 
 /**
@@ -19,7 +20,12 @@ public class Application {
         if (clientMode) {
             new Thread(() -> ClientBootstrap.main(args), "bootstrap-thread").start();
         } else {
-            BrokerBootstrap.main(args);
+            boolean metricsServer = Boolean.getBoolean("mqtt.server.metrics");
+            if (metricsServer) {
+                BrokerBootstrapWithMetrics.main(args);
+            } else {
+                BrokerBootstrap.main(args);
+            }
         }
         // 启动 MicroMeter 打点框架
         new MicroMeterConfiguration().init("20220706");

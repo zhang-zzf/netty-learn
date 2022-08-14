@@ -435,7 +435,7 @@ public abstract class AbstractSession implements Session {
     /**
      * as Receiver
      */
-    private void doReceivePublish(Publish packet) {
+    protected void doReceivePublish(Publish packet) {
         if (packet.needAck() && existSamePacket(packet, inQueue)) {
             log.warn("Session({}) receive same Publish packet: {}", clientIdentifier(), packet.packetIdentifier());
             return;

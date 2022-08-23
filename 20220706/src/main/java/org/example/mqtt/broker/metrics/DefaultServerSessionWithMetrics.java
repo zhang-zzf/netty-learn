@@ -46,7 +46,10 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
     protected void doReceivePublish(Publish packet) {
         try {
             long millis = packet.payload().getLong(8);
-            receive.record(System.currentTimeMillis() - millis, TimeUnit.MILLISECONDS);
+            long now = System.currentTimeMillis();
+            // 更新成服务器时间
+            packet.payload().setLong(8, now);
+            receive.record(now - millis, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // ignore
         }

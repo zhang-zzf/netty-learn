@@ -16,8 +16,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.example.mqtt.model.ControlPacket.*;
-import static org.example.mqtt.model.Publish.AT_LEAST_ONCE;
-import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
+import static org.example.mqtt.model.Publish.*;
 import static org.example.mqtt.session.ControlPacketContext.*;
 
 /**
@@ -254,8 +253,9 @@ public abstract class AbstractSession implements Session {
         Iterator<ControlPacketContext> it = inQueue.iterator();
         while (it.hasNext()) {
             ControlPacketContext next = it.next();
-            if (!next.packet().needAck()) {
-                // clean all QoS 0 cpx
+            int qos = next.packet().qos();
+            if ((qos == AT_MOST_ONCE) || (qos == AT_LEAST_ONCE)) {
+                // clean all QoS0 / QoS1 cpx
                 it.remove();
                 publishReceived(next);
             } else if (controlPacketTimeout(next)) {

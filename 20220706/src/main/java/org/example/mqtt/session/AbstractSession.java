@@ -128,6 +128,7 @@ public abstract class AbstractSession implements Session {
         // Client offline check for QoS 0 (atMostOnce) Publish packet
         if (!isBound() && outgoing.atMostOnce()) {
             promise.tryFailure(new IllegalStateException("Client is Down"));
+            return;
         }
         // very little chance
         if (qos2DuplicateCheck(outgoing, outQueue)) {
@@ -227,7 +228,8 @@ public abstract class AbstractSession implements Session {
         Iterator<ControlPacketContext> it = outQueue.iterator();
         while (it.hasNext()) {
             ControlPacketContext next = it.next();
-            if (!next.packet().needAck()) {
+            int qos = next.packet().qos();
+            if (qos == AT_MOST_ONCE) {
                 // clean all QoS 0 cpx
                 it.remove();
                 publishSent(next);
@@ -507,6 +509,7 @@ public abstract class AbstractSession implements Session {
             tryCleanInQueue();
             tryCleanOutQueue();
         }, 1, 1, TimeUnit.SECONDS);
+        // todo delay
     }
 
     private void retrySendControlPacket(ControlPacketContext cpx) {

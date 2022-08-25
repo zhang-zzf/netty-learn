@@ -1,7 +1,6 @@
 package org.example.mqtt.broker;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -62,24 +61,23 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private boolean closeSession(ChannelHandlerContext ctx) throws Exception {
+    private void closeSession(ChannelHandlerContext ctx) throws Exception {
         if (existSession()) {
             session.close();
         } else {
             ctx.close();
         }
-        return true;
     }
 
     /**
      * @return true if channelRead0 close the session otherwise false;
      */
-    private boolean channelRead0(ChannelHandlerContext ctx, ControlPacket cp) throws Exception {
+    private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) throws Exception {
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
-            return closeSession(ctx);
+            closeSession(ctx);
         }
         // the first Connect Packet
         if (cp instanceof Connect) {
@@ -87,9 +85,8 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
             if (existSession()) {
-                // todo should close the old session
                 log.error("channelRead send Connect packet more than once, now close session");
-                return closeSession(ctx);
+                closeSession(ctx);
             }
             Connect connect = (Connect) cp;
             // The Server MUST respond to the CONNECT Packet
@@ -99,20 +96,20 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             if (!supportProtocolLevel.contains(connect.protocolLevel())) {
                 log.error("not support protocol level, now send ConnAck and close channel");
                 ctx.writeAndFlush(ConnAck.notSupportProtocolLevel());
-                return closeSession(ctx);
+                closeSession(ctx);
             }
             // authenticate
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
                 ctx.writeAndFlush(ConnAck.from(authenticate));
-                return closeSession(ctx);
+                closeSession(ctx);
             }
             // keep alive
             if (connect.keepAlive() > 0) {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
-            // now accept the Connect
+            // now accept the 'Connect'
             ConnAck connAck = ConnAck.accepted();
             ServerSession preSession = broker.session(connect.clientIdentifier());
             if (connect.cleanSession() && preSession != null) {
@@ -123,20 +120,10 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
                 connAck = ConnAck.acceptedWithStoredSession();
             }
             if (this.session == null) {
-                DefaultServerSession newSession = newServerSession(connect);
-                newSession.cleanSession(connect.cleanSession());
-                this.session = newSession;
+                this.session = newServerSession(connect);
             }
-            ctx.writeAndFlush(connAck).addListener((ChannelFutureListener) future -> {
-                // bind channel
-                try {
-                    this.session.bind(ctx.channel());
-                    this.session.register(broker);
-                } catch (Exception e) {
-                    log.error("Session({}) unexpected exception when bind", session.clientIdentifier(), e);
-                    closeSession(ctx);
-                }
-            });
+            ctx.writeAndFlush(connAck)
+                    .addListener(future -> this.session.open(ctx.channel(), broker));
             log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
@@ -145,11 +132,10 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             // let the session handle the packet
             session.messageReceived(cp);
         }
-        return false;
     }
 
     protected DefaultServerSession newServerSession(Connect connect) {
-        return new DefaultServerSession(connect.clientIdentifier());
+        return new DefaultServerSession(connect);
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {

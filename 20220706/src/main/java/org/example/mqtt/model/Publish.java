@@ -46,7 +46,7 @@ public class Publish extends ControlPacket {
      *
      * @param origin source
      * @param packetIdentifier packet ID
-     * @return a Publish Packet that have the save data as source
+     * @return a new Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, boolean dup, byte qos, short packetIdentifier) {
         return outgoing(origin.retain(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
@@ -61,7 +61,6 @@ public class Publish extends ControlPacket {
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
         return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
     }
-
 
     @Override
     public ByteBuf toByteBuf() {

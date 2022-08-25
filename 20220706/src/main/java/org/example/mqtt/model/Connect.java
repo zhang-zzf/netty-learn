@@ -169,6 +169,14 @@ public class Connect extends ControlPacket {
         return (connectFlags & 0x18);
     }
 
+    public String willTopic() {
+        return willTopic;
+    }
+
+    public ByteBuf willMessage() {
+        return willMessage;
+    }
+
     @Override
     protected void initPacket() {
         ByteBuf buf = content();

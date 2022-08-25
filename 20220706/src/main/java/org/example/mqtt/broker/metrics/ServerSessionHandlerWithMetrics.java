@@ -14,7 +14,7 @@ public class ServerSessionHandlerWithMetrics extends ServerSessionHandler {
 
     @Override
     protected DefaultServerSession newServerSession(Connect connect) {
-        return new DefaultServerSessionWithMetrics(connect.clientIdentifier());
+        return new DefaultServerSessionWithMetrics(connect);
     }
 
 }

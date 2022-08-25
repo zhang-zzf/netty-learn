@@ -5,6 +5,7 @@ import io.micrometer.core.instrument.Timer;
 import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.DefaultServerSession;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.session.ControlPacketContext;
 
@@ -35,8 +36,8 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
             .maximumExpectedValue(Duration.ofSeconds(10))
             .register(Metrics.globalRegistry);
 
-    public DefaultServerSessionWithMetrics(String clientIdentifier) {
-        super(clientIdentifier);
+    public DefaultServerSessionWithMetrics(Connect connect) {
+        super(connect);
     }
 
     /**

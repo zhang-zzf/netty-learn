@@ -246,14 +246,14 @@ public class ClientBootstrap {
             if (publishSendTask != null) {
                 publishSendTask.cancel(true);
             }
-            session.close();
+            session.closeChannel();
             super.channelInactive(ctx);
         }
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
             log.error("client({}) exceptionCaught, now close the session", session.clientIdentifier(), cause);
-            session.close();
+            session.closeChannel();
         }
 
     }

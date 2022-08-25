@@ -20,14 +20,6 @@ import static org.example.mqtt.model.Publish.*;
 import static org.example.mqtt.session.ControlPacketContext.*;
 
 /**
- * QA
- * <pre>
- *     20220627 Session 下无 Channel 时
- *     1. 如何接受 broker 的 send 消息，如何处理？（Persistent Session)
- *     2. 超时调度任务暂定
- *     3.
- * </pre>
- *
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
@@ -60,19 +52,24 @@ public abstract class AbstractSession implements Session {
         this.clientIdentifier = clientIdentifier;
     }
 
+    /**
+     * Close the Channel that was used to connect to the client.
+     */
     @Override
-    public void close() {
+    public void closeChannel() {
         if (retryTask != null) {
             retryTask.cancel(true);
             retryTask = null;
         }
-        if (channel != null) {
-            channel.close();
+        if (isBound()) {
+            if (channel.isOpen()) {
+                channel.close();
+            }
             channel = null;
         }
         for (ControlPacketContext cpx : outQueue) {
             if (cpx.inSending()) {
-                // re mark the SENDING cpx
+                // remark the SENDING cpx
                 cpx.markStatus(SENDING, INIT);
                 break;
             }

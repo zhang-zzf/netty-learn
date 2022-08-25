@@ -1,5 +1,7 @@
 package org.example.mqtt.broker;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
@@ -22,9 +24,26 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     private Broker broker;
     private volatile boolean registered;
     private Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    /**
+     * Disconnect will change it to true.
+     */
+    private boolean disconnected = false;
+    /**
+     * Will Message
+     * <pre>
+     *     initiate by Connect if will flag is present. It will be cleaned after
+     *     1. receive Disconnect
+     *     2. lost the Channel with the Client, and forward the message to relative Topic.
+     * </pre>
+     */
+    private Publish willMessage;
 
-    public DefaultServerSession(String clientIdentifier) {
-        super(clientIdentifier);
+    public DefaultServerSession(Connect connect) {
+        super(connect.clientIdentifier());
+        cleanSession(connect.cleanSession());
+        if (connect.willFlag()) {
+            willMessage = extractWillMessage(connect);
+        }
     }
 
     @Override
@@ -104,7 +123,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         for (Subscribe.Subscription p : permitted) {
             boolean exists = false;
             // todo 参考 mqtt 协议：待优化
-            for (Subscribe.Subscription sub : this.subscriptions) {
+            for (Subscribe.Subscription sub : subscriptions) {
                 if (sub.topicFilter().equals(p.topicFilter())) {
                     sub.qos(p.qos());
                     exists = true;
@@ -119,34 +138,63 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     protected void doReceiveDisconnect(Disconnect packet) {
         log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
-        this.close();
+        disconnected = true;
+        // clean the Will message.
+        willMessage = null;
+        // 断开与 Broker 的连接。移除 Broker 中和 Session 有关的状态
+        if (cleanSession()) {
+            // 取消与 Broker 的关联
+            deregister();
+        }
+        // 关闭底层用于通信的 Channel
+        closeChannel();
     }
 
     @Override
     public Broker broker() {
-        return this.broker;
+        return broker;
     }
 
     @Override
     public void register(Broker broker) {
-        this.broker = broker;
-        broker().connect(this);
-        this.registered = true;
+        if (!registered) {
+            this.broker = broker;
+            broker().connect(this);
+            registered = true;
+        }
     }
 
     @Override
     public boolean isRegistered() {
-        return this.registered;
+        return registered;
+    }
+
+    @Override
+    public void open(Channel ch, Broker broker) {
+        bind(ch);
+        register(broker);
     }
 
     @Override
     public void close() {
-        if (cleanSession()) {
+        // send will message
+        if (willMessage != null) {
+            broker.forward(willMessage);
+            willMessage = null;
+        }
+        // 取消与 Broker 的关联
+        deregister();
+        // 关闭底层连接
+        closeChannel();
+    }
+
+    @Override
+    public void deregister() {
+        if (registered) {
             // disconnect the session from the broker
             broker().disconnect(this);
-            this.registered = false;
+            registered = false;
         }
-        super.close();
     }
 
     @Override
@@ -156,6 +204,13 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
         sb.append("\"cleanSession\":").append(cleanSession()).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    private Publish extractWillMessage(Connect connect) {
+        int qos = connect.willQos();
+        String topic = connect.willTopic();
+        ByteBuf byteBuf = connect.willMessage();
+        return Publish.outgoing(false, (byte) qos, false, topic, (short) 0, byteBuf);
     }
 
 }

@@ -90,7 +90,17 @@ public class DefaultBrokerState implements BrokerState {
 
     @Override
     public Future<ServerSession> connect(ServerSession session) {
-        Callable task = () -> sessionMap.putIfAbsent(session.clientIdentifier(), session);
+        Callable task = () -> {
+            ServerSession exist = sessionMap.putIfAbsent(session.clientIdentifier(), session);
+            if (exist != null) {
+                return exist;
+            }
+            Set<Subscribe.Subscription> subscriptions = session.subscriptions();
+            for (Subscribe.Subscription sub : subscriptions) {
+                doSubscribe(session, sub);
+            }
+            return null;
+        };
         return executorService.submit(task);
 
     }

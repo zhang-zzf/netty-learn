@@ -11,7 +11,7 @@ import java.util.Set;
  * @author zhanfeng.zhang
  * @date 2022/06/23
  */
-public interface Session extends AutoCloseable {
+public interface Session {
 
     /**
      * clientId
@@ -44,7 +44,7 @@ public interface Session extends AutoCloseable {
     /**
      * bind the session to a channel
      *
-     * @param channel Channel use to send and receive data from pair
+     * @param channel Channel that use to send and receive data from pair
      */
     void bind(Channel channel);
 
@@ -68,6 +68,11 @@ public interface Session extends AutoCloseable {
      * @return packetIdentifier
      */
     short nextPacketIdentifier();
+
+    /**
+     * close the Channel
+     */
+    void closeChannel();
 
     /**
      * whether the session is cleanSession

@@ -37,7 +37,7 @@ public abstract class Client implements AutoCloseable {
     @Override
     public void close() throws Exception {
         clientSession().send(Disconnect.from()).sync();
-        clientSession().close();
+        clientSession().closeChannel();
     }
 
     public void messageReceived(Publish packet) {

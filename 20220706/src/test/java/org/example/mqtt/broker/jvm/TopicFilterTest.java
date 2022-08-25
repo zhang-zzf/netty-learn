@@ -168,8 +168,9 @@ class TopicFilterTest {
     @Test
     @Disabled
     void givenTopicFilter_whenAdd10000000_when() throws InterruptedException {
+        final CountDownLatch latch = new CountDownLatch(1);
         Runnable task = () -> {
-            int totalLevel = 7, cntPerLevel = 9;
+            int totalLevel = 6, cntPerLevel = 9;
             int total = 0;
             List<Set<String>> topic = new ArrayList<>(totalLevel);
             for (int i = 0; i < totalLevel; i++) {
@@ -197,29 +198,28 @@ class TopicFilterTest {
             }
             // test ut
             long nanoTime = System.nanoTime();
-            Random random = new Random();
-            int testCnt = 100;
             int totalTestCnt = 0;
-            for (int i = 0; i < testCnt; i++) {
-                int l = random.nextInt(totalLevel);
-                for (String s : topic.get(l)) {
-                    totalTestCnt += 1;
-                    Set<String> match = tf.match(s);
-                    if (l == 0) {
-                        then(match).isEmpty();
-                    } else {
-                        then(match).isNotEmpty();
+            while (latch.getCount() != 0) {
+                for (int i = 0; i < topic.size(); i++) {
+                    for (String s : topic.get(i)) {
+                        tf.match(s);
+                        totalTestCnt += 1;
+                        if (totalTestCnt == Long.MAX_VALUE - 1) {
+                            long useTime = System.nanoTime() - nanoTime;
+                            log.info("test {} cnt, use time: {}ns, {}ns/per", totalTestCnt, useTime, useTime / totalTestCnt);
+                            totalTestCnt = 0;
+                            nanoTime = System.nanoTime();
+                        }
                     }
                 }
             }
             long useTime = System.nanoTime() - nanoTime;
             log.info("test {} cnt, use time: {}ns, {}ns/per", totalTestCnt, useTime, useTime / totalTestCnt);
             // test ut
-            // clear topic
-            topic.clear();
-            topic = null;
         };
         new Thread(task).start();
+        Thread.sleep(300000);
+        latch.countDown();
         Thread.currentThread().join();
     }
 
@@ -248,9 +248,9 @@ class TopicFilterTest {
      * </pre>
      */
     @Test
-    @Disabled
+    // @Disabled
     void givenTopicFilter_whenAdd10000000_whenTestMultiThreadRead() throws InterruptedException {
-        int totalLevel = 7, cntPerLevel = 9;
+        int totalLevel = 6, cntPerLevel = 9;
         int total = 0;
         List<Set<String>> topic = new ArrayList<>(totalLevel);
         for (int i = 0; i < totalLevel; i++) {
@@ -278,8 +278,8 @@ class TopicFilterTest {
         }
         // test ut
         CountDownLatch latch = new CountDownLatch(1);
-        for (int i = 0; i < totalLevel; i++) {
-            final Set<String> level = topic.get(i);
+        for (int i = 0; i < totalLevel * 2; i++) {
+            final Set<String> level = topic.get(i % totalLevel);
             new Thread(() -> {
                 long nanoTime = System.nanoTime();
                 long totalTestCnt = 0;

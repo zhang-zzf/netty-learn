@@ -107,7 +107,7 @@ public class SingleThreadTopicFilter implements TopicFilter {
     }
 
     private Set<String> fuzzyMatch(String topicName) {
-        Set<String> ret = new HashSet<>(4);
+        Set<String> ret = new HashSet<>(2);
         if (topicName == null || topicName.isEmpty()) {
             return ret;
         }

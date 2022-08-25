@@ -570,8 +570,8 @@ public abstract class AbstractSession implements Session {
         this.channel = channel;
         // try start retry task
         this.eventLoop.submit(() -> {
-            // start send some packet
-            // send Publish from outQueue immediately
+            // start send some packet.
+            // send Publish from outQueue immediately.
             doSendPublishAndClean();
             // try resend timeout packet in inQueue
             startRetryTask();

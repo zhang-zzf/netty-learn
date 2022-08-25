@@ -243,4 +243,13 @@ public class Publish extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
+    public Publish dup(boolean dup) {
+        if (dup) {
+            this.byte0 |= 0x80;
+        } else {
+            this.byte0 ^= 0xF7;
+        }
+        return this;
+    }
+
 }

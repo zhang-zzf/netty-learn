@@ -108,22 +108,23 @@ public class ControlPacketContext {
     public ControlPacket retryPacket() {
         this.retryTimes += 1;
         int s = status.get();
-        if (packet().atLeastOnce()) {
+        Publish packet = packet();
+        if (packet.atLeastOnce()) {
             switch (type) {
                 case IN:
                     // receive message case
                     return pubAck();
                 case OUT:
                     // send message case
-                    return packet();
+                    return packet.dup(true);
                 default:
             }
         }
-        if (packet().exactlyOnce()) {
+        if (packet.exactlyOnce()) {
             switch (s) {
                 case SENT:
                     // sender case
-                    return packet();
+                    return packet.dup(true);
                 case HANDLED:
                     // receiver case
                     return pubRec();

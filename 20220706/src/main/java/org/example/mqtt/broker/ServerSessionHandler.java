@@ -78,6 +78,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
             closeSession(ctx);
+            return;
         }
         // the first Connect Packet
         if (cp instanceof Connect) {
@@ -87,6 +88,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             if (existSession()) {
                 log.error("channelRead send Connect packet more than once, now close session");
                 closeSession(ctx);
+                return;
             }
             Connect connect = (Connect) cp;
             // The Server MUST respond to the CONNECT Packet
@@ -97,6 +99,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
                 log.error("not support protocol level, now send ConnAck and close channel");
                 ctx.writeAndFlush(ConnAck.notSupportProtocolLevel());
                 closeSession(ctx);
+                return;
             }
             // authenticate
             int authenticate = authenticator.authenticate(connect);
@@ -104,14 +107,20 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
                 log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
                 ctx.writeAndFlush(ConnAck.from(authenticate));
                 closeSession(ctx);
+                return;
             }
+            // now accept the 'Connect'
             // keep alive
             if (connect.keepAlive() > 0) {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
-            // now accept the 'Connect'
             ConnAck connAck = ConnAck.accepted();
             ServerSession preSession = broker.session(connect.clientIdentifier());
+            if (preSession!= null && preSession.isBound()) {
+                //  If the ClientId represents a Client already connected to the Server then the Server MUST
+                //  disconnect the existing Client
+                preSession.close();
+            }
             if (connect.cleanSession() && preSession != null) {
                 preSession.close();
             }

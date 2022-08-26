@@ -221,31 +221,19 @@ public class Publish extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packetIdentifier\":\"0x").append(Integer.toHexString(packetIdentifier & 0xffff)).append("\",");
         if (topicName != null) {
             sb.append("\"topicName\":\"").append(topicName).append('\"').append(',');
         }
-        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
         sb.append("\"qos\":").append(qos()).append(",");
         sb.append("\"dup\":").append(dup()).append(",");
         sb.append("\"retain\":").append(retain()).append(",");
-        if (payload != null) {
-            sb.append("\"payload\":");
-            String objectStr = payload.toString().trim();
-            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
-                sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
-                sb.append(objectStr);
-            } else {
-                sb.append("\"").append(objectStr).append("\"");
-            }
-            sb.append(',');
-        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
     public Publish dup(boolean dup) {
         if (dup) {
-            this.byte0 |= 0x80;
+            this.byte0 |= 0x08;
         } else {
             this.byte0 ^= 0xF7;
         }

@@ -248,7 +248,7 @@ class TopicFilterTest {
      * </pre>
      */
     @Test
-    // @Disabled
+    @Disabled
     void givenTopicFilter_whenAdd10000000_whenTestMultiThreadRead() throws InterruptedException {
         int totalLevel = 6, cntPerLevel = 9;
         int total = 0;

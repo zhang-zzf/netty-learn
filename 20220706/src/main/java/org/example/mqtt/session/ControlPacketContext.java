@@ -1,12 +1,13 @@
 package org.example.mqtt.session;
 
 import io.netty.util.concurrent.Promise;
-import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
 import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.example.mqtt.session.ControlPacketContext.Status.*;
 
 /**
  * @author zhanfeng.zhang
@@ -15,38 +16,36 @@ import java.util.concurrent.atomic.AtomicInteger;
 @Slf4j
 public class ControlPacketContext {
 
-    public static final int PUB_REC = 1 << 2;
-    public static final int PUB_REL = 1 << 3;
-    public static final int PUB_COMP = 1 << 4;
-    public static final int PUB_ACK = 1 << 5;
+    public enum Status {
+        INIT,
+        HANDLED,
+        SENDING,
+        SENT,
+        PUB_REC,
+        PUB_REL,
+        PUB_COMP,
+        PUB_ACK,
+        ;
+    }
 
-    /**
-     * when Session receive a Publish packet(may from business layer)
-     */
-    public static final int INIT = 1 << 6;
-    /**
-     *
-     */
-    public static final int HANDLED = 1 << 7;
-
-    public static final int SENDING = 1 << 11;
-    public static final int SENT = 1 << 12;
-
-    public static final int OUT = 1;
-    public static final int IN = 0;
+    public enum Type {
+        IN,
+        OUT,
+        ;
+    }
 
     private final Publish packet;
-    private final int type;
-    private final AtomicInteger status;
+    private final Type type;
+    private final AtomicReference<Status> status;
     private final Promise<?> promise;
     private long markedMillis;
     private int retryTimes;
 
     private ControlPacketContext next;
 
-    public ControlPacketContext(Publish packet, int status, int type, Promise<Void> promise) {
+    public ControlPacketContext(Publish packet, Status status, Type type, Promise<Void> promise) {
         this.packet = packet;
-        this.status = new AtomicInteger(status);
+        this.status = new AtomicReference<>(status);
         this.markedMillis = System.currentTimeMillis();
         this.promise = promise;
         this.type = type;
@@ -64,7 +63,7 @@ public class ControlPacketContext {
         return status.get() == INIT;
     }
 
-    public ControlPacketContext markStatus(int expect, int update) {
+    public ControlPacketContext markStatus(Status expect, Status update) {
         if (!status.compareAndSet(expect, update)) {
             throw new IllegalStateException();
         }
@@ -73,7 +72,7 @@ public class ControlPacketContext {
     }
 
     public boolean complete() {
-        int s = status.get();
+        Status s = status.get();
         if (packet().atMostOnce()) {
             if (s == HANDLED || s == SENT) {
                 return true;
@@ -107,7 +106,7 @@ public class ControlPacketContext {
 
     public ControlPacket retryPacket() {
         this.retryTimes += 1;
-        int s = status.get();
+        Status s = status.get();
         Publish packet = packet();
         if (packet.atLeastOnce()) {
             switch (type) {
@@ -153,18 +152,9 @@ public class ControlPacketContext {
             }
             sb.append(',');
         }
-        sb.append("\"type\":").append(type).append(',');
+        sb.append("\"type\":\"").append(type.name()).append("\",");
         if (status != null) {
-            sb.append("\"status\":");
-            String objectStr = status.toString().trim();
-            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
-                sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
-                sb.append(objectStr);
-            } else {
-                sb.append("\"").append(objectStr).append("\"");
-            }
-            sb.append(',');
+            sb.append("\"status\":\"").append(status.get().name()).append("\",");
         }
         sb.append("\"markedMillis\":").append(markedMillis).append(',');
         sb.append("\"retryTimes\":").append(retryTimes).append(',');

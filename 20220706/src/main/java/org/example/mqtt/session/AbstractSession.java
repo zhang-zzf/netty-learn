@@ -11,13 +11,18 @@ import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
-import java.util.*;
+import java.util.Iterator;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.*;
-import static org.example.mqtt.session.ControlPacketContext.*;
+import static org.example.mqtt.session.ControlPacketContext.Status.*;
+import static org.example.mqtt.session.ControlPacketContext.Type.IN;
+import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -134,7 +139,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         // enqueue
-        outQueue.offer(new ControlPacketContext(outgoing, ControlPacketContext.INIT, OUT, promise));
+        outQueue.offer(new ControlPacketContext(outgoing, INIT, OUT, promise));
         // start send some packet
         doSendPublishAndClean();
     }
@@ -225,8 +230,7 @@ public abstract class AbstractSession implements Session {
         Iterator<ControlPacketContext> it = outQueue.iterator();
         while (it.hasNext()) {
             ControlPacketContext next = it.next();
-            int qos = next.packet().qos();
-            if (qos == AT_MOST_ONCE) {
+            if (next.packet().atMostOnce()) {
                 // clean all QoS 0 cpx
                 it.remove();
                 publishSent(next);
@@ -252,8 +256,8 @@ public abstract class AbstractSession implements Session {
         Iterator<ControlPacketContext> it = inQueue.iterator();
         while (it.hasNext()) {
             ControlPacketContext next = it.next();
-            int qos = next.packet().qos();
-            if ((qos == AT_MOST_ONCE) || (qos == AT_LEAST_ONCE)) {
+            Publish packet = next.packet();
+            if ((packet.atMostOnce()) || (packet.atLeastOnce())) {
                 // clean all QoS0 / QoS1 cpx
                 it.remove();
                 publishReceived(next);
@@ -611,86 +615,5 @@ public abstract class AbstractSession implements Session {
         return Objects.hash(clientIdentifier);
     }
 
-
-    public class ControlPacketContextQueue extends AbstractQueue<ControlPacketContext> {
-
-        private final ControlPacketContext head = new ControlPacketContext(null, 0, -1, null);
-        private ControlPacketContext tail = head;
-        private int size;
-
-        @Override
-        public Iterator<ControlPacketContext> iterator() {
-            return new Iterator<ControlPacketContext>() {
-                ControlPacketContext cur = ControlPacketContextQueue.this.head;
-                ControlPacketContext prev = null;
-                boolean nexted = false;
-
-                @Override
-                public boolean hasNext() {
-                    return cur.next() != null;
-                }
-
-                @Override
-                public ControlPacketContext next() {
-                    prev = cur;
-                    cur = cur.next();
-                    nexted = true;
-                    return cur;
-                }
-
-                @Override
-                public void remove() {
-                    if (!nexted) {
-                        throw new IllegalStateException();
-                    }
-                    nexted = false;
-                    prev.next(cur.next());
-                    size -= 1;
-                    cur.next(null);
-                    cur = prev;
-                    if (size == 0) {
-                        tail = head;
-                    }
-                }
-            };
-        }
-
-        @Override
-        public int size() {
-            return size;
-        }
-
-        @Override
-        public boolean offer(ControlPacketContext cpx) {
-            if (cpx == null) {
-                throw new NullPointerException("cpx is null");
-            }
-            tail.next(cpx);
-            tail = cpx;
-            size += 1;
-            return true;
-        }
-
-        @Override
-        public ControlPacketContext poll() {
-            ControlPacketContext node = head.next();
-            if (node != null) {
-                head.next(node.next());
-                // good for GC
-                node.next(null);
-                size -= 1;
-            }
-            if (size == 0) {
-                tail = head;
-            }
-            return node;
-        }
-
-        @Override
-        public ControlPacketContext peek() {
-            return head.next();
-        }
-
-    }
 
 }

@@ -40,4 +40,29 @@ class PublishTest {
         then(Publish.build_0Byte(false, (byte) 2, false)).isEqualTo((byte) 0x34);
     }
 
+
+    /**
+     * dup 标识位设置
+     */
+    @Test
+    void given_whenSetDup_then() {
+        // given
+        Publish publish = Publish.outgoing(false, (byte) 0, false, "", (short) 0, Unpooled.buffer());
+        // then
+        then(publish.dup()).isFalse();
+        // then
+        then(publish.dup(true).dup()).isTrue();
+    }
+
+    /**
+     * toString 测试
+     */
+    @Test
+    void given_whenToString_then() {
+        // given
+        Publish publish = Publish.outgoing(false, (byte) 0, false, "", (short) 0, Unpooled.buffer());
+        publish.packetIdentifier(Short.MIN_VALUE);
+        then(publish.toString()).isNotNull();
+    }
+
 }

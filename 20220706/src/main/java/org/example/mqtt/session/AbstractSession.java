@@ -305,7 +305,7 @@ public abstract class AbstractSession implements Session {
      * @param cpx Publish
      */
     protected void publishSent(ControlPacketContext cpx) {
-        log.debug("publishSend sent [消息发送完成，从 outQueue 中移除]: {}, {}", cId(), cpx);
+        log.debug("publishSend({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
         cpx.success();
     }
 

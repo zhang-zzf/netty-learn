@@ -221,7 +221,7 @@ public class Publish extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"packetIdentifier\":\"0x").append(pId()).append("\",");
+        sb.append("\"packetIdentifier\":\"").append(pId()).append("\",");
         if (topicName != null) {
             sb.append("\"topicName\":\"").append(topicName).append('\"').append(',');
         }

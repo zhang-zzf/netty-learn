@@ -337,20 +337,13 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePubComp(PubComp packet) {
         log.debug("receivePubComp: {}, {}", cId(), packet);
-        short packetIdentifier = packet.packetIdentifier();
+        short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findFirst(outQueue, EXACTLY_ONCE);
+        ControlPacketContext cpx = findCpx(outQueue, EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubComp nothing
-            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, outQueue);
-            return;
-        }
-        if (cpx.packet().packetIdentifier() != packetIdentifier) {
-            // Client does not PubComp the right PacketIdentifier.
-            log.error("Session({}) may have lost some PubComp. need: {}, actual: {}, queue: {}",
-                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
-            /* just drop it; */
+            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), pId, outQueue);
             return;
         }
         cpx.markStatus(PUB_REC, PUB_COMP);
@@ -359,9 +352,9 @@ public abstract class AbstractSession implements Session {
         tryCleanOutQueue();
     }
 
-    private ControlPacketContext findFirst(Queue<ControlPacketContext> queue, int qos) {
+    private ControlPacketContext findCpx(Queue<ControlPacketContext> queue, int qos, short packageIdentifier) {
         for (ControlPacketContext cpx : queue) {
-            if (cpx.packet().qos() == qos) {
+            if (cpx.packet().qos() == qos || cpx.packet().packetIdentifier() == packageIdentifier) {
                 return cpx;
             }
         }
@@ -373,21 +366,13 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePubRec(PubRec packet) {
         log.debug("receivePubRec: {}, {}", cId(), packet);
-        short packetIdentifier = packet.packetIdentifier();
+        short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findFirst(outQueue, EXACTLY_ONCE);
+        ControlPacketContext cpx = findCpx(outQueue, EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRec nothing
-            log.error("Session({}) PubRec nothing. {}, queue: {}",
-                    clientIdentifier(), packetIdentifier, outQueue);
-            return;
-        }
-        if (cpx.packet().packetIdentifier() != packetIdentifier) {
-            // Client does not PubRec the right PacketIdentifier.
-            log.error("Session({}) may have lost some PubRec. need: {}, actual: {}, queue: {}", clientIdentifier,
-                    cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
-            /* just drop it; */
+            log.error("Session({}) PubRec nothing. {}, queue: {}", cId(), pId, outQueue);
             return;
         }
         cpx.markStatus(SENT, PUB_REC);
@@ -406,23 +391,17 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePubAck(PubAck packet) {
         log.debug("receivePubAck: {}, {}", cId(), packet);
-        short packetIdentifier = packet.getPacketIdentifier();
+        short pId = packet.getPacketIdentifier();
         // only look for the first QoS 1 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findFirst(outQueue, AT_LEAST_ONCE);
+        ControlPacketContext cpx = findCpx(outQueue, AT_LEAST_ONCE, pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null
         if (cpx == null) {
             // Client PubAck nothing
-            log.error("Session({}) PubAck nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, outQueue);
-            return;
-        }
-        if (cpx.packet().packetIdentifier() != packetIdentifier) {
-            // Client does not PubAck the right PacketIdentifier.
-            log.error("Session({}) may have lost some PubAck. need: {}, actual: {}, queue: {}",
-                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, outQueue);
-            /* just drop it; */
+            log.error("Session({}) PubAck nothing. {}, queue: {}", clientIdentifier(), pId, outQueue);
             return;
         }
         cpx.markStatus(SENT, PUB_ACK);
+        log.debug("sendPublish({}) SENT->PUB_ACK: {}, {}", pId, cId(), cpx);
         // try clean the queue
         tryCleanOutQueue();
     }
@@ -432,20 +411,13 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePubRel(PubRel packet) {
         log.debug("receivePubRel: {}, {}", cId(), packet);
-        short packetIdentifier = packet.packetIdentifier();
+        short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findFirst(inQueue, EXACTLY_ONCE);
+        ControlPacketContext cpx = findCpx(inQueue, EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRel nothing
-            log.error("Session({}) PubRel nothing. {}, queue: {}", clientIdentifier(), packetIdentifier, inQueue);
-            return;
-        }
-        if (cpx.packet().packetIdentifier() != packetIdentifier) {
-            // Client does not PubRel the right PacketIdentifier.
-            log.error("Session({}) may have lost some PubRel. need: {}, actual: {}, queue: {} ",
-                    clientIdentifier(), cpx.packet().packetIdentifier(), packetIdentifier, inQueue);
-            /* just drop it; */
+            log.error("Session({}) PubRel nothing. {}, queue: {}", cId(), pId, inQueue);
             return;
         }
         cpx.markStatus(HANDLED, PUB_REL);

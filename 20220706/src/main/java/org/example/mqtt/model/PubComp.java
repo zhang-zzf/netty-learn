@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -9,7 +8,6 @@ import lombok.Getter;
  */
 public class PubComp extends ControlPacket {
 
-    @Getter
     private short packetIdentifier;
 
     public PubComp(ByteBuf buf) {
@@ -40,8 +38,16 @@ public class PubComp extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        sb.append("\"packetIdentifier\":\"").append(pId()).append("\",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public String pId() {
+        return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
+    }
+
+    public short packetIdentifier() {
+        return packetIdentifier;
     }
 
 }

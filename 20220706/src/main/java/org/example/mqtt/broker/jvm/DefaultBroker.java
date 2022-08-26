@@ -2,7 +2,10 @@ package org.example.mqtt.broker.jvm;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.*;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.BrokerState;
+import org.example.mqtt.broker.ServerSession;
+import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
@@ -43,6 +46,7 @@ public class DefaultBroker implements Broker {
                 int qos = Math.min(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
                 Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, session.nextPacketIdentifier());
+                log.debug("forward: matched topic({}), ClientId({}), {}", topic.topicFilter(), session.clientIdentifier(), outgoing);
                 session.send(outgoing);
             }
         }

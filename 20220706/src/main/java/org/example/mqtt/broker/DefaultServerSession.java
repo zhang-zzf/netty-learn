@@ -48,7 +48,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void messageReceived(ControlPacket packet) {
-        log.debug("messageReceived: {}, {}", clientIdentifier(), packet);
         switch (packet.type()) {
             case SUBSCRIBE:
                 doReceiveSubscribe((Subscribe) packet);

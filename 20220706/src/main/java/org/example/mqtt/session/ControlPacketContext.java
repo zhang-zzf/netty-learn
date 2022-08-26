@@ -16,6 +16,10 @@ import static org.example.mqtt.session.ControlPacketContext.Status.*;
 @Slf4j
 public class ControlPacketContext {
 
+    public String pId() {
+        return packet.pId();
+    }
+
     public enum Status {
         INIT,
         HANDLED,

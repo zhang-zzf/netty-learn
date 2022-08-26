@@ -221,7 +221,7 @@ public class Publish extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"packetIdentifier\":\"0x").append(Integer.toHexString(packetIdentifier & 0xffff)).append("\",");
+        sb.append("\"packetIdentifier\":\"0x").append(pId()).append("\",");
         if (topicName != null) {
             sb.append("\"topicName\":\"").append(topicName).append('\"').append(',');
         }
@@ -238,6 +238,10 @@ public class Publish extends ControlPacket {
             this.byte0 ^= 0xF7;
         }
         return this;
+    }
+
+    public String pId() {
+        return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
     }
 
 }

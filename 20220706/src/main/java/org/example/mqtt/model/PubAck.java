@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -9,7 +8,6 @@ import lombok.Getter;
  */
 public class PubAck extends ControlPacket {
 
-    @Getter
     private short packetIdentifier;
 
     public PubAck(ByteBuf buf) {
@@ -42,6 +40,10 @@ public class PubAck extends ControlPacket {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"packetIdentifier\":\"0x").append(Integer.toHexString(packetIdentifier & 0xffff)).append("\",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public short packetIdentifier() {
+        return packetIdentifier;
     }
 
 }

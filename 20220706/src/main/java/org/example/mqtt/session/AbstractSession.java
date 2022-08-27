@@ -308,7 +308,7 @@ public abstract class AbstractSession implements Session {
      * @param cpx Publish
      */
     protected void publishSent(ControlPacketContext cpx) {
-        log.debug("publishSend({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
+        log.debug("sendPublish({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
         cpx.success();
     }
 
@@ -357,7 +357,7 @@ public abstract class AbstractSession implements Session {
 
     private ControlPacketContext findCpx(Queue<ControlPacketContext> queue, int qos, short packageIdentifier) {
         for (ControlPacketContext cpx : queue) {
-            if (cpx.packet().qos() == qos || cpx.packet().packetIdentifier() == packageIdentifier) {
+            if (cpx.packet().qos() == qos && cpx.packet().packetIdentifier() == packageIdentifier) {
                 return cpx;
             }
         }
@@ -394,7 +394,7 @@ public abstract class AbstractSession implements Session {
      */
     private void doReceivePubAck(PubAck packet) {
         log.debug("receivePubAck: {}, {}", cId(), packet);
-        short pId = packet.getPacketIdentifier();
+        short pId = packet.packetIdentifier();
         // only look for the first QoS 1 ControlPacketContext that match the PacketIdentifier
         ControlPacketContext cpx = findCpx(outQueue, AT_LEAST_ONCE, pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null

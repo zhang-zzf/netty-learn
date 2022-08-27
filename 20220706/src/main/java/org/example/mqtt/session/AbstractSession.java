@@ -248,11 +248,14 @@ public abstract class AbstractSession implements Session {
             } else if (controlPacketTimeout(next)) {
                 // clean all timeout cpx
                 it.remove();
-                log.warn("Session({}) clean timeout Publish({}) in outQueue after {}ms.",
-                        clientIdentifier(), next, next.elapseAfterLastMark());
-                next.timeout();
+                log.warn("Session({}) clean timeout Publish({}) in outQueue after {}ms.", cId(), next, next.elapseAfterLastMark());
+                publishSendTimeout(next);
             }
         }
+    }
+
+    protected void publishSendTimeout(ControlPacketContext next) {
+        next.timeout();
     }
 
     private void tryCleanInQueue() {

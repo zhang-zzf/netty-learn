@@ -95,6 +95,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
+    protected void publishSendTimeout(ControlPacketContext cpx) {
+        /**
+         * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
+         */
+        cpx.packet().payload().release();
+        super.publishSendTimeout(cpx);
+    }
+
+    @Override
     protected boolean onPublish(Publish packet, Future<Void> promise) {
         broker.forward(packet);
         return true;

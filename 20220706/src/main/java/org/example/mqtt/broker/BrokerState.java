@@ -1,5 +1,6 @@
 package org.example.mqtt.broker;
 
+import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
 import java.util.List;
@@ -55,5 +56,11 @@ public interface BrokerState extends AutoCloseable {
      * @return the old Session that map to the ClientIdentifier. null if not exits.
      */
     Future<ServerSession> connect(ServerSession session);
+
+    void removeRetain(Publish packet);
+
+    void saveRetain(Publish packet);
+
+    List<Publish> matchRetain(String topicFilter);
 
 }

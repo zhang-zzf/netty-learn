@@ -3,18 +3,24 @@ package org.example.mqtt.broker.jvm;
 import org.example.mqtt.broker.BrokerState;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
+import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.*;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
+
 public class DefaultBrokerState implements BrokerState {
 
-    String LEVEL_SEPARATOR = "/";
-    String MULTI_LEVEL_WILDCARD = "#";
-    String SINGLE_LEVEL_WILDCARD = "+";
+    static String LEVEL_SEPARATOR = "/";
+    static String MULTI_LEVEL_WILDCARD = "#";
+    static String SINGLE_LEVEL_WILDCARD = "+";
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final ConcurrentMap<String, Topic> preciseTopicFilter = new ConcurrentHashMap<>();
@@ -26,6 +32,12 @@ public class DefaultBrokerState implements BrokerState {
      * ClientIdentifier -> Session
      */
     private final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
+
+    /**
+     * retain Publish
+     * topicName <-> Publish
+     */
+    private final ConcurrentMap<String, Publish> retainedPublish = new ConcurrentHashMap<>();
 
     @Override
     public ServerSession session(String clientIdentifier) {
@@ -103,6 +115,53 @@ public class DefaultBrokerState implements BrokerState {
         };
         return executorService.submit(task);
 
+    }
+
+    @Override
+    public void removeRetain(Publish packet) {
+        retainedPublish.remove(packet.topicName());
+    }
+
+    @Override
+    public void saveRetain(Publish packet) {
+        retainedPublish.put(packet.topicName(), packet);
+    }
+
+    @Override
+    public List<Publish> matchRetain(String topicFilter) {
+        if (!isFuzzyTopic(topicFilter)) {
+            Publish publish = retainedPublish.get(topicFilter);
+            return publish == null ? emptyList() : singletonList(publish);
+        }
+        // O(n) 全量匹配
+        return retainedPublish.entrySet().stream()
+                .filter(e -> topicNameMatchTopicFilter(e.getKey(), topicFilter))
+                .map(Map.Entry::getValue).collect(toList());
+    }
+
+    static boolean topicNameMatchTopicFilter(String topicName, String topicFilter) {
+        String[] names = topicName.split("/");
+        String[] filters = topicFilter.split("/");
+        for (int i = 0; i < Math.min(names.length, filters.length); i++) {
+            if (MULTI_LEVEL_WILDCARD.equals(filters[i])) {
+                return true;
+            }
+            if (SINGLE_LEVEL_WILDCARD.equals(filters[i])) {
+                continue;
+            }
+            if (!filters[i].equals(names[i])) {
+                return false;
+            }
+        }
+        //
+        if (names.length == filters.length) {
+            return true;
+        }
+        if (filters.length == names.length + 1
+                && MULTI_LEVEL_WILDCARD.equals(filters[filters.length - 1])) {
+            return true;
+        }
+        return false;
     }
 
     private void doUnsubscribe(ServerSession session, Subscribe.Subscription subscription) {

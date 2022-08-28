@@ -36,6 +36,8 @@ public class DefaultBroker implements Broker {
 
     @Override
     public void forward(Publish packet) {
+        // must set retain to false before forward the PublishPacket
+        packet.retain(false);
         for (Topic topic : brokerState.match(packet.topicName())) {
             for (Map.Entry<ServerSession, Integer> e : topic.subscribers().entrySet()) {
                 ServerSession session = e.getKey();
@@ -89,6 +91,30 @@ public class DefaultBroker implements Broker {
         if (existSession != null && existSession.cleanSession()) {
             log.error("Session({}) cleanSession was not removed from broker.", existSession.clientIdentifier());
         }
+    }
+
+    @Override
+    public void retain(Publish publish) {
+        if (!publish.retain()) {
+            throw new IllegalArgumentException();
+        }
+        Publish packet = publish.copy();
+        if (zeroBytesPayload(packet)) {
+            // remove the retained message
+            brokerState.removeRetain(packet);
+        } else {
+            // save the retained message
+            brokerState.saveRetain(packet);
+        }
+    }
+
+    @Override
+    public List<Publish> retainMatch(String topicFilter) {
+        return brokerState.matchRetain(topicFilter);
+    }
+
+    private boolean zeroBytesPayload(Publish publish) {
+        return !publish.payload().isReadable();
     }
 
     @Override

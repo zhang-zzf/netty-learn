@@ -105,6 +105,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     protected boolean onPublish(Publish packet, Future<Void> promise) {
+        if (packet.retain()) {
+            // retain message
+            broker.retain(packet);
+        }
         broker.forward(packet);
         return true;
     }
@@ -125,6 +129,17 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         log.info("client({}) doReceiveSubscribe resp: {}", clientIdentifier(), subAck);
         channel().writeAndFlush(subAck);
         doUpdateSessionSubscriptions(permitted);
+        doSendRetainPublish(permitted);
+    }
+
+    private void doSendRetainPublish(List<Subscribe.Subscription> permitted) {
+        for (Subscribe.Subscription p : permitted) {
+            for (Publish packet : broker().retainMatch(p.topicFilter())) {
+                log.debug("client({}) match retain Publish: {}", cId(), packet);
+                // send retain Publish
+                send(packet);
+            }
+        }
     }
 
     private void doUpdateSessionSubscriptions(List<Subscribe.Subscription> permitted) {

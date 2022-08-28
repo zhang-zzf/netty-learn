@@ -31,18 +31,30 @@ public interface Broker extends AutoCloseable {
 
     /**
      * register a subscription between the session and the topic
-     *
      */
     List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe);
 
     /**
      * deregister a subscription between the session and the topic
-     *
      */
     void deregister(ServerSession session, Unsubscribe packet);
 
     Set<Integer> supportProtocolLevel();
 
     void connect(ServerSession session);
+
+    /**
+     * retain the Publish
+     *
+     * @param packet Publish Packet
+     */
+    void retain(Publish packet);
+
+    /**
+     * find retain PublishPacket that match the topicFilter
+     * @param topicFilter TopicFilter
+     * @return matched PublishPacket List
+     */
+    List<Publish> retainMatch(String topicFilter);
 
 }

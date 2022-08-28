@@ -1,5 +1,6 @@
 package org.example.mqtt.broker;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.concurrent.Future;
@@ -467,6 +468,88 @@ class ServerSessionHandlerTest {
         receiver1.writeInbound(PubComp.from(publishMessage2.packetIdentifier()).toByteBuf());
     }
 
+    /**
+     * retain 消息测试
+     * <p>正常 forward 消息的话 retain==0</p>
+     * <p>后续订阅匹配 retain 消息的话 retain==1</p>
+     */
+    @Test
+    void givenRetain_whenRetainPublish_then() {
+        short pId = sReceiver1.nextPacketIdentifier();
+        Subscribe sub1 = Subscribe.from(pId, singletonList(new Subscribe.Subscription("retain/#", 0)));
+        receiver1.writeInbound(sub1.toByteBuf());
+        // 读出 SubAck 消息
+        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        // publish1 发送 Publish 消息
+        String strPayload = UUID.randomUUID().toString();
+        Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(retain.toByteBuf());
+        // receiver1 接受 Publish
+        // 正常 forward 路由的 Publish
+        then(new Publish(receiver1.readOutbound()).retain()).isFalse();
+        //
+        // 后续订阅
+        Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(), singletonList(new Subscribe.Subscription("retain/1", 0)));
+        receiver1.writeInbound(sub2.toByteBuf());
+        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        // 收到 retain 消息
+        then(new Publish(receiver1.readOutbound()).retain()).isTrue();
+    }
+
+    /**
+     * retain 消息测试
+     * <p>发送第1条 retain Publish 到 retain/1</p>
+     * <p>发送第2条 retain Publish 到 retain/1</p>
+     * <p>Broker 仅存储最后一条 retain Publish</p>
+     */
+    @Test
+    void givenRetain_whenRetain2Times_thenOnlyStoreTheLast() {
+        // publish1 发送 Publish 消息
+        Publish retain1 = Publish.outgoing(true, (byte) 0, false, "retain/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+        publish1.writeInbound(retain1.toByteBuf());
+        // 发送第2条 retain Publish
+        String retain2Payload = UUID.randomUUID().toString();
+        Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(retain2Payload, UTF_8));
+        publish1.writeInbound(retain.toByteBuf());
+        //
+        // 后续订阅
+        Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(), singletonList(new Subscribe.Subscription("retain/1", 0)));
+        receiver1.writeInbound(sub2.toByteBuf());
+        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        // 收到 retain 消息
+        then(new Publish(receiver1.readOutbound()))
+                .returns(true, Publish::retain)
+                .returns(retain2Payload, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+    }
+
+    /**
+     * retain 消息取消测试
+     * <p>发送第1条 retain Publish 到 retain/1</p>
+     * <p>发送第2条 retain Publish (payload has zero bytes)到 retain/1</p>
+     * <p>Broker 丢弃之前存储的 retain 消息</p>
+     */
+    @Test
+    void givenRetain_whenSendZeroByteRetainPublish_thenNoRetain() {
+        // publish1 发送 Publish 消息
+        Publish retain1 = Publish.outgoing(true, (byte) 1, false, "retain/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+        publish1.writeInbound(retain1.toByteBuf());
+        // 发送第2条 retain Publish (no payload)
+        Publish retain = Publish.outgoing(true, (byte) 1, false, "retain/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.buffer());
+        publish1.writeInbound(retain.toByteBuf());
+        //
+        // 后续订阅
+        Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(), singletonList(new Subscribe.Subscription("retain/1", 0)));
+        receiver1.writeInbound(sub2.toByteBuf());
+        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        // 不会收到 retain 消息
+        ByteBuf buf = receiver1.readOutbound();
+        then(buf).isNull();
+    }
 
     public static class Session0 extends AbstractSession {
 

@@ -40,10 +40,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     public DefaultServerSession(Connect connect) {
         super(connect.clientIdentifier());
+        init(connect);
+    }
+
+    public DefaultServerSession init(Connect connect) {
         cleanSession(connect.cleanSession());
         if (connect.willFlag()) {
             willMessage = extractWillMessage(connect);
         }
+        return this;
     }
 
     @Override
@@ -106,6 +111,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     protected boolean onPublish(Publish packet, Future<Void> promise) {
         if (packet.retain()) {
+            log.debug("client({}) onPublish receive retain Publish: {}", cId(), packet);
             // retain message
             broker.retain(packet);
         }
@@ -114,7 +120,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceiveUnsubscribe(Unsubscribe packet) {
-        log.info("doReceiveUnsubscribe req: {}, {}", clientIdentifier(), packet);
+        log.info("client({}) doReceiveUnsubscribe req: {}", clientIdentifier(), packet);
         broker().deregister(this, packet);
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
         log.info("client({}) doReceiveUnsubscribe resp: {}", clientIdentifier(), unsubAck);
@@ -166,13 +172,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         disconnected = true;
         // clean the Will message.
         willMessage = null;
-        // 断开与 Broker 的连接。移除 Broker 中和 Session 有关的状态
-        if (cleanSession()) {
-            // 取消与 Broker 的关联
-            deregister();
-        }
-        // 关闭底层用于通信的 Channel
-        closeChannel();
+        close(false);
     }
 
     @Override
@@ -201,14 +201,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void close() {
+    public void close(boolean force) {
         // send will message
         if (willMessage != null) {
-            broker.forward(willMessage);
+            onPublish(willMessage, newPromise());
             willMessage = null;
         }
         // 取消与 Broker 的关联
-        deregister();
+        if (cleanSession() || force) {
+            deregister();
+        }
         // 关闭底层连接
         closeChannel();
     }
@@ -235,7 +237,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         int qos = connect.willQos();
         String topic = connect.willTopic();
         ByteBuf byteBuf = connect.willMessage();
-        return Publish.outgoing(false, (byte) qos, false, topic, (short) 0, byteBuf);
+        boolean retain = connect.willRetainFlag();
+        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
     }
 
 }

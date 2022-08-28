@@ -113,15 +113,7 @@ public class ControlPacketContext {
         Status s = status.get();
         Publish packet = packet();
         if (packet.atLeastOnce()) {
-            switch (type) {
-                case IN:
-                    // receive message case
-                    return pubAck();
-                case OUT:
-                    // send message case
-                    return packet.dup(true);
-                default:
-            }
+            return packet.dup(true);
         }
         if (packet.exactlyOnce()) {
             switch (s) {

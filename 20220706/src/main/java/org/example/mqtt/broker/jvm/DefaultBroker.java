@@ -100,6 +100,7 @@ public class DefaultBroker implements Broker {
         }
         Publish packet = publish.copy();
         if (zeroBytesPayload(packet)) {
+            log.debug("receive zero bytes payload retain Publish, now remove it: {}", packet);
             // remove the retained message
             brokerState.removeRetain(packet);
         } else {

@@ -484,7 +484,7 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private DefaultPromise<Void> newPromise() {
+    protected DefaultPromise<Void> newPromise() {
         return new DefaultPromise<>(this.eventLoop);
     }
 

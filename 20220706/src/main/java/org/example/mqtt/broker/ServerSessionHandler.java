@@ -63,7 +63,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     private void closeSession(ChannelHandlerContext ctx) throws Exception {
         if (existSession()) {
-            session.close();
+            session.close(false);
         } else {
             ctx.close();
         }
@@ -116,20 +116,24 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
             ConnAck connAck = ConnAck.accepted();
             ServerSession preSession = broker.session(connect.clientIdentifier());
-            if (preSession!= null && preSession.isBound()) {
+            if (preSession != null && preSession.isBound()) {
                 //  If the ClientId represents a Client already connected to the Server then the Server MUST
                 //  disconnect the existing Client
-                preSession.close();
+                preSession.close(false);
+                // query again
+                preSession = broker.session(connect.clientIdentifier());
             }
-            if (connect.cleanSession() && preSession != null) {
-                preSession.close();
-            }
-            if (!connect.cleanSession() && preSession != null) {
-                this.session = preSession;
-                connAck = ConnAck.acceptedWithStoredSession();
-            }
-            if (this.session == null) {
-                this.session = newServerSession(connect);
+            if (connect.cleanSession()) {
+                if (preSession != null) {
+                    // 强制清理 Broker 中的 ServerSession
+                    preSession.close(true);
+                }
+                this.session = buildServerSession(null, connect);
+            } else {
+                if (preSession != null) {
+                    connAck = ConnAck.acceptedWithStoredSession();
+                }
+                this.session = buildServerSession(preSession, connect);
             }
             ctx.writeAndFlush(connAck)
                     .addListener(future -> this.session.open(ctx.channel(), broker));
@@ -140,6 +144,17 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         } else {
             // let the session handle the packet
             session.messageReceived(cp);
+        }
+    }
+
+    /**
+     * 子类可以重写此方法
+     */
+    protected ServerSession buildServerSession(ServerSession preSession, Connect connect) {
+        if (preSession == null) {
+            return new DefaultServerSession(connect);
+        } else {
+            return ((DefaultServerSession) preSession).init(connect);
         }
     }
 

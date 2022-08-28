@@ -137,7 +137,7 @@ public class Connect extends ControlPacket {
         if (willQos() > 2) {
             return false;
         }
-        if (!willFlag() && willReturnFlag()) {
+        if (!willFlag() && willRetainFlag()) {
             return false;
         }
         if ((usernameFlag() && username == null)) {
@@ -161,12 +161,12 @@ public class Connect extends ControlPacket {
         return super.packetValidate();
     }
 
-    public boolean willReturnFlag() {
+    public boolean willRetainFlag() {
         return (connectFlags & 0x20) != 0;
     }
 
     public int willQos() {
-        return (connectFlags & 0x18);
+        return ((connectFlags >> 3) & 0x03);
     }
 
     public String willTopic() {

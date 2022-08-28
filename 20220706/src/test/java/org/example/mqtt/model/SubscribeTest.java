@@ -2,6 +2,8 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvFileSource;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,24 @@ class SubscribeTest {
         ByteBuf packet = out.toByteBuf();
         Subscribe in = (Subscribe) Subscribe.from(packet);
         then(in.subscriptions()).hasSize(2);
+    }
+
+    /**
+     * 合法 TopicFilter
+     */
+    @ParameterizedTest(name = "{0} is a valid TopicFilter")
+    @CsvFileSource(resources = {"/subscribe/valid_topic_filter.csv"})
+    void givenFuzzyTopicFilter_when_thenMatch(String topicFilter) {
+        then(Subscribe.topicFilterValidate(topicFilter)).isTrue();
+    }
+
+    /**
+     * 非法 TopicFilter
+     */
+    @ParameterizedTest(name = "{0} is not valid")
+    @CsvFileSource(resources = {"/subscribe/not_valid_topic_filter.csv"})
+    void givenFuzzyTopicFilter_when_thenNotMatch(String topicFilter) {
+        then(Subscribe.topicFilterValidate(topicFilter)).isFalse();
     }
 
 }

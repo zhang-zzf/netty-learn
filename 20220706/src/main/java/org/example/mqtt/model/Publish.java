@@ -235,13 +235,32 @@ public class Publish extends ControlPacket {
         if (dup) {
             this.byte0 |= 0x08;
         } else {
-            this.byte0 ^= 0xF7;
+            this.byte0 &= 0xF7;
         }
         return this;
     }
 
     public String pId() {
         return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
+    }
+
+    /**
+     * create a new Publish Packet that use Unpooled ByteBuf payload
+     *
+     * @return the copied Publish Packet
+     */
+    public Publish copy() {
+        ByteBuf payload = Unpooled.copiedBuffer(payload());
+        return Publish.outgoing(retain(), (byte) qos(), dup(), topicName(), (short) 0, payload);
+    }
+
+    public Publish retain(boolean flag) {
+        if (flag) {
+            byte0 |= 0x01;
+        } else {
+            byte0 &= 0xFE;
+        }
+        return this;
     }
 
 }

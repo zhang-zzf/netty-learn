@@ -113,12 +113,34 @@ public class Subscribe extends ControlPacket {
         return true;
     }
 
-    private boolean topicFilterValidate(String topicFilter) {
+    static boolean topicFilterValidate(String topicFilter) {
         if (topicFilter == null) {
             return false;
         }
         int idx;
-        if ((idx = topicFilter.indexOf("#")) != -1 && idx != topicFilter.length() - 1) {
+        if ((idx = topicFilter.indexOf("#")) != -1) {
+            if (idx != topicFilter.length() - 1) {
+                // sport/tennis/#/ranking is not valid
+                return false;
+            }
+            if (topicFilter.length() > 1 && topicFilter.charAt(idx - 1) != '/') {
+                // example "#" is valid
+                // example “sport/tennis#” is not valid
+                return false;
+            }
+        }
+        if ((idx = topicFilter.indexOf("+")) != -1) {
+            if (topicFilter.length() == 1) {
+                return true;
+            }
+            if (topicFilter.charAt(idx - 1) != '/') {
+                return false;
+            }
+            if (idx + 1 < topicFilter.length() && topicFilter.charAt(idx + 1) != '/') {
+                return false;
+            }
+        }
+        if (topicFilter.startsWith("$")) {
             return false;
         }
         return true;

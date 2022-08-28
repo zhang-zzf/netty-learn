@@ -52,6 +52,7 @@ class PublishTest {
         then(publish.dup()).isFalse();
         // then
         then(publish.dup(true).dup()).isTrue();
+        then(publish.dup(false).dup()).isFalse();
     }
 
     /**
@@ -65,4 +66,15 @@ class PublishTest {
         then(publish.toString()).isNotNull();
     }
 
+
+    /**
+     * retain 标识位
+     */
+    @Test
+    void given_whenSetRetainFlag_then() {
+        Publish publish = Publish.outgoing(false, (byte) 0, false, "", (short) 0, Unpooled.buffer());
+        then(publish.retain()).isFalse();
+        then(publish.retain(true).retain()).isTrue();
+        then(publish.retain(false).retain()).isFalse();
+    }
 }

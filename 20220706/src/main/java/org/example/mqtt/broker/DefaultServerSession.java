@@ -137,7 +137,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             for (Publish packet : broker().retainMatch(p.topicFilter())) {
                 log.debug("client({}) match retain Publish: {}", cId(), packet);
                 // send retain Publish
-                send(packet);
+                int qos = Math.min(packet.qos(), p.qos());
+                // do rebuild the PublishPacket
+                send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
             }
         }
     }

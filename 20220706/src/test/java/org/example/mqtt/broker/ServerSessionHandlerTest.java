@@ -551,6 +551,98 @@ class ServerSessionHandlerTest {
         then(buf).isNull();
     }
 
+    /**
+     * Will Message 测试
+     * <p>Connect has Will message</p>
+     * <p>发送 Disconnect 后断开连接，不触发 Will Message</p>
+     */
+    @Test
+    void givenWillConnect_whenDisconnect_thenNoWillMessage() {
+        // given
+        final Broker broker = new DefaultBroker();
+        final String strReceiver01 = "receiver1";
+        sReceiver1 = new Session0(strReceiver01);
+        receiver1 = new EmbeddedChannel();
+        // receiver1 Connect to the Broker
+        receiver1.pipeline().addLast(new Codec())
+                .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
+        // receiver 模拟接受 Connect 消息
+        receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(receiver1.readOutbound())).isNotNull();
+        receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
+                singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
+        // 读出 SubAck 消息
+        new SubAck(receiver1.readOutbound());
+        //
+        sPublish1 = new Session0("publish1");
+        publish1 = new EmbeddedChannel();
+        publish1.pipeline().addLast(new Codec())
+                .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
+        String willContent = "I'm a Will Message.";
+        Connect willConnect = Connect.from(2, false,
+                (short) 64,
+                "publish1",
+                "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
+        // publish1 模拟接受 Connect 消息
+        publish1.writeInbound(willConnect.toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(publish1.readOutbound())).isNotNull();
+        //
+        // when
+        // Disconnect from Peer
+        publish1.writeInbound(Disconnect.from().toByteBuf());
+        // then
+        then(receiver1.<ByteBuf>readOutbound()).isNull();
+    }
+
+    /**
+     * Will Message 测试
+     * <p>Connect has Will message</p>
+     * <p>未发送 Disconnect 连接断开，触发 Will Message</p>
+     */
+    @Test
+    void givenWillConnect_whenLostConnection_thenOtherClientReceiveWillMessage() {
+        // given
+        final Broker broker = new DefaultBroker();
+        final String strReceiver01 = "receiver1";
+        sReceiver1 = new Session0(strReceiver01);
+        receiver1 = new EmbeddedChannel();
+        // receiver1 Connect to the Broker
+        receiver1.pipeline().addLast(new Codec())
+                .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
+        // receiver 模拟接受 Connect 消息
+        receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(receiver1.readOutbound())).isNotNull();
+        receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
+                singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
+        // 读出 SubAck 消息
+        new SubAck(receiver1.readOutbound());
+        //
+        sPublish1 = new Session0("publish1");
+        publish1 = new EmbeddedChannel();
+        publish1.pipeline().addLast(new Codec())
+                .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
+        String willContent = "I'm a Will Message.";
+        Connect willConnect = Connect.from(2, false,
+                (short) 64,
+                "publish1",
+                "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
+        // publish1 模拟接受 Connect 消息
+        publish1.writeInbound(willConnect.toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(publish1.readOutbound())).isNotNull();
+        //
+        // when
+        // close the Channel before receive Disconnect from Peer
+        publish1.close();
+        // then
+        Publish willMessage = new Publish(receiver1.readOutbound());
+        then(willMessage).returns(2, Publish::qos)
+                .returns(willContent, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+    }
+
     public static class Session0 extends AbstractSession {
 
         protected Session0(String clientIdentifier) {

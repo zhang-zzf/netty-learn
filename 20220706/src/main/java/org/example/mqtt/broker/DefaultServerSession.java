@@ -171,7 +171,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
         disconnected = true;
         // clean the Will message.
-        willMessage = null;
+        if (willMessage != null) {
+            log.debug("client({}) Disconnect, now clear Will: {}", cId(), willMessage);
+            willMessage = null;
+        }
         close(false);
     }
 
@@ -204,6 +207,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     public void close(boolean force) {
         // send will message
         if (willMessage != null) {
+            log.debug("client({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
             onPublish(willMessage, newPromise());
             willMessage = null;
         }

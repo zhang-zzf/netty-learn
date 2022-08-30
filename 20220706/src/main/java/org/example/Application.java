@@ -7,6 +7,8 @@ import org.example.mqtt.broker.BrokerBootstrap;
 import org.example.mqtt.broker.metrics.BrokerBootstrapWithMetrics;
 import org.example.mqtt.client.ClientBootstrap;
 
+import javax.net.ssl.SSLException;
+
 /**
  * @author zhang.zzf
  * @date 2020-04-18
@@ -14,7 +16,7 @@ import org.example.mqtt.client.ClientBootstrap;
 @Slf4j
 public class Application {
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws SSLException {
         log.info("Application#main: {}", JSON.toJSONString(args));
         boolean clientMode = Boolean.getBoolean("mqtt.client.mode");
         if (clientMode) {

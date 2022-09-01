@@ -1,6 +1,7 @@
 package org.example.mqtt.broker;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
@@ -13,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
+
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/28
@@ -20,6 +23,13 @@ import java.util.Set;
 @Slf4j
 @RequiredArgsConstructor
 public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
+
+    public static final ChannelFutureListener LOG_ON_FAILURE = future -> {
+        if (!future.isSuccess()) {
+            log.error("Channel(" + future.channel() + ").writeAndFlush failed.", future.cause());
+        }
+    };
+
 
     public static final String HANDLER_NAME = "sessionHandler";
     public static final String ACTIVE_IDLE_TIMEOUT_HANDLER = "activeIdleTimeoutHandler";
@@ -65,7 +75,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         if (existSession()) {
             session.close(false);
         } else {
-            ctx.close();
+            ctx.channel().close();
         }
     }
 
@@ -136,8 +146,15 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
                 this.session = buildServerSession(preSession, connect);
             }
             ctx.writeAndFlush(connAck)
-                    .addListener(future -> this.session.open(ctx.channel(), broker));
-            log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
+                    .addListener(LOG_ON_FAILURE)
+                    .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                    .addListener(future -> {
+                        if (future.isSuccess()) {
+                            this.session.open(ctx.channel(), broker);
+                            log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
+                        }
+                    })
+            ;
         } else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
             ctx.writeAndFlush(PingResp.from());

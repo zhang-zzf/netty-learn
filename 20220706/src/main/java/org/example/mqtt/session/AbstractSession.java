@@ -18,6 +18,7 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.AT_LEAST_ONCE;
 import static org.example.mqtt.model.Publish.EXACTLY_ONCE;
@@ -31,6 +32,12 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
  */
 @Slf4j
 public abstract class AbstractSession implements Session {
+
+    public static final ChannelFutureListener LOG_ON_FAILURE = future -> {
+        if (!future.isSuccess()) {
+            log.error("Channel(" + future.channel() + ").writeAndFlush failed.", future.cause());
+        }
+    };
 
     private final String clientIdentifier;
     private final AtomicInteger pocketIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
@@ -498,7 +505,9 @@ public abstract class AbstractSession implements Session {
 
     private ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
-                .addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+                .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                .addListener(LOG_ON_FAILURE)
+                ;
     }
 
     private void startRetryTask() {

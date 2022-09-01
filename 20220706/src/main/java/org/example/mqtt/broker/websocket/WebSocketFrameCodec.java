@@ -17,27 +17,30 @@ package org.example.mqtt.broker.websocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.MessageToMessageCodec;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 
-import java.util.Locale;
+import java.util.List;
 
 /**
  * Echoes uppercase content of text frames.
  */
-public class WebSocketFrameHandler extends SimpleChannelInboundHandler<WebSocketFrame> {
+public class WebSocketFrameCodec extends MessageToMessageCodec<WebSocketFrame, ByteBuf> {
 
     @Override
-    protected void channelRead0(ChannelHandlerContext ctx, WebSocketFrame frame) throws Exception {
+    protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
+        out.add(new BinaryWebSocketFrame(msg.retain()));
+    }
+
+    @Override
+    protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) {
         // ping and pong frames already handled
         if (!(frame instanceof BinaryWebSocketFrame)) {
             String message = "unsupported frame type: " + frame.getClass().getName();
             throw new UnsupportedOperationException(message);
         }
-        ByteBuf mqttData = frame.content().retain();
-        ctx.fireChannelRead(mqttData);
+        out.add(frame.content().retain());
     }
 
 }

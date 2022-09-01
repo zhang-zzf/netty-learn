@@ -13,11 +13,11 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.jvm.DefaultBroker;
+import org.example.mqtt.broker.websocket.MqttOverSecureWebsocketServerInitializer;
 import org.example.mqtt.broker.websocket.MqttOverWebsocketServerInitializer;
 import org.example.mqtt.codec.Codec;
 
 import javax.net.ssl.SSLException;
-import java.io.InputStream;
 
 /**
  * @author zhanfeng.zhang
@@ -29,18 +29,22 @@ public class BrokerBootstrap {
     public static void main(String[] args) throws SSLException {
         int cpuNum = Runtime.getRuntime().availableProcessors();
         final NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, new DefaultThreadFactory("netty-worker"));
-        final NioEventLoopGroup bossGroup = new NioEventLoopGroup(2, new DefaultThreadFactory("netty-boss"));
+        final NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, new DefaultThreadFactory("netty-boss"));
         final Broker broker = new DefaultBroker();
         // 配置 bootstrap
         final int port = 1883;
         new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class).childHandler(new ChannelInitializer<SocketChannel>() {
+                .channel(NioServerSocketChannel.class)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(new ChannelInitializer<SocketChannel>() {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ServerSessionHandler sessionHandler = new ServerSessionHandler(broker, packet -> 0x00, 3);
-                        ch.pipeline().addLast(new Codec()).addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
+                        ch.pipeline()
+                                .addLast(new Codec())
+                                .addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
                     }
                 })
                 .bind(port)
@@ -55,9 +59,10 @@ public class BrokerBootstrap {
         ;
         // 配置 tls bootstrap
         final int sslPort = 8883;
-        InputStream key = ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pkcs8.key");
-        InputStream cert = ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pem");
-        SslContext sslCtx = SslContextBuilder.forServer(cert, key).build();
+        SslContext sslCtx = SslContextBuilder.forServer(
+                        ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pem"),
+                        ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pkcs8.key"))
+                .build();
         new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 // 设置 Channel 类型，通过反射创建 Channel 对象
@@ -71,17 +76,41 @@ public class BrokerBootstrap {
                     workerGroup.shutdownGracefully();
                 })
         ;
-        // 配置 tls bootstrap
+        // 配置 websocket bootstrap
         final int websocketPort = 8080;
+        MqttOverWebsocketServerInitializer mqttOverWebsocket =
+                new MqttOverWebsocketServerInitializer("/mqtt", broker, packet -> 0x00, 3);
         new ServerBootstrap()
                 .group(bossGroup, workerGroup)
                 // 设置 Channel 类型，通过反射创建 Channel 对象
                 .channel(NioServerSocketChannel.class)
                 .handler(new LoggingHandler(LogLevel.INFO))
-                .childHandler(new MqttOverWebsocketServerInitializer(broker, packet -> 0x00, 3))
+                .childHandler(mqttOverWebsocket)
                 .bind(websocketPort).addListener(f -> log.info("MQTT over Websocket server listened at {}", websocketPort))
                 .channel().closeFuture().addListener(f -> {
-                    log.info("MQTT over Websocket TLS server was shutdown.");
+                    log.info("MQTT over Websocket server was shutdown.");
+                    bossGroup.shutdownGracefully();
+                    workerGroup.shutdownGracefully();
+                })
+        ;
+        // 配置 websocket tls bootstrap
+        final int websocketSslPort = 8443;
+        final SslContext websocketSslCtx = SslContextBuilder.forServer(
+                        ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pem"),
+                        ClassLoader.getSystemResourceAsStream("cert/netty.zhanfengzhang.top.pkcs8.key"))
+                .build();
+        MqttOverSecureWebsocketServerInitializer mqttOverSecureWebsocket =
+                new MqttOverSecureWebsocketServerInitializer("/mqtt", broker, packet -> 0x00, websocketSslCtx, 3);
+        new ServerBootstrap()
+                .group(bossGroup, workerGroup)
+                // 设置 Channel 类型，通过反射创建 Channel 对象
+                .channel(NioServerSocketChannel.class)
+                .handler(new LoggingHandler(LogLevel.INFO))
+                .childHandler(mqttOverSecureWebsocket)
+                .bind(websocketSslPort)
+                .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", websocketSslPort))
+                .channel().closeFuture().addListener(f -> {
+                    log.info("MQTT over Websocket(TLS) server was shutdown.");
                     bossGroup.shutdownGracefully();
                     workerGroup.shutdownGracefully();
                 })

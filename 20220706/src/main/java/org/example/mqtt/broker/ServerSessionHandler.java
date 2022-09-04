@@ -7,6 +7,7 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.bootstrap.MqttCodec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.Session;
 
@@ -29,7 +30,6 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             log.error("Channel(" + future.channel() + ").writeAndFlush failed.", future.cause());
         }
     };
-
 
     public static final String HANDLER_NAME = "sessionHandler";
     public static final String ACTIVE_IDLE_TIMEOUT_HANDLER = "activeIdleTimeoutHandler";
@@ -65,7 +65,7 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
             ctx.fireChannelRead(cp);
         } finally {
             /**
-             * release the ByteBuf retained from {@link org.example.mqtt.codec.Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+             * release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
              */
             cp.content().release();
         }
@@ -173,10 +173,6 @@ public class ServerSessionHandler extends ChannelInboundHandlerAdapter {
         } else {
             return ((DefaultServerSession) preSession).init(connect);
         }
-    }
-
-    protected DefaultServerSession newServerSession(Connect connect) {
-        return new DefaultServerSession(connect);
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {

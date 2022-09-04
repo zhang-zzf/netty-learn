@@ -1,10 +1,8 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.bootstrap;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
-import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
 import io.netty.handler.logging.LoggingHandler;
@@ -12,10 +10,10 @@ import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.jvm.DefaultBroker;
-import org.example.mqtt.broker.websocket.MqttOverSecureWebsocketServerInitializer;
-import org.example.mqtt.broker.websocket.MqttOverWebsocketServerInitializer;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.bootstrap.websocket.MqttOverSecureWebsocketServerInitializer;
+import org.example.mqtt.bootstrap.websocket.MqttOverWebsocketServerInitializer;
 
 import javax.net.ssl.SSLException;
 
@@ -38,21 +36,12 @@ public class BrokerBootstrap {
                 // 设置 Channel 类型，通过反射创建 Channel 对象
                 .channel(NioServerSocketChannel.class)
                 .handler(new LoggingHandler(LogLevel.INFO))
-                .childHandler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    protected void initChannel(SocketChannel ch) {
-                        ServerSessionHandler sessionHandler = new ServerSessionHandler(broker, packet -> 0x00, 3);
-                        ch.pipeline()
-                                .addLast(new Codec())
-                                .addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
-                    }
-                })
-                .bind(port)
-                .addListener((ChannelFutureListener) future -> {
+                .childHandler(new MqttServerInitializer(broker, packet -> 0x00, 3))
+                .bind(port).addListener((ChannelFutureListener) future -> {
                     log.info("MQTT server listened at {}", port);
                 })
                 .channel().closeFuture().addListener((ChannelFutureListener) future -> {
-                    log.info("server was shutdown.");
+                    log.info("MQTT server was shutdown.");
                     bossGroup.shutdownGracefully();
                     workerGroup.shutdownGracefully();
                 })

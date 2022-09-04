@@ -10,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSessionHandler;
 import org.example.mqtt.broker.jvm.DefaultBroker;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.bootstrap.MqttCodec;
 
 /**
  * @author zhanfeng.zhang
@@ -33,7 +33,7 @@ public class BrokerBootstrapWithMetrics {
                     @Override
                     protected void initChannel(SocketChannel ch) {
                         ServerSessionHandler sessionHandler = new ServerSessionHandlerWithMetrics(broker, packet -> 0x00, 3);
-                        ch.pipeline().addLast(new Codec()).addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
+                        ch.pipeline().addLast(new MqttCodec()).addLast(ServerSessionHandler.HANDLER_NAME, sessionHandler);
                     }
                 })
                 .bind(port)

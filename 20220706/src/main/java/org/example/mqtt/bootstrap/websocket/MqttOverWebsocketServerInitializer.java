@@ -1,4 +1,4 @@
-package org.example.mqtt.broker.websocket;
+package org.example.mqtt.bootstrap.websocket;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSessionHandler;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.bootstrap.MqttCodec;
 
 @RequiredArgsConstructor
 public class MqttOverWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
@@ -35,7 +35,7 @@ public class MqttOverWebsocketServerInitializer extends ChannelInitializer<Socke
                 // outbound:    ByteBuf -> BinaryWebSocketFrame
                 .addLast(new WebSocketFrameCodec())
                 // mqtt codec
-                .addLast(new Codec())
+                .addLast(new MqttCodec())
                 // mqtt SessionHandler
                 .addLast(ServerSessionHandler.HANDLER_NAME,
                         new ServerSessionHandler(broker, authenticator, activeIdleTimeoutSecond))

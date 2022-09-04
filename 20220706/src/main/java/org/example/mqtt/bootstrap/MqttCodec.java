@@ -1,4 +1,4 @@
-package org.example.mqtt.codec;
+package org.example.mqtt.bootstrap;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -11,7 +11,7 @@ import java.util.List;
  * @author zhanfeng.zhang
  * @date 2022/06/22
  */
-public class Codec extends ByteToMessageCodec<ControlPacket> {
+public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
     protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) throws Exception {

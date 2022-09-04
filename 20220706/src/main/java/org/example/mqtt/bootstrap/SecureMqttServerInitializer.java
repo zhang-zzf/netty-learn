@@ -1,10 +1,12 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.bootstrap;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.handler.ssl.SslContext;
 import lombok.RequiredArgsConstructor;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.broker.Authenticator;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.ServerSessionHandler;
 
 @RequiredArgsConstructor
 public class SecureMqttServerInitializer extends ChannelInitializer<SocketChannel> {
@@ -18,11 +20,10 @@ public class SecureMqttServerInitializer extends ChannelInitializer<SocketChanne
     protected void initChannel(SocketChannel ch) throws Exception {
         ch.pipeline()
                 .addLast(sslCtx.newHandler(ch.alloc()))
-                .addLast(new Codec())
+                .addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME,
                         new ServerSessionHandler(broker, authenticator, activeIdleTimeoutSecond))
         ;
-
     }
 
 }

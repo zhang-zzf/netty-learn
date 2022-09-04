@@ -5,7 +5,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.concurrent.Future;
 import org.example.mqtt.broker.jvm.DefaultBroker;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.bootstrap.MqttCodec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,7 +36,7 @@ class ServerSessionHandlerTest {
         sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
         // receiver1 Connect to the Broker
-        receiver1.pipeline().addLast(new Codec())
+        receiver1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from(strReceiver01, (short) 64).toByteBuf());
@@ -45,7 +45,7 @@ class ServerSessionHandlerTest {
         //
         sPublish1 = new Session0("publish1");
         publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new Codec())
+        publish1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(Connect.from("publish1", (short) 64).toByteBuf());
@@ -564,7 +564,7 @@ class ServerSessionHandlerTest {
         sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
         // receiver1 Connect to the Broker
-        receiver1.pipeline().addLast(new Codec())
+        receiver1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
@@ -577,7 +577,7 @@ class ServerSessionHandlerTest {
         //
         sPublish1 = new Session0("publish1");
         publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new Codec())
+        publish1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,
@@ -609,7 +609,7 @@ class ServerSessionHandlerTest {
         sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
         // receiver1 Connect to the Broker
-        receiver1.pipeline().addLast(new Codec())
+        receiver1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
@@ -622,7 +622,7 @@ class ServerSessionHandlerTest {
         //
         sPublish1 = new Session0("publish1");
         publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new Codec())
+        publish1.pipeline().addLast(new MqttCodec())
                 .addLast(ServerSessionHandler.HANDLER_NAME, new ServerSessionHandler(broker, packet -> 0x00, 3));
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,

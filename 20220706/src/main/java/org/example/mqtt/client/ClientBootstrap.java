@@ -16,7 +16,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.codec.Codec;
+import org.example.mqtt.bootstrap.MqttCodec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
@@ -61,7 +61,7 @@ public class ClientBootstrap {
                     @Override
                     protected void initChannel(NioSocketChannel ch) throws Exception {
                         ch.pipeline()
-                                .addLast(new Codec())
+                                .addLast(new MqttCodec())
                                 .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue(), period))
                         ;
                     }
@@ -201,7 +201,7 @@ public class ClientBootstrap {
                 } finally {
                     /**
                      * release the ByteBuf retained from
-                     * {@link org.example.mqtt.codec.Codec#decode(ChannelHandlerContext, ByteBuf, List)}
+                     * {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
                      */
                     cp.content().release();
                 }

@@ -1,9 +1,6 @@
 package org.example.mqtt.broker.metrics;
 
-import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.DefaultServerSession;
-import org.example.mqtt.broker.ServerSessionHandler;
+import org.example.mqtt.broker.*;
 import org.example.mqtt.model.Connect;
 
 public class ServerSessionHandlerWithMetrics extends ServerSessionHandler {
@@ -13,8 +10,12 @@ public class ServerSessionHandlerWithMetrics extends ServerSessionHandler {
     }
 
     @Override
-    protected DefaultServerSession newServerSession(Connect connect) {
-        return new DefaultServerSessionWithMetrics(connect);
+    protected ServerSession buildServerSession(ServerSession preSession, Connect connect) {
+        if (preSession == null) {
+            return new DefaultServerSessionWithMetrics(connect);
+        } else {
+            return ((DefaultServerSessionWithMetrics) preSession).init(connect);
+        }
     }
 
 }

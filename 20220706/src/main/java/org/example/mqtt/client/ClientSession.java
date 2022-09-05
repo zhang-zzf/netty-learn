@@ -15,6 +15,4 @@ public interface ClientSession extends Session {
 
     boolean syncUnSubscribe(Unsubscribe unsubscribe);
 
-    boolean syncSend(Publish publish);
-
 }

@@ -2,7 +2,6 @@ package org.example.mqtt.broker.metrics;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
-import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.DefaultServerSession;
 import org.example.mqtt.model.Connect;
@@ -63,14 +62,14 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
      * @param cpx the ControlPacketContext
      */
     @Override
-    protected void publishReceived(ControlPacketContext cpx) {
+    protected void qoS2PublishReceived(ControlPacketContext cpx) {
         try {
             long millis = cpx.packet().payload().getLong(8);
             received.record(System.currentTimeMillis() - millis, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // ignore
         }
-        super.publishReceived(cpx);
+        super.qoS2PublishReceived(cpx);
     }
 
     /**
@@ -79,8 +78,8 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
      * @param packet the Publish packet that received from pair
      */
     @Override
-    protected boolean onPublish(Publish packet, Future<Void> promise) {
-        return super.onPublish(packet, promise);
+    protected boolean onPublish(Publish packet) {
+        return super.onPublish(packet);
     }
 
     @Override

@@ -31,12 +31,11 @@ public abstract class Client implements AutoCloseable {
     }
 
     public void send(Publish publish) {
-        clientSession().syncSend(publish);
     }
 
     @Override
     public void close() throws Exception {
-        clientSession().send(Disconnect.from()).sync();
+        // clientSession().send(Disconnect.from()).sync();
         clientSession().closeChannel();
     }
 

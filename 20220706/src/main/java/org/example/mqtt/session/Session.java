@@ -1,7 +1,6 @@
 package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
-import io.netty.util.concurrent.Future;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Subscribe;
 
@@ -25,7 +24,7 @@ public interface Session {
      *
      * @param message message
      */
-    Future<Void> send(ControlPacket message);
+    void send(ControlPacket message);
 
     /**
      * receive a message from client

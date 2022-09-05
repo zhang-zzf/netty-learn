@@ -3,9 +3,8 @@ package org.example.mqtt.broker;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
-import io.netty.util.concurrent.Future;
-import org.example.mqtt.broker.jvm.DefaultBroker;
 import org.example.mqtt.bootstrap.MqttCodec;
+import org.example.mqtt.broker.jvm.DefaultBroker;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.junit.jupiter.api.BeforeEach;
@@ -369,12 +368,8 @@ class ServerSessionHandlerTest {
         then(publishMessage2)
                 .returns((int) qos, Publish::qos)
                 .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
-        if (qos == 0) {
-            then(publishMessage1.packetIdentifier()).isEqualTo((byte) 0);
-            then(publishMessage2.packetIdentifier()).isEqualTo((byte) 0);
-        } else {
-            then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
-        }
+        then(publishMessage1.packetIdentifier()).isEqualTo((byte) 0);
+        then(publishMessage2.packetIdentifier()).isEqualTo((byte) 0);
     }
 
     /**
@@ -650,7 +645,7 @@ class ServerSessionHandlerTest {
         }
 
         @Override
-        protected boolean onPublish(Publish packet, Future<Void> promise) {
+        protected boolean onPublish(Publish packet) {
             return false;
         }
 

@@ -13,7 +13,6 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.bootstrap.MqttCodec;
@@ -42,8 +41,8 @@ public class ClientBootstrap {
         // require args
         String[] remoteAddr = args[0].split(":");
         String[] localAddr = args[1].split(":");
-        InetSocketAddress remote = new InetSocketAddress(remoteAddr[0], Integer.valueOf(remoteAddr[1]));
-        InetSocketAddress local = new InetSocketAddress(localAddr[0], Integer.valueOf(localAddr[1]));
+        InetSocketAddress remote = new InetSocketAddress(remoteAddr[0], Integer.parseInt(remoteAddr[1]));
+        InetSocketAddress local = new InetSocketAddress(localAddr[0], Integer.parseInt(localAddr[1]));
         int connections = Integer.parseInt(args[2]);
         int payloadLength = Integer.parseInt(args[3]);
         Integer sendQos = Integer.valueOf(args[4]);
@@ -59,7 +58,7 @@ public class ClientBootstrap {
                 .channel(NioSocketChannel.class)
                 .handler(new ChannelInitializer<NioSocketChannel>() {
                     @Override
-                    protected void initChannel(NioSocketChannel ch) throws Exception {
+                    protected void initChannel(NioSocketChannel ch) {
                         ch.pipeline()
                                 .addLast(new MqttCodec())
                                 .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue(), period))
@@ -126,7 +125,7 @@ public class ClientBootstrap {
         }
 
         @Override
-        public boolean onPublish(Publish packet, Future<Void> promise) {
+        public boolean onPublish(Publish packet) {
             ByteBuf payload = packet.payload();
             // retain the payload that will be release by publishReceived() method
             payload.retain();
@@ -138,7 +137,7 @@ public class ClientBootstrap {
         }
 
         @Override
-        protected void publishReceived(ControlPacketContext cpx) {
+        protected void qoS2PublishReceived(ControlPacketContext cpx) {
             ByteBuf payload = cpx.packet().payload();
             long timeInNano = payload.getLong(0);
             long useTime = System.nanoTime() - timeInNano;
@@ -146,7 +145,7 @@ public class ClientBootstrap {
             log.debug("client sent -> server handle -> client publishReceived: {}ns", useTime);
             // release the payload that retained by onPublish
             payload.release();
-            super.publishReceived(cpx);
+            super.qoS2PublishReceived(cpx);
         }
 
         @Override
@@ -251,7 +250,7 @@ public class ClientBootstrap {
         }
 
         @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             log.error("client({}) exceptionCaught, now close the session", session.clientIdentifier(), cause);
             session.closeChannel();
         }

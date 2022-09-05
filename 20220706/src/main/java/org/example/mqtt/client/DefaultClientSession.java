@@ -1,10 +1,8 @@
 package org.example.mqtt.client;
 
-import io.netty.channel.ChannelFutureListener;
-import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.model.*;
+import org.example.mqtt.session.AbstractSession;
 
 import java.util.HashSet;
 import java.util.List;
@@ -28,7 +26,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     private final Condition serverResponse = lock.newCondition();
     private volatile ControlPacket response;
 
-    private Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
 
     private final Client client;
 
@@ -51,16 +49,8 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    protected boolean onPublish(Publish packet, Future<Void> promise) {
-        promise.addListener((ChannelFutureListener) future -> {
-            if (future.isSuccess()) {
-                client.messageReceived(packet);
-            } else {
-                // 有待确定
-                throw new RuntimeException(future.cause());
-            }
-        });
-        return true;
+    protected boolean onPublish(Publish packet) {
+        return false;
     }
 
     @Override
@@ -115,17 +105,6 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
         }
         UnsubAck unsubAck = (UnsubAck) this.response;
         if (unsubAck.packetIdentifier() != unsubscribe.packetIdentifier()) {
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean syncSend(Publish publish) {
-        publish.packetIdentifier(nextPacketIdentifier());
-        try {
-            send(publish).sync();
-        } catch (InterruptedException e) {
             return false;
         }
         return true;

@@ -2,7 +2,6 @@ package org.example.mqtt.broker;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-import io.netty.util.concurrent.Future;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
@@ -23,11 +22,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private Broker broker;
     private volatile boolean registered;
-    private Set<Subscribe.Subscription> subscriptions = new HashSet<>();
-    /**
-     * Disconnect will change it to true.
-     */
-    private boolean disconnected = false;
+    private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
     /**
      * Will Message
      * <pre>
@@ -74,7 +69,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public Future<Void> send(ControlPacket packet) {
+    public void send(ControlPacket packet) {
         if (packet == null) {
             throw new IllegalArgumentException();
         }
@@ -84,7 +79,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
               {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
-            return sendPublishInEventLoop(publish);
+            sendPublishInEventLoop(publish);
         } else {
             throw new IllegalArgumentException();
         }
@@ -100,16 +95,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    protected void publishSendTimeout(ControlPacketContext cpx) {
-        /**
-         * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
-         */
-        cpx.packet().payload().release();
-        super.publishSendTimeout(cpx);
-    }
-
-    @Override
-    protected boolean onPublish(Publish packet, Future<Void> promise) {
+    protected boolean onPublish(Publish packet) {
         if (packet.retain()) {
             log.debug("client({}) onPublish receive retain Publish: {}", cId(), packet);
             // retain message
@@ -169,7 +155,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     protected void doReceiveDisconnect(Disconnect packet) {
         log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
-        disconnected = true;
         // clean the Will message.
         if (willMessage != null) {
             log.debug("client({}) Disconnect, now clear Will: {}", cId(), willMessage);
@@ -208,7 +193,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         // send will message
         if (willMessage != null) {
             log.debug("client({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
-            onPublish(willMessage, newPromise());
+            onPublish(willMessage);
             willMessage = null;
         }
         // 取消与 Broker 的关联

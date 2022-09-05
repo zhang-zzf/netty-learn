@@ -43,8 +43,8 @@ public abstract class AbstractSession implements Session {
     private final AtomicInteger pocketIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
     private boolean cleanSession;
 
-    private final Queue<ControlPacketContext> inQueue = new ControlPacketContextQueue();
-    private final Queue<ControlPacketContext> outQueue = new ControlPacketContextQueue();
+    private Queue<ControlPacketContext> inQueue;
+    private Queue<ControlPacketContext> outQueue;
 
     // protected by eventLoop.thread
     private ScheduledFuture<?> retryTask;
@@ -80,7 +80,7 @@ public abstract class AbstractSession implements Session {
             }
             channel = null;
         }
-        for (ControlPacketContext cpx : outQueue) {
+        for (ControlPacketContext cpx : outQueue()) {
             if (cpx.inSending()) {
                 // remark the SENDING cpx
                 cpx.markStatus(SENDING, INIT);
@@ -143,6 +143,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         // very little chance
+        Queue<ControlPacketContext> outQueue = outQueue();
         if (qos2DuplicateCheck(outgoing, outQueue)) {
             promise.trySuccess(null);
             log.info("Session({}) send same qos2 packet: {}", cId(), outgoing);
@@ -161,6 +162,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPublishAndClean() {
+        Queue<ControlPacketContext> outQueue = outQueue();
         doSendPublishPacket(outQueue.peek());
         tryCleanOutQueue();
         if (!outQueue.isEmpty()) {
@@ -186,7 +188,7 @@ public abstract class AbstractSession implements Session {
         return packet.exactlyOnce() && existSamePacket(packet, queue);
     }
 
-    private boolean existSamePacket(Publish packet, Queue<ControlPacketContext> queue) {
+    protected boolean existSamePacket(Publish packet, Queue<ControlPacketContext> queue) {
         for (ControlPacketContext controlPacketContext : queue) {
             if (controlPacketContext.packet().equals(packet)) {
                 return true;
@@ -237,6 +239,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void tryCleanOutQueue() {
+        Queue<ControlPacketContext> outQueue = outQueue();
         // just clean complete cpx from head
         ControlPacketContext cpx = outQueue.peek();
         // cpx always point to the first cpx in the queue
@@ -267,6 +270,7 @@ public abstract class AbstractSession implements Session {
 
     private void tryCleanInQueue() {
         // just clean complete cpx from head
+        Queue<ControlPacketContext> inQueue = inQueue();
         ControlPacketContext cpx = inQueue.peek();
         // cpx always point to the first cpx in the queue
         while (cpx != null && cpx.complete()) {
@@ -349,11 +353,11 @@ public abstract class AbstractSession implements Session {
         log.debug("receivePubComp: {}, {}", cId(), packet);
         short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findCpx(outQueue, EXACTLY_ONCE, pId);
+        ControlPacketContext cpx = findCpx(outQueue(), EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubComp nothing
-            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), pId, outQueue);
+            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), pId, outQueue());
             return;
         }
         cpx.markStatus(PUB_REC, PUB_COMP);
@@ -378,11 +382,11 @@ public abstract class AbstractSession implements Session {
         log.debug("receivePubRec: {}, {}", cId(), packet);
         short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findCpx(outQueue, EXACTLY_ONCE, pId);
+        ControlPacketContext cpx = findCpx(outQueue(), EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRec nothing
-            log.error("Session({}) PubRec nothing. {}, queue: {}", cId(), pId, outQueue);
+            log.error("Session({}) PubRec nothing. {}, queue: {}", cId(), pId, outQueue());
             return;
         }
         cpx.markStatus(SENT, PUB_REC);
@@ -403,11 +407,11 @@ public abstract class AbstractSession implements Session {
         log.debug("receivePubAck: {}, {}", cId(), packet);
         short pId = packet.packetIdentifier();
         // only look for the first QoS 1 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findCpx(outQueue, AT_LEAST_ONCE, pId);
+        ControlPacketContext cpx = findCpx(outQueue(), AT_LEAST_ONCE, pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null
         if (cpx == null) {
             // Client PubAck nothing
-            log.error("Session({}) PubAck nothing. {}, queue: {}", clientIdentifier(), pId, outQueue);
+            log.error("Session({}) PubAck nothing. {}, queue: {}", clientIdentifier(), pId, outQueue());
             return;
         }
         cpx.markStatus(SENT, PUB_ACK);
@@ -423,11 +427,11 @@ public abstract class AbstractSession implements Session {
         log.debug("receivePubRel: {}, {}", cId(), packet);
         short pId = packet.packetIdentifier();
         // only look for the first QoS 2 ControlPacketContext that match the PacketIdentifier
-        ControlPacketContext cpx = findCpx(inQueue, EXACTLY_ONCE, pId);
+        ControlPacketContext cpx = findCpx(inQueue(), EXACTLY_ONCE, pId);
         // now cpx point to the first QoS 2 ControlPacketContext or null
         if (cpx == null) {
             // Client PubRel nothing
-            log.error("Session({}) PubRel nothing. {}, queue: {}", cId(), pId, inQueue);
+            log.error("Session({}) PubRel nothing. {}, queue: {}", cId(), pId, inQueue());
             return;
         }
         cpx.markStatus(HANDLED, PUB_REL);
@@ -447,22 +451,27 @@ public abstract class AbstractSession implements Session {
      */
     protected void doReceivePublish(Publish packet) {
         log.debug("receivePublish({}): {}, {}", packet.pId(), cId(), packet);
-        if (packet.needAck() && existSamePacket(packet, inQueue)) {
-            log.warn("Session({}) receive same Publish packet: {}", clientIdentifier(), packet.packetIdentifier());
-            return;
+        Queue<ControlPacketContext> inQueue = inQueue();
+        // QoS 2 duplicate check
+        if (packet.exactlyOnce()) {
+            ControlPacketContext cpx = findDuplicateInInQueue(packet);
+            if (cpx != null) {
+                doHandleDuplicateQoS2Publish(packet, cpx);
+                return;
+            }
         }
         Promise<Void> receiveProgress = newPromise();
         ControlPacketContext cpx = new ControlPacketContext(packet, INIT, IN, receiveProgress);
-        log.debug("receivePublish({}) .->INIT [inQueue 入队]: {}, {}", cpx.pId(), cId(), cpx);
         inQueue.offer(cpx);
+        log.debug("receivePublish({}) .->INIT [inQueue 入队]: {}, {}", cpx.pId(), cId(), cpx);
         boolean handled = false;
         try {
             handled = onPublish(packet, receiveProgress);
         } catch (Exception e) {
-            log.error("Session({}) throw exception when handle Publish", clientIdentifier(), e);
+            log.error("Session({}) throw exception when handle Publish", cId(), e);
         }
         if (!handled) {
-            log.error("Session({}) handle Publish failed", clientIdentifier());
+            log.error("Session({}) handle Publish failed", cId());
             // todo
             // wait for retry
             // current no retry
@@ -491,6 +500,30 @@ public abstract class AbstractSession implements Session {
         }
     }
 
+    private void doHandleDuplicateQoS2Publish(Publish packet, ControlPacketContext cpx) {
+        log.warn("Session({}) receive same Publish(QoS2) packet: {}, {}", cId(), packet.pId(), cpx);
+        try {
+            cpx.markStatus(INIT, HANDLED);
+        } catch (Exception e) {
+            cpx.markStatus(HANDLED, HANDLED);
+        }
+        // does not modify the status of the cpx
+        doWrite(cpx.pubRec()).addListener(f -> {
+            if (f.isSuccess()) {
+                log.debug("receivePublish({}) HANDLED ->. [QoS2 消息已处理且已发送 PUB_REC 给 Client]: {}, {}", cpx.pId(), cId(), cpx);
+            }
+        });
+    }
+
+    protected ControlPacketContext findDuplicateInInQueue(Publish packet) {
+        for (ControlPacketContext cpx : inQueue()) {
+            if (cpx.packet().equals(packet)) {
+                return cpx;
+            }
+        }
+        return null;
+    }
+
     protected DefaultPromise<Void> newPromise() {
         return new DefaultPromise<>(this.eventLoop);
     }
@@ -515,15 +548,15 @@ public abstract class AbstractSession implements Session {
             return;
         }
         this.retryTask = eventLoop.scheduleWithFixedDelay(() -> {
-            boolean emptyQueue = inQueue.isEmpty() && outQueue.isEmpty();
+            boolean emptyQueue = inQueue().isEmpty() && outQueue().isEmpty();
             if (!isBound() || emptyQueue) {
                 // cancel the scheduled task
                 this.retryTask.cancel(false);
                 this.retryTask = null;
                 return;
             }
-            retrySendControlPacket(inQueue.peek());
-            retrySendControlPacket(outQueue.peek());
+            retrySendControlPacket(inQueue().peek());
+            retrySendControlPacket(outQueue().peek());
             tryCleanInQueue();
             tryCleanOutQueue();
         }, 1, 1, TimeUnit.SECONDS);
@@ -633,5 +666,26 @@ public abstract class AbstractSession implements Session {
         return Objects.hash(clientIdentifier);
     }
 
+    private Queue<ControlPacketContext> inQueue() {
+        if (inQueue == null) {
+            inQueue = newInQueue();
+        }
+        return inQueue;
+    }
+
+    protected Queue<ControlPacketContext> newInQueue() {
+        return new ControlPacketContextQueue();
+    }
+
+    private Queue<ControlPacketContext> outQueue() {
+        if (outQueue == null) {
+            outQueue = newOutQueue();
+        }
+        return outQueue;
+    }
+
+    protected Queue<ControlPacketContext> newOutQueue() {
+        return new ControlPacketContextQueue();
+    }
 
 }

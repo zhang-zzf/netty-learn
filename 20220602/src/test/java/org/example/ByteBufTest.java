@@ -4,8 +4,11 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.handler.codec.base64.Base64;
 import io.netty.util.IllegalReferenceCountException;
 import org.junit.jupiter.api.Test;
+
+import java.nio.charset.StandardCharsets;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -454,6 +457,23 @@ class ByteBufTest {
         int strUtf8Length = buf.writerIndex() - marked - 2;
         buf.setShort(marked, strUtf8Length);
         CharSequence actual = buf.readCharSequence(buf.readShort(), UTF_8);
+        then(actual).isEqualTo(str);
+    }
+
+    @Test
+    void given中文_whenBase64_then() {
+        ByteBuf buf = Unpooled.buffer();
+        String str = "Hello, World!\n你好，世界。！";
+        int marked = buf.writerIndex();
+        buf.writeShort(0);
+        buf.writeCharSequence(str, UTF_8);
+        int strUtf8Length = buf.writerIndex() - marked - 2;
+        buf.setShort(marked, strUtf8Length);
+        ByteBuf base64Encoded = Base64.encode(buf);
+        String base64Str = base64Encoded.toString(UTF_8);
+        ByteBuf base64ByteBuf = Unpooled.copiedBuffer(base64Str, UTF_8);
+        ByteBuf base64Decoded = Base64.decode(base64ByteBuf);
+        CharSequence actual = base64Decoded.readCharSequence(base64Decoded.readShort(), UTF_8);
         then(actual).isEqualTo(str);
     }
 

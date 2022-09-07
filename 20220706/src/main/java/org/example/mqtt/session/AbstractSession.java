@@ -13,6 +13,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.session.ControlPacketContext.Status.*;
+import static org.example.mqtt.session.ControlPacketContext.Type.IN;
+import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -104,7 +106,6 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPublish(Publish outgoing) {
-        Queue<ControlPacketContext> outQueue = outQueue();
         // very little chance
         if (outQueueQos2DuplicateCheck(outgoing)) {
             log.warn("Session({}) send same Publish(QoS2), discard it.: {}", cId(), outgoing);
@@ -112,7 +113,7 @@ public abstract class AbstractSession implements Session {
         }
         if (isBound()) {
             // online
-            ControlPacketContext cpx = new ControlPacketContext(outgoing, INIT);
+            ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
             // Only enqueue Qos1 and QoS2
             if (outgoing.atLeastOnce() || outgoing.exactlyOnce()) {
                 outQueueEnqueue(cpx);
@@ -126,7 +127,7 @@ public abstract class AbstractSession implements Session {
                 log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
                 return;
             }
-            outQueueEnqueue(new ControlPacketContext(outgoing, INIT));
+            outQueueEnqueue(createNewCpx(outgoing, INIT, OUT));
         }
     }
 
@@ -346,7 +347,7 @@ public abstract class AbstractSession implements Session {
         }
         // Client / Broker must be online.
         Queue<ControlPacketContext> inQueue = inQueue();
-        ControlPacketContext cpx = new ControlPacketContext(packet, INIT);
+        ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
         if (packet.exactlyOnce()) {
             // Only QoS2 need enqueue
             inQueue.offer(cpx);
@@ -375,12 +376,26 @@ public abstract class AbstractSession implements Session {
         }
     }
 
+    protected ControlPacketContext createNewCpx(Publish packet,
+                                                ControlPacketContext.Status status,
+                                                ControlPacketContext.Type type) {
+        return new ControlPacketContext(packet, status, type);
+    }
+
     private void doHandleDuplicateQoS2Publish(ControlPacketContext cpx) {
-        try {
-            cpx.markStatus(INIT, HANDLED);
-        } catch (Exception e) {
-            cpx.markStatus(HANDLED, HANDLED);
+        switch (cpx.status()) {
+            case INIT:
+                log.debug("receivePublish({}) INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}, {}", cpx.pId(), cId(), cpx);
+                break;
+            case HANDLED:
+                doWritePubRecPacket(cpx);
+                break;
+            default:
+                throw new IllegalStateException();
         }
+    }
+
+    private void doWritePubRecPacket(ControlPacketContext cpx) {
         // does not modify the status of the cpx
         doWrite(cpx.pubRec()).addListener(f -> {
             if (f.isSuccess()) {

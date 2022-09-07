@@ -14,6 +14,12 @@ import static org.example.mqtt.session.ControlPacketContext.Status.*;
 @Slf4j
 public class ControlPacketContext {
 
+    public enum Type {
+        IN,
+        OUT,
+        ;
+    }
+
     public enum Status {
         INIT,
         HANDLED,
@@ -27,10 +33,12 @@ public class ControlPacketContext {
 
     private final Publish packet;
     private final AtomicReference<Status> status;
+    private final Type type;
 
-    public ControlPacketContext(Publish packet, Status status) {
+    public ControlPacketContext(Publish packet, Status status, Type type) {
         this.packet = packet;
         this.status = new AtomicReference<>(status);
+        this.type = type;
     }
 
     public Publish packet() {
@@ -42,8 +50,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacketContext markStatus(Status update) {
-        status.set(update);
-        return this;
+        return markStatus(status(), update);
     }
 
     public ControlPacketContext markStatus(Status expect, Status update) {
@@ -54,7 +61,7 @@ public class ControlPacketContext {
     }
 
     public boolean complete() {
-        Status s = status.get();
+        Status s = status();
         if (packet().atMostOnce()) {
             if (s == HANDLED || s == SENT) {
                 return true;
@@ -93,7 +100,8 @@ public class ControlPacketContext {
             }
             sb.append(',');
         }
-        sb.append("\"status\":\"").append(status.get().name()).append("\",");
+        sb.append("\"type\":\"").append(type().name()).append("\",");
+        sb.append("\"status\":\"").append(status().name()).append("\",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
@@ -103,6 +111,14 @@ public class ControlPacketContext {
 
     public Status status() {
         return status.get();
+    }
+
+    public Type type() {
+        return type;
+    }
+
+    public short packetIdentifier() {
+        return packet.packetIdentifier();
     }
 
 }

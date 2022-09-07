@@ -110,24 +110,24 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                                                                    ClusterDbQueue.Type type,
                                                                    boolean tail,
                                                                    int size) {
-        log.debug("peekFromSession req: {}, {}, {}, {}", clientIdentifier, type, tail, size);
+        log.debug("fetchFromSessionQueue req: {}, {}, {}, {}", clientIdentifier, type, tail, size);
         ControlPacketContext.Type cpxType = (type == ClusterDbQueue.Type.IN_QUEUE) ? IN : OUT;
         Query cQuery = new Query.Builder().term(t -> t.field("clientIdentifier").value(clientIdentifier)).build();
         Query tQuery = new Query.Builder().term(t -> t.field("type").value(cpxType.name())).build();
         // 查询前必须 refresh index
-        client.indices().refresh();
+        client.indices().refresh(req -> req.index(SESSION_QUEUE_INDEX));
         Function<SearchRequest.Builder, ObjectBuilder<SearchRequest>> searchRequest = req -> req
                 .index(SESSION_QUEUE_INDEX)
                 .routing(clientIdentifier)
                 .query(q -> q.bool(b -> b.filter(cQuery, tQuery)))
-                .sort(s -> s.field(f -> f.field("createdAt").order(tail ? SortOrder.Asc : SortOrder.Desc)))
+                .sort(s -> s.field(f -> f.field("createdAt").order(tail ? SortOrder.Desc : SortOrder.Asc)))
                 .size(size);
         SearchResponse<ControlPacketContextPO> resp = client.search(searchRequest, ControlPacketContextPO.class);
         List<ClusterControlPacketContext> ret = resp.hits().hits().stream()
                 .map(Hit::source)
                 .map(this::pOToDomain)
                 .collect(toList());
-        log.debug("peekFromSession resp: {}", ret);
+        log.debug("fetchFromSessionQueue resp: {}", ret);
         return ret;
     }
 

@@ -7,7 +7,7 @@ public class ClusterControlPacketContext extends ControlPacketContext {
 
     private final ClusterDbRepo clusterDbRepo;
     private final String clientIdentifier;
-    private final Short nextPacketIdentifier;
+    private Short nextPacketIdentifier;
 
     public ClusterControlPacketContext(ClusterDbRepo clusterDbRepo,
                                        String clientIdentifier,
@@ -65,6 +65,10 @@ public class ClusterControlPacketContext extends ControlPacketContext {
 
     public Short nextPacketIdentifier() {
         return nextPacketIdentifier;
+    }
+
+    public void nextPacketIdentifier(short packetIdentifier) {
+        this.nextPacketIdentifier = packetIdentifier;
     }
 
 }

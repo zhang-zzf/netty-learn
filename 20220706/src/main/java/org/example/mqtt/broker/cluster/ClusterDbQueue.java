@@ -44,6 +44,9 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
         boolean added = clusterDbRepo.offerToSessionQueue(tail, ccpx);
         // 更新 tail 指针
         if (added) {
+            if (this.tail != null) {
+                this.tail.nextPacketIdentifier(ccpx.packetIdentifier());
+            }
             this.tail = ccpx;
             this.head = (this.head == null ? ccpx : this.head);
         }

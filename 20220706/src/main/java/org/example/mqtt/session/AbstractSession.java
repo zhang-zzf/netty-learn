@@ -305,7 +305,7 @@ public abstract class AbstractSession implements Session {
         ControlPacketContext cpx = findControlPacketInInQueue(pId);
         if (cpx == null) {
             // PubRel nothing
-            log.error("Session({}) PubRel nothing. {}, queue: {}", cId(), pId, inQueue());
+            log.error("Session({}) PubRel nothing. {}", cId(), pId);
             return;
         }
         cpx.markStatus(HANDLED, PUB_REL);
@@ -321,13 +321,14 @@ public abstract class AbstractSession implements Session {
     }
 
     protected void tryCleanInQueue(short packetIdentifier) {
-        Iterator<ControlPacketContext> it = inQueue.iterator();
-        while (it.hasNext()) {
-            ControlPacketContext next = it.next();
-            if (next.packet().packetIdentifier() == packetIdentifier) {
-                qoS2PublishReceived(next);
-                it.remove();
-            }
+        // just clean complete cpx from head
+        Queue<ControlPacketContext> inQueue = inQueue();
+        // cpx always point to the first cpx in the queue
+        ControlPacketContext cpx = inQueue.peek();
+        while (cpx != null && cpx.complete()) {
+            inQueue.poll();
+            qoS2PublishReceived(cpx);
+            cpx = inQueue.peek();
         }
     }
 

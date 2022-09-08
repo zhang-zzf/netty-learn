@@ -8,6 +8,7 @@ import org.example.mqtt.broker.cluster.infra.es.ClusterDbRepoImpl;
 import org.example.mqtt.broker.cluster.infra.es.config.ElasticsearchClientConfig;
 import org.example.mqtt.model.Publish;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -15,6 +16,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 
+@Disabled
 class ClusterDbQueueTest {
 
     static ClusterDbRepoImpl dbRepo;

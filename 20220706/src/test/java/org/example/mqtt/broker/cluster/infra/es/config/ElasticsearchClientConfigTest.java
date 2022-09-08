@@ -10,6 +10,7 @@ import co.elastic.clients.elasticsearch.indices.DeleteIndexRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.ResponseException;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.function.BiConsumer;
 
 @Slf4j
+@Disabled
 class ElasticsearchClientConfigTest {
 
     static ElasticsearchClient client;

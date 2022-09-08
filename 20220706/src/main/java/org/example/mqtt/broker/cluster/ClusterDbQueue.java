@@ -64,7 +64,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
             ClusterControlPacketContext next = clusterDbRepo.findFromSessionQueue(clientIdentifier, type, nPId);
             if (next == null) {
                 // should exist
-                log.warn("todo");
+                log.warn("poll [should have next Item, but does not]");
                 this.head = null;
                 this.tail = null;
             } else {

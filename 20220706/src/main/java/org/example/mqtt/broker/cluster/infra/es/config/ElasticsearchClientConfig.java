@@ -34,9 +34,15 @@ public class ElasticsearchClientConfig {
     }
 
     public ElasticsearchAsyncClient elasticsearchAsyncClient(String inetHost, int inetPort) {
+        final UsernamePasswordCredentials credentials =
+                new UsernamePasswordCredentials("elastic", "8E78NY1mnfGvQJ6e7aHy");
+        final CredentialsProvider credentialsProvider = new BasicCredentialsProvider();
+        credentialsProvider.setCredentials(AuthScope.ANY, credentials);
         // Create the low-level client
         RestClient restClient = RestClient
                 .builder(new HttpHost(inetHost, inetPort))
+                .setHttpClientConfigCallback(httpClientBuilder ->
+                        httpClientBuilder.setDefaultCredentialsProvider(credentialsProvider))
                 .build();
         // Create the transport with a Jackson mapper
         ElasticsearchTransport transport =

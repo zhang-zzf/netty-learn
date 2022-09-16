@@ -52,7 +52,11 @@ public class Publish extends ControlPacket {
         return outgoing(origin.retain(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
     }
 
-    public static Publish outgoing(boolean retain, byte qos, boolean dup,
+    public static Publish outgoing(int qos, String topicName, ByteBuf payload) {
+        return outgoing(false, qos, false, topicName, (short) 0, payload);
+    }
+
+    public static Publish outgoing(boolean retain, int qos, boolean dup,
                                    String topicName, short packetIdentifier, ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.length() + 2;
@@ -105,7 +109,7 @@ public class Publish extends ControlPacket {
         this.payload = payload;
     }
 
-    static byte build_0Byte(boolean retain, byte qos, boolean dup) {
+    static byte build_0Byte(boolean retain, int qos, boolean dup) {
         byte _0Byte = 0x30;
         if (retain) {
             _0Byte |= 0x01;

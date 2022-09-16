@@ -1,4 +1,4 @@
-package org.example.mqtt.bootstrap.websocket;
+package org.example.mqtt.broker.codec.websocket;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -7,19 +7,17 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import lombok.RequiredArgsConstructor;
-import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.ServerSessionHandler;
-import org.example.mqtt.bootstrap.MqttCodec;
+import org.example.mqtt.broker.node.DefaultServerSessionHandler;
+import org.example.mqtt.broker.codec.MqttCodec;
+
+import java.util.function.Supplier;
 
 @RequiredArgsConstructor
 public class MqttOverWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
     final String subProtocols = "mqtt";
     private final String websocketPath;
-    private final Broker broker;
-    private final Authenticator authenticator;
-    private final int activeIdleTimeoutSecond;
+    private final Supplier<DefaultServerSessionHandler> handlerSupplier;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -37,8 +35,7 @@ public class MqttOverWebsocketServerInitializer extends ChannelInitializer<Socke
                 // mqtt codec
                 .addLast(new MqttCodec())
                 // mqtt SessionHandler
-                .addLast(ServerSessionHandler.HANDLER_NAME,
-                        new ServerSessionHandler(broker, authenticator, activeIdleTimeoutSecond))
+                .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
         ;
 
     }

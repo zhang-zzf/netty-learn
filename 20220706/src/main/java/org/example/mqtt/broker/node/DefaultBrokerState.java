@@ -1,22 +1,20 @@
-package org.example.mqtt.broker.jvm;
+package org.example.mqtt.broker.node;
 
-import org.example.mqtt.broker.BrokerState;
+import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.*;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 
-public class DefaultBrokerState implements BrokerState {
+@Slf4j
+public class DefaultBrokerState {
 
     static String LEVEL_SEPARATOR = "/";
     static String MULTI_LEVEL_WILDCARD = "#";
@@ -39,12 +37,10 @@ public class DefaultBrokerState implements BrokerState {
      */
     private final ConcurrentMap<String, Publish> retainedPublish = new ConcurrentHashMap<>();
 
-    @Override
     public ServerSession session(String clientIdentifier) {
         return sessionMap.get(clientIdentifier);
     }
 
-    @Override
     public List<Topic> match(String topicName) {
         List<Topic> match = fuzzyMatch(topicName);
         Topic topic = preciseTopicFilter.get(topicName);
@@ -54,7 +50,6 @@ public class DefaultBrokerState implements BrokerState {
         return match;
     }
 
-    @Override
     public Future<Void> subscribe(ServerSession session, Subscribe.Subscription subscription) {
         Runnable task = () -> doSubscribe(session, subscription);
         return (Future<Void>) executorService.submit(task);
@@ -82,13 +77,11 @@ public class DefaultBrokerState implements BrokerState {
         }
     }
 
-    @Override
     public Future<Void> unsubscribe(ServerSession session, Subscribe.Subscription subscription) {
         Runnable task = () -> doUnsubscribe(session, subscription);
         return (Future<Void>) executorService.submit(task);
     }
 
-    @Override
     public Future<Void> disconnect(ServerSession session) {
         Runnable task = () -> {
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
@@ -100,13 +93,9 @@ public class DefaultBrokerState implements BrokerState {
         return (Future<Void>) executorService.submit(task);
     }
 
-    @Override
     public Future<ServerSession> connect(ServerSession session) {
         Callable task = () -> {
-            ServerSession exist = sessionMap.putIfAbsent(session.clientIdentifier(), session);
-            if (exist != null) {
-                return exist;
-            }
+            sessionMap.put(session.clientIdentifier(), session);
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
             for (Subscribe.Subscription sub : subscriptions) {
                 doSubscribe(session, sub);
@@ -117,17 +106,14 @@ public class DefaultBrokerState implements BrokerState {
 
     }
 
-    @Override
     public void removeRetain(Publish packet) {
         retainedPublish.remove(packet.topicName());
     }
 
-    @Override
     public void saveRetain(Publish packet) {
         retainedPublish.put(packet.topicName(), packet);
     }
 
-    @Override
     public List<Publish> matchRetain(String topicFilter) {
         if (!isFuzzyTopic(topicFilter)) {
             Publish publish = retainedPublish.get(topicFilter);
@@ -137,6 +123,21 @@ public class DefaultBrokerState implements BrokerState {
         return retainedPublish.entrySet().stream()
                 .filter(e -> topicNameMatchTopicFilter(e.getKey(), topicFilter))
                 .map(Map.Entry::getValue).collect(toList());
+    }
+
+    public Optional<Topic> topic(String topicFilter) {
+        if (!isFuzzyTopic(topicFilter)) {
+            return Optional.ofNullable(preciseTopicFilter.get(topicFilter));
+        } else {
+            Node idx = root;
+            for (String l : topicFilter.split(LEVEL_SEPARATOR)) {
+                idx = idx.child(l);
+                if (idx == null) {
+                    break;
+                }
+            }
+            return Optional.ofNullable(idx).map(n -> n.topic);
+        }
     }
 
     static boolean topicNameMatchTopicFilter(String topicName, String topicFilter) {
@@ -255,7 +256,6 @@ public class DefaultBrokerState implements BrokerState {
         return level == levelArray.length - 1;
     }
 
-    @Override
     public void close() throws Exception {
         executorService.shutdown();
     }

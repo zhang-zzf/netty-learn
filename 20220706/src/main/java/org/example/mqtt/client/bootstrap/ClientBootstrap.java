@@ -1,4 +1,4 @@
-package org.example.mqtt.client;
+package org.example.mqtt.client.bootstrap;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
@@ -15,7 +15,7 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.ScheduledFuture;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.bootstrap.MqttCodec;
+import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;

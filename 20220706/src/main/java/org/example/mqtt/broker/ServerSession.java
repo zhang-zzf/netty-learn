@@ -17,18 +17,6 @@ public interface ServerSession extends Session {
     Broker broker();
 
     /**
-     * register the session to broker
-     *
-     * @param broker broker
-     */
-    void register(Broker broker);
-
-    /**
-     * deregister the session from broker
-     */
-    void deregister();
-
-    /**
      * whether the Session is registered with a Broker.
      *
      * @return Returns {@code true} if the {@link Session} is registered with a {@link Broker}.

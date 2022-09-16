@@ -2,14 +2,64 @@ package org.example.mqtt.broker.cluster.infra.es.model;
 
 import lombok.Data;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * 集群级别 TopicFilter 模型
  * <p> "topic_abc_de" use as ID </p>
+ */
+/*
+ {
+  "settings": {
+    "index.number_of_shards": 3,
+    "index.number_of_replicas": 1
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "1": {
+        "type": "keyword"
+      },
+      "2": {
+        "type": "keyword"
+      },
+      "3": {
+        "type": "keyword"
+      },
+      "4": {
+        "type": "keyword"
+      },
+      "5": {
+        "type": "keyword"
+      },
+      "6": {
+        "type": "keyword"
+      },
+      "7": {
+        "type": "keyword"
+      },
+      "8": {
+        "type": "keyword"
+      },
+      "id": {
+        "type": "keyword"
+      },
+      "nodes": {
+        "type": "keyword"
+      },
+      "offlineSubscriptions": {
+        "properties": {
+          "clientId": {
+            "type": "keyword"
+          },
+          "qos": {
+            "type": "byte"
+          }
+        }
+      }
+    }
+  }
+}
  */
 @Data
 public class TopicFilterPO {
@@ -19,19 +69,36 @@ public class TopicFilterPO {
      */
     private String value;
     /**
-     * "1" -> "topic"
-     * "2" -> "abc"
-     * "3" -> "de"
+     * "0" -> "topic"
+     * "1" -> "abc"
+     * "2" -> "de"
      */
-    private final Map<String, String> topicLevel = new HashMap<>(8);
+    private Map<String, String> topicLevel;
     /**
      * 订阅此 TopicFilter 的 node 节点
      */
-    private Set<String> subscribeNodes;
+    private Set<String> nodes;
     /**
      * 订阅此 TopicFilter 的离线 Session
      */
     private Set<SubscriptionPO> offlineSessions;
+
+    public TopicFilterPO() {
+
+    }
+
+    public TopicFilterPO(String tf, String... nodes) {
+        this.value = tf;
+        this.topicLevel = new HashMap<>(8);
+        String[] level = tf.split("/");
+        for (int i = 0; i < level.length; i++) {
+            topicLevel.put(String.valueOf(i), level[i]);
+        }
+        this.nodes = new HashSet<>();
+        for (String node : nodes) {
+            this.nodes.add(node);
+        }
+    }
 
     @Override
     public String toString() {
@@ -54,11 +121,11 @@ public class TopicFilterPO {
             }
             sb.append(',');
         }
-        if (subscribeNodes != null) {
+        if (nodes != null) {
             sb.append("\"subscribeNodes\":");
-            if (!(subscribeNodes).isEmpty()) {
+            if (!(nodes).isEmpty()) {
                 sb.append("[");
-                for (Object collectionValue : subscribeNodes) {
+                for (Object collectionValue : nodes) {
                     sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
                 }
                 sb.replace(sb.length() - 1, sb.length(), "]");
@@ -97,6 +164,19 @@ public class TopicFilterPO {
             }
             sb.append("\"qos\":").append(qos).append(',');
             return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SubscriptionPO that = (SubscriptionPO) o;
+            return getClientIdentifier().equals(that.getClientIdentifier());
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(getClientIdentifier());
         }
 
     }

@@ -30,8 +30,8 @@ public abstract class AbstractSession implements Session {
     };
 
     private final String clientIdentifier;
-    private final AtomicInteger pocketIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
-    private boolean cleanSession;
+    protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
+    private Boolean cleanSession;
 
     private Queue<ControlPacketContext> inQueue;
     private Queue<ControlPacketContext> outQueue;
@@ -66,6 +66,9 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public boolean cleanSession() {
+        if (cleanSession == null) {
+            return true;
+        }
         return cleanSession;
     }
 
@@ -111,11 +114,11 @@ public abstract class AbstractSession implements Session {
             log.warn("Session({}) send same Publish(QoS2), discard it.: {}", cId(), outgoing);
             return;
         }
+        ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
         if (isBound()) {
             // online
-            ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
             // Only enqueue Qos1 and QoS2
-            if (outgoing.atLeastOnce() || outgoing.exactlyOnce()) {
+            if (enqueueOutQueue(cpx)) {
                 outQueueEnqueue(cpx);
             }
             // online. send immediately
@@ -125,10 +128,16 @@ public abstract class AbstractSession implements Session {
             if (outgoing.atMostOnce() && !sendQoS0PublishOffline()) {
                 // QoS0 Publish will be discarded by default config.
                 log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
+                publishSendComplete(cpx);
                 return;
             }
-            outQueueEnqueue(createNewCpx(outgoing, INIT, OUT));
+            outQueueEnqueue(cpx);
         }
+    }
+
+    private boolean enqueueOutQueue(ControlPacketContext cpx) {
+        Publish packet = cpx.packet();
+        return packet.atLeastOnce() || packet.exactlyOnce();
     }
 
     private void outQueueEnqueue(ControlPacketContext cpx) {
@@ -187,7 +196,7 @@ public abstract class AbstractSession implements Session {
         // cpx always point to the first cpx in the queue
         while (cpx != null && cpx.complete()) {
             outQueue.poll();
-            publishSent(cpx);
+            publishSendComplete(cpx);
             cpx = outQueue.peek();
         }
     }
@@ -202,11 +211,14 @@ public abstract class AbstractSession implements Session {
     }
 
     /**
-     * invoke after send Publish successfully.
+     * invoke after send Publish complete (maybe discard it)
      *
      * @param cpx Publish
      */
-    protected void publishSent(ControlPacketContext cpx) {
+    protected void publishSendComplete(ControlPacketContext cpx) {
+        if (!enqueueOutQueue(cpx)) {
+            log.debug("sendPublish({}) sent [消息发送完成]: {}, {}", cpx.pId(), cId(), cpx);
+        }
         log.debug("sendPublish({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
     }
 
@@ -315,12 +327,12 @@ public abstract class AbstractSession implements Session {
             if (f.isSuccess()) {
                 cpx.markStatus(PUB_REL, PUB_COMP);
                 log.debug("receivePublish({}) PUB_REL->PUB_COMP [QoS2 已发送 PUB_COMP]: {}, {}", cpx.pId(), cId(), cpx);
-                tryCleanInQueue(pId);
+                tryCleanInQueue();
             }
         });
     }
 
-    protected void tryCleanInQueue(short packetIdentifier) {
+    protected void tryCleanInQueue() {
         // just clean complete cpx from head
         Queue<ControlPacketContext> inQueue = inQueue();
         // cpx always point to the first cpx in the queue
@@ -431,10 +443,10 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public short nextPacketIdentifier() {
-        int id = pocketIdentifier.getAndIncrement();
+        int id = packetIdentifier.incrementAndGet();
         if (id >= Short.MAX_VALUE) {
-            pocketIdentifier.set(0);
-            id = pocketIdentifier.getAndIncrement();
+            packetIdentifier.set(Short.MIN_VALUE);
+            id = packetIdentifier.getAndIncrement();
         }
         return (short) id;
     }
@@ -472,7 +484,7 @@ public abstract class AbstractSession implements Session {
 
     protected void resendCpxInOutQueue(ControlPacketContext cpx) {
         Publish packet = cpx.packet();
-        if (packet.atLeastOnce()) {
+        if (packet.atMostOnce() || packet.atLeastOnce()) {
             cpx.markStatus(INIT);
             doWritePublishPacket(cpx);
         } else if (packet.exactlyOnce()) {
@@ -497,6 +509,10 @@ public abstract class AbstractSession implements Session {
             if (f.isSuccess()) {
                 cpx.markStatus(INIT, SENT);
                 log.debug("sendPublish({}) INIT->SENT: {}, {}", cpx.pId(), cId(), cpx);
+            }
+            // must release the retained Publish
+            if (!enqueueOutQueue(cpx)) {
+                publishSendComplete(cpx);
             }
         });
     }
@@ -548,7 +564,7 @@ public abstract class AbstractSession implements Session {
         return new LinkedList<>();
     }
 
-    private Queue<ControlPacketContext> outQueue() {
+    protected Queue<ControlPacketContext> outQueue() {
         if (outQueue == null) {
             outQueue = newOutQueue();
         }

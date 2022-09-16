@@ -1,6 +1,5 @@
 package org.example.mqtt.broker.cluster;
 
-import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -23,12 +22,9 @@ class ClusterDbQueueTest {
 
     @BeforeAll
     public static void beforeAll() {
-        String inetHost = "nudocker01";
-        int inetPort = 9120;
         ElasticsearchClientConfig config = new ElasticsearchClientConfig();
-        ElasticsearchClient client = config.elasticsearchClient(inetHost, inetPort);
-        ElasticsearchAsyncClient asyncClient = config.elasticsearchAsyncClient(inetHost, inetPort);
-        dbRepo = new ClusterDbRepoImpl(client, asyncClient);
+        ElasticsearchClient client = config.elasticsearchClient("http://nudocker01:9120", "elastic", "8E78NY1mnfGvQJ6e7aHy");
+        dbRepo = new ClusterDbRepoImpl(client);
     }
 
     @Test

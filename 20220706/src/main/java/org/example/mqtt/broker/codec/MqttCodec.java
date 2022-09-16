@@ -1,4 +1,4 @@
-package org.example.mqtt.bootstrap;
+package org.example.mqtt.broker.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
@@ -14,12 +14,12 @@ import java.util.List;
 public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) throws Exception {
+    protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) {
         out.writeBytes(msg.toByteBuf());
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
+    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         int packetLength = ControlPacket.tryPickupPacket(in);
         if (packetLength == -1) {
             // can not decode a packet

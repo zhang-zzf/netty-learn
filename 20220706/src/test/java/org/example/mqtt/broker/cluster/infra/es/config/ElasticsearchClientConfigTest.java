@@ -24,19 +24,16 @@ import java.util.function.BiConsumer;
 class ElasticsearchClientConfigTest {
 
     static ElasticsearchClient client;
-    static ElasticsearchAsyncClient asyncclient;
+    static ElasticsearchAsyncClient asyncClient;
 
     @BeforeAll
     public static void beforeAll() {
-        String host = "nudocker01";
-        int inetPort = 9120;
         ElasticsearchClientConfig config = new ElasticsearchClientConfig();
-        client = config.elasticsearchClient(host, inetPort);
-        asyncclient = config.elasticsearchAsyncClient(host, inetPort);
+        client = config.elasticsearchClient("http://nudocker01:9120", "elastic", "8E78NY1mnfGvQJ6e7aHy");
     }
 
     @Test
-    void givenIndices_whenAsyncCreateIndex_then() throws IOException, ExecutionException, InterruptedException {
+    void givenIndices_whenAsyncCreateIndex_then() throws ExecutionException, InterruptedException {
         String indexName = UUID.randomUUID().toString();
         BiConsumer<Object, Throwable> responseHandler = (resp, throwable) -> {
             if (throwable != null) {
@@ -45,31 +42,29 @@ class ElasticsearchClientConfigTest {
                 log.info("resp: {}", resp);
             }
         };
-        asyncclient.indices()
+        asyncClient.indices()
                 .create(new CreateIndexRequest.Builder().index(indexName).build())
                 .whenComplete(responseHandler)
                 // just for test
                 .get()
         ;
-        asyncclient.indices()
+        asyncClient.indices()
                 .delete(new DeleteIndexRequest.Builder().index(indexName).build())
                 .whenComplete(responseHandler)
                 // just for test
                 .get()
         ;
-        asyncclient.indices()
+        asyncClient.indices()
                 .create(index -> index.index(indexName))
                 .whenComplete(responseHandler)
                 // just for test
                 .get()
         ;
-        asyncclient.indices()
+        asyncClient.indices()
                 .delete(req -> req.index(indexName))
                 .whenComplete(responseHandler)
                 // just for test
                 .get();
-        ;
-
     }
 
     @Test
@@ -108,7 +103,7 @@ class ElasticsearchClientConfigTest {
             );
             log.info("resp2: {}", resp2);
         } catch (ResponseException e) {
-            log.info("e: {}", e);
+            log.info("e: ", e);
         }
         client.indices().delete(req -> req.index(index));
     }
@@ -118,7 +113,7 @@ class ElasticsearchClientConfigTest {
      * <p>删除不存在的文档</p>
      */
     @Test
-    void given_whenDeleteNotExist_then() throws IOException, InterruptedException {
+    void given_whenDeleteNotExist_then() throws IOException {
         String index = UUID.randomUUID().toString();
         IndexResponse resp1 = client.index(req -> req.index(index)
                 .id(index)

@@ -1,8 +1,10 @@
-package org.example.mqtt.broker;
+package org.example.mqtt.broker.node;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
@@ -22,7 +24,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private Broker broker;
     private volatile boolean registered;
-    private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    protected Set<Subscribe.Subscription> subscriptions = new HashSet<>();
     /**
      * Will Message
      * <pre>
@@ -33,12 +35,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      */
     private Publish willMessage;
 
-    public DefaultServerSession(Connect connect) {
-        super(connect.clientIdentifier());
-        init(connect);
+    public DefaultServerSession(String clientIdentifier) {
+        super(clientIdentifier);
     }
 
-    public DefaultServerSession init(Connect connect) {
+    public static ServerSession from(Connect connect) {
+        return new DefaultServerSession(connect.clientIdentifier())
+                .reInitWith(connect);
+    }
+
+    public DefaultServerSession reInitWith(Connect connect) {
         cleanSession(connect.cleanSession());
         if (connect.willFlag()) {
             willMessage = extractWillMessage(connect);
@@ -75,29 +81,29 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
-            /*
-              {@link DefaultServerSession#publishSent(ControlPacketContext)}  will release the payload
+            /**
+             *  {@link DefaultServerSession#publishSendComplete(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
-            sendPublishInEventLoop(publish);
+            super.send(publish);
         } else {
             throw new IllegalArgumentException();
         }
     }
 
     @Override
-    protected void publishSent(ControlPacketContext cpx) {
+    protected void publishSendComplete(ControlPacketContext cpx) {
         /**
          * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
          */
         cpx.packet().payload().release();
-        super.publishSent(cpx);
+        super.publishSendComplete(cpx);
     }
 
     @Override
     protected boolean onPublish(Publish packet) {
         if (packet.retain()) {
-            log.debug("client({}) onPublish receive retain Publish: {}", cId(), packet);
+            log.debug("Session({}) onPublish receive retain Publish: {}", cId(), packet);
             // retain message
             broker.retain(packet);
         }
@@ -106,28 +112,33 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceiveUnsubscribe(Unsubscribe packet) {
-        log.info("client({}) doReceiveUnsubscribe req: {}", clientIdentifier(), packet);
-        broker().deregister(this, packet);
+        log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
+        broker.unsubscribe(this, packet);
+        doRemoveSubscriptions(packet.subscriptions());
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
-        log.info("client({}) doReceiveUnsubscribe resp: {}", clientIdentifier(), unsubAck);
+        log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
         channel().writeAndFlush(unsubAck);
     }
 
+    protected void doRemoveSubscriptions(List<Subscribe.Subscription> subscriptions) {
+        this.subscriptions.removeAll(subscriptions);
+    }
+
     private void doReceiveSubscribe(Subscribe packet) {
-        log.info("client({}) doReceiveSubscribe req: {}", clientIdentifier(), packet);
+        log.info("Session({}) doReceiveSubscribe req: {}", cId(), packet);
         // register the Subscribe
-        List<Subscribe.Subscription> permitted = broker().subscribe(this, packet);
+        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
-        log.info("client({}) doReceiveSubscribe resp: {}", clientIdentifier(), subAck);
+        log.info("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
+        doAddSubscriptions(permitted);
         channel().writeAndFlush(subAck);
-        doUpdateSessionSubscriptions(permitted);
         doSendRetainPublish(permitted);
     }
 
     private void doSendRetainPublish(List<Subscribe.Subscription> permitted) {
         for (Subscribe.Subscription p : permitted) {
-            for (Publish packet : broker().retainMatch(p.topicFilter())) {
-                log.debug("client({}) match retain Publish: {}", cId(), packet);
+            for (Publish packet : broker.retainMatch(p.topicFilter())) {
+                log.debug("Session({}) match retain Publish: {}", cId(), packet);
                 // send retain Publish
                 int qos = Math.min(packet.qos(), p.qos());
                 // do rebuild the PublishPacket
@@ -136,28 +147,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
     }
 
-    private void doUpdateSessionSubscriptions(List<Subscribe.Subscription> permitted) {
-        for (Subscribe.Subscription p : permitted) {
-            boolean exists = false;
-            // todo 参考 mqtt 协议：待优化
-            for (Subscribe.Subscription sub : subscriptions) {
-                if (sub.topicFilter().equals(p.topicFilter())) {
-                    sub.qos(p.qos());
-                    exists = true;
-                    break;
-                }
-            }
-            if (!exists) {
-                subscriptions.add(p);
-            }
-        }
+    protected void doAddSubscriptions(List<Subscribe.Subscription> permitted) {
+        this.subscriptions.removeAll(permitted);
+        this.subscriptions.addAll(permitted);
     }
 
     protected void doReceiveDisconnect(Disconnect packet) {
         log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
         // clean the Will message.
         if (willMessage != null) {
-            log.debug("client({}) Disconnect, now clear Will: {}", cId(), willMessage);
+            log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
             willMessage = null;
         }
         close(false);
@@ -169,15 +168,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void register(Broker broker) {
-        if (!registered) {
-            this.broker = broker;
-            broker().connect(this);
-            registered = true;
-        }
-    }
-
-    @Override
     public boolean isRegistered() {
         return registered;
     }
@@ -185,32 +175,31 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public void open(Channel ch, Broker broker) {
         bind(ch);
-        register(broker);
+        if (!registered) {
+            this.broker = broker;
+            broker.connect(this);
+            registered = true;
+        }
     }
 
     @Override
     public void close(boolean force) {
         // send will message
         if (willMessage != null) {
-            log.debug("client({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
+            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
             onPublish(willMessage);
             willMessage = null;
         }
         // 取消与 Broker 的关联
         if (cleanSession() || force) {
-            deregister();
+            if (registered) {
+                // disconnect the session from the broker
+                broker.disconnect(this);
+                registered = false;
+            }
         }
         // 关闭底层连接
         closeChannel();
-    }
-
-    @Override
-    public void deregister() {
-        if (registered) {
-            // disconnect the session from the broker
-            broker().disconnect(this);
-            registered = false;
-        }
     }
 
     @Override

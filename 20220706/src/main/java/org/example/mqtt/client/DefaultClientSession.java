@@ -3,15 +3,10 @@ package org.example.mqtt.client;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
 
 import static org.example.mqtt.model.ControlPacket.*;
 
@@ -21,10 +16,6 @@ import static org.example.mqtt.model.ControlPacket.*;
  */
 @Slf4j
 public class DefaultClientSession extends AbstractSession implements ClientSession {
-
-    private final Lock lock = new ReentrantLock();
-    private final Condition serverResponse = lock.newCondition();
-    private volatile ControlPacket response;
 
     private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
 
@@ -36,21 +27,62 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
+    public void send(ControlPacket packet) {
+        if (packet instanceof Publish) {
+            /**
+             * {@link DefaultClientSession#publishSendComplete(ControlPacketContext)}
+             * will release the content
+             */
+            ((Publish) packet).payload().retain();
+        } else if (packet instanceof Connect) {
+        }
+        super.send(packet);
+    }
+
+    @Override
+    protected void publishSendComplete(ControlPacketContext cpx) {
+        super.publishSendComplete(cpx);
+        Publish packet = cpx.packet();
+        client.completeRequest(packet.packetIdentifier(), null);
+        /**
+         * release {@link DefaultClientSession#send(ControlPacket)}
+         */
+        packet.payload().release();
+    }
+
+    @Override
     public void messageReceived(ControlPacket packet) {
         switch (packet.type()) {
             case CONNACK:
+                doReceiveConnAck((ConnAck) packet);
+                break;
             case SUBACK:
+                doReceiveSubAck((SubAck) packet);
+                break;
             case UNSUBACK:
-                doNotify(packet);
+                doReceiveUnsubAck((UnsubAck) packet);
                 break;
             default:
                 super.messageReceived(packet);
         }
     }
 
+    private void doReceiveConnAck(ConnAck packet) {
+        client.connAck(packet);
+    }
+
+    private void doReceiveSubAck(SubAck packet) {
+        client.completeRequest(packet.packetIdentifier(), packet);
+    }
+
+    private void doReceiveUnsubAck(UnsubAck packet) {
+        client.completeRequest(packet.packetIdentifier(), packet);
+    }
+
     @Override
     protected boolean onPublish(Publish packet) {
-        return false;
+        client.receivePublish(packet);
+        return true;
     }
 
     @Override
@@ -59,84 +91,8 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    public boolean syncConnect(Connect connect) {
-        send(connect);
-        boolean requireExpected = doWait(3000L, cp -> cp instanceof ConnAck);
-        if (!requireExpected) {
-            log.warn("syncConnect expected ConnAck, actual: {}", this.response);
-            return false;
-        }
-        ConnAck connAck = (ConnAck) this.response;
-        if (!connAck.connectionAccepted()) {
-            log.warn("syncConnect server refuse Connect: {}", connAck);
-            return false;
-        }
-        return true;
-    }
-
-    @Override
-    public boolean syncSubscribe(Subscribe subscribe) {
-        subscribe.packetIdentifier(nextPacketIdentifier());
-        send(subscribe);
-        boolean requireExpected = doWait(3000L, cp -> cp instanceof SubAck);
-        if (!requireExpected) {
-            return false;
-        }
-        SubAck subAck = (SubAck) this.response;
-        if (subAck.packetIdentifier() != subAck.packetIdentifier()) {
-            return false;
-        }
-        List<Subscribe.Subscription> request = subscribe.subscriptions();
-        for (int i = 0; i < request.size(); i++) {
-            Subscribe.Subscription sub = request.get(i);
-            sub.qos(subAck.subscriptions().get(i).qos());
-            this.subscriptions.add(sub);
-        }
-        return true;
-    }
-
-    @Override
-    public boolean syncUnSubscribe(Unsubscribe unsubscribe) {
-        unsubscribe.packetIdentifier(nextPacketIdentifier());
-        send(unsubscribe);
-        boolean requireExpected = doWait(3000L, cp -> cp instanceof UnsubAck);
-        if (!requireExpected) {
-            return false;
-        }
-        UnsubAck unsubAck = (UnsubAck) this.response;
-        if (unsubAck.packetIdentifier() != unsubscribe.packetIdentifier()) {
-            return false;
-        }
-        return true;
-    }
-
-    private boolean doWait(long timeoutMillis, Predicate<ControlPacket> condition) {
-        lock.lock();
-        try {
-            this.response = null;
-            long currentTimeMillis = System.currentTimeMillis();
-            while (!condition.test(this.response)) {
-                if (!serverResponse.await(timeoutMillis, TimeUnit.MILLISECONDS)) {
-                    break;
-                }
-                timeoutMillis -= (System.currentTimeMillis() - currentTimeMillis);
-            }
-        } catch (InterruptedException e) {
-            log.warn("waitForServerResponse was interrupted");
-        } finally {
-            lock.unlock();
-        }
-        return condition.test(this.response);
-    }
-
-    private void doNotify(ControlPacket packet) {
-        lock.lock();
-        try {
-            this.response = packet;
-            serverResponse.signal();
-        } finally {
-            lock.unlock();
-        }
+    public int keepAlive() {
+        return client.KEEP_ALIVE;
     }
 
 }

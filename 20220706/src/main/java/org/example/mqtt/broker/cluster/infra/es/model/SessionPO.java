@@ -1,11 +1,13 @@
 package org.example.mqtt.broker.cluster.infra.es.model;
 
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 import java.util.Objects;
 import java.util.Set;
 
 @Data
+@Accessors(chain = true)
 public class SessionPO {
 
     /**
@@ -14,9 +16,10 @@ public class SessionPO {
     private String clientIdentifier;
     private Set<SubscriptionPO> subscriptions;
     private String nodeId;
-
-    private long inQueueTimestamp;
-    private long outQueueTimestamp;
+    /**
+     * Session 离线后 outQueue.tail 的 id
+     */
+    private String outQueueTail;
 
     @Override
     public String toString() {
@@ -39,6 +42,9 @@ public class SessionPO {
         }
         if (nodeId != null) {
             sb.append("\"nodeId\":\"").append(nodeId).append('\"').append(',');
+        }
+        if (outQueueTail != null) {
+            sb.append("\"outQueueTail\":\"").append(outQueueTail).append("\",");
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

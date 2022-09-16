@@ -1,4 +1,4 @@
-package org.example.mqtt.bootstrap.websocket;
+package org.example.mqtt.broker.codec.websocket;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -8,23 +8,21 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import io.netty.handler.ssl.SslContext;
 import lombok.RequiredArgsConstructor;
-import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.ServerSessionHandler;
-import org.example.mqtt.bootstrap.MqttCodec;
+import org.example.mqtt.broker.node.DefaultServerSessionHandler;
+import org.example.mqtt.broker.codec.MqttCodec;
+
+import java.util.function.Supplier;
 
 @RequiredArgsConstructor
 public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
     final String subProtocols = "mqtt";
     private final String websocketPath;
-    private final Broker broker;
-    private final Authenticator authenticator;
     private final SslContext sslCtx;
-    private final int activeIdleTimeoutSecond;
+    private final Supplier<DefaultServerSessionHandler> handlerSupplier;
 
     @Override
-    protected void initChannel(SocketChannel ch) throws Exception {
+    protected void initChannel(SocketChannel ch) {
         ch.pipeline()
                 // SSL
                 .addFirst(sslCtx.newHandler(ch.alloc()))
@@ -41,8 +39,7 @@ public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer
                 // mqtt codec
                 .addLast(new MqttCodec())
                 // mqtt SessionHandler
-                .addLast(ServerSessionHandler.HANDLER_NAME,
-                        new ServerSessionHandler(broker, authenticator, activeIdleTimeoutSecond))
+                .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
         ;
 
     }

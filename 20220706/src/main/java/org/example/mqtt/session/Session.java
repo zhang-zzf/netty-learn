@@ -20,14 +20,14 @@ public interface Session {
     String clientIdentifier();
 
     /**
-     * send a message to client
+     * send a message to peer
      *
      * @param message message
      */
     void send(ControlPacket message);
 
     /**
-     * receive a message from client
+     * receive a message from peer
      *
      * @param message message
      */

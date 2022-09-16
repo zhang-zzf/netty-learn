@@ -1,14 +1,13 @@
 package org.example.mqtt.broker.cluster.infra.es;
 
-import co.elastic.clients.elasticsearch.ElasticsearchAsyncClient;
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import co.elastic.clients.elasticsearch._types.ElasticsearchException;
+import co.elastic.clients.elasticsearch._types.FieldValue;
 import co.elastic.clients.elasticsearch._types.OpType;
 import co.elastic.clients.elasticsearch._types.SortOrder;
 import co.elastic.clients.elasticsearch._types.query_dsl.Query;
-import co.elastic.clients.elasticsearch.core.DeleteResponse;
-import co.elastic.clients.elasticsearch.core.GetResponse;
-import co.elastic.clients.elasticsearch.core.SearchRequest;
-import co.elastic.clients.elasticsearch.core.SearchResponse;
+import co.elastic.clients.elasticsearch.core.*;
+import co.elastic.clients.elasticsearch.core.mget.MultiGetResponseItem;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.util.ObjectBuilder;
 import io.netty.buffer.Unpooled;
@@ -17,20 +16,22 @@ import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.elasticsearch.client.ResponseException;
-import org.example.mqtt.broker.ServerSession;
-import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
-import org.example.mqtt.broker.cluster.ClusterDbQueue;
-import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.*;
 import org.example.mqtt.broker.cluster.infra.es.model.ControlPacketContextPO;
+import org.example.mqtt.broker.cluster.infra.es.model.SessionPO;
+import org.example.mqtt.broker.cluster.infra.es.model.TopicFilterPO;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 import java.util.function.Function;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.stream.Collectors.toList;
+import static java.util.Arrays.asList;
+import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.*;
 import static org.example.mqtt.broker.cluster.ClusterControlPacketContext.id;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
@@ -39,14 +40,25 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 @RequiredArgsConstructor
 public class ClusterDbRepoImpl implements ClusterDbRepo {
 
-    private final ElasticsearchClient client;
-    private final ElasticsearchAsyncClient asyncClient;
-
+    public static final String CLIENT_IDENTIFIER = "clientIdentifier";
+    public static final String TOPIC_FILTER = "topic_filter";
     public static final String SESSION_QUEUE_INDEX = "session_queue";
+    private static final String SESSION_INDEX = "session";
 
+    private final ElasticsearchClient client;
+
+    @SneakyThrows
     @Override
-    public ServerSession querySessionByClientIdentifier(String clientIdentifier) {
-        return null;
+    public ClusterServerSession getSessionByClientIdentifier(String clientIdentifier) {
+        log.debug("getSessionByClientIdentifier req: {}", clientIdentifier);
+        GetResponse<SessionPO> resp = getSessionBy(clientIdentifier);
+        ClusterServerSession ret = pOToDomain(resp.source());
+        log.debug("getSessionByClientIdentifier resp: {}, {}", clientIdentifier, ret);
+        return ret;
+    }
+
+    private GetResponse<SessionPO> getSessionBy(String clientIdentifier) throws IOException {
+        return client.get(req -> req.index(SESSION_INDEX).id(clientIdentifier), SessionPO.class);
     }
 
     @Override
@@ -91,6 +103,241 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         }
     }
 
+    @SneakyThrows
+    @Override
+    public void saveSession(ClusterServerSession session) {
+        client.index(req -> req.index(SESSION_INDEX)
+                .id(session.clientIdentifier())
+                .document(domainToPO(session)));
+    }
+
+    @SneakyThrows
+    @Override
+    public void deleteSession(ClusterServerSession session) {
+        String cId = session.clientIdentifier();
+        client.delete(req -> req.index(SESSION_INDEX).id(cId));
+        // clean SessionQueue
+        client.indices().refresh(req -> req.index(SESSION_QUEUE_INDEX));
+        client.deleteByQuery(req -> req.index(SESSION_QUEUE_INDEX)
+                .routing(cId)
+                .query(q -> q.bool(f -> f.filter(m -> m.match(mt -> mt.field(CLIENT_IDENTIFIER).query(cId)))))
+        );
+        // client.indices().refresh(req -> req.index(SESSION_QUEUE_INDEX));
+    }
+
+    @SneakyThrows
+    @Override
+    public Map<String, ClusterTopic> multiGetTopicFilter(List<String> ids) {
+        Map<String, ClusterTopic> ret = new HashMap<>(ids.size());
+        List<String> dbIds = mapToDbId(ids);
+        MgetResponse<TopicFilterPO> resp = client.mget(req -> req.index(TOPIC_FILTER).ids(dbIds), TopicFilterPO.class);
+        for (MultiGetResponseItem<TopicFilterPO> doc : resp.docs()) {
+            TopicFilterPO po;
+            if (doc.result() == null || (po = doc.result().source()) == null) {
+                continue;
+            }
+            ret.put(po.getValue(), pOToDomain(po));
+        }
+        return ret;
+    }
+
+    private List<String> mapToDbId(List<String> ids) {
+        return ids.stream().map(this::mapToDbId).collect(toList());
+    }
+
+    private String mapToDbId(String id) {
+        return id.replace("/", "-");
+    }
+
+    @Override
+    public void addNodeToTopic(String nodeId, List<String> ids) {
+        for (String id : ids) {
+            String dbId = mapToDbId(id);
+            // CAS update or createIfNotExist
+            boolean casUpdateOrCreateIfNotExist = false;
+            while (!casUpdateOrCreateIfNotExist) {
+                try {
+                    GetResponse<TopicFilterPO> resp = client.get(r -> r.index(TOPIC_FILTER)
+                            .id(dbId).sourceIncludes("nodes"), TopicFilterPO.class);
+                    if (resp.found()) {
+                        TopicFilterPO po = resp.source();
+                        if (po.getNodes().add(nodeId)) {
+                            client.update(r -> r.index(TOPIC_FILTER).id(dbId).doc(po)
+                                            .ifPrimaryTerm(resp.primaryTerm()).ifSeqNo(resp.seqNo()),
+                                    TopicFilterPO.class);
+                        }
+                    } else {
+                        // new Document
+                        TopicFilterPO po = new TopicFilterPO(id, nodeId);
+                        client.index(r -> r.index(TOPIC_FILTER).id(dbId).document(po).opType(OpType.Create));
+                    }
+                    casUpdateOrCreateIfNotExist = true;
+                } catch (ResponseException | ElasticsearchException e) {
+                    // createIfNoteExist failed or CAS update failed will throw ResponseException
+                    // CAS update a not exist Document will throw ElasticsearchException
+                    log.info("casUpdateOrCreateIfNotExist failed, now retry it", e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
+    @Override
+    public void removeNodeFromTopic(String nodeId, List<String> ids) {
+        for (String id : ids) {
+            String dbId = mapToDbId(id);
+            // CAS update or createIfNotExist
+            boolean casRemoveNode = false;
+            while (!casRemoveNode) {
+                try {
+                    GetResponse<TopicFilterPO> resp = client.get(r -> r.index(TOPIC_FILTER)
+                            .id(dbId).sourceIncludes("nodes"), TopicFilterPO.class);
+                    if (resp.found()) {
+                        TopicFilterPO po = resp.source();
+                        if (po.getNodes().remove(nodeId)) {
+                            client.update(r -> r.index(TOPIC_FILTER).id(dbId).doc(po)
+                                            .ifPrimaryTerm(resp.primaryTerm()).ifSeqNo(resp.seqNo()),
+                                    TopicFilterPO.class);
+                        }
+                        // todo clean Topic if Topic is empty
+                    }
+                    casRemoveNode = true;
+                } catch (ResponseException | ElasticsearchException e) {
+                    log.info("casRemoveNode failed, now retry it", e);
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        }
+    }
+
+    @SneakyThrows
+    @Override
+    public boolean offerToOutQueueOfTheOfflineSession(ClusterServerSession s, ClusterControlPacketContext cpx) {
+        if (s == null) {
+            return true;
+        }
+        boolean addToOutQueue = false;
+        while (!addToOutQueue) {
+            try {
+                // todo tailId  -> packetIdentifier
+                String tailId = s.outQueueTailWhenOffline();
+                GetResponse<SessionPO> resp = getSessionBy(cpx.clientIdentifier());
+                if (!resp.found()) {
+                    log.info("offerToOutQueueOfTheOfflineSession [No Session]: {}", s.clientIdentifier());
+                    addToOutQueue = true;
+                    break;
+                }
+                SessionPO sPO = resp.source();
+                if (sPO.getNodeId() != null) {
+                    log.info("offerToOutQueueOfTheOfflineSession Session bound to Broker(nodeId:{}): {}", s.clientIdentifier(), sPO.getNodeId());
+                    break;
+                }
+                if (sPO.getOutQueueTail() != null && !sPO.getOutQueueTail().equals(tailId)) {
+                    // reBuild the packetIdentifier
+                    s.outQueueTailWhenOffline(sPO.getOutQueueTail());
+                    cpx.packet().packetIdentifier(s.nextPacketIdentifier());
+                }
+                // CAS update Session
+                sPO.setOutQueueTail(cpx.id());
+                // throw ResponseException if CAS failed
+                client.index(req -> req.index(SESSION_INDEX).id(s.clientIdentifier()).document(sPO)
+                        .ifPrimaryTerm(resp.primaryTerm()).ifSeqNo(resp.seqNo()));
+                // throw ResponseException if create by id failed(id conflict)
+                client.index(req -> req.index(SESSION_QUEUE_INDEX).routing(cpx.clientIdentifier())
+                        .id(cpx.id()).document(newPOFromDomain(cpx))
+                        .opType(OpType.Create));
+                // 更新 next 指针
+                if (tailId != null) {
+                    client.update(req -> req.index(SESSION_QUEUE_INDEX)
+                                    .routing(cpx.clientIdentifier()).id(tailId)
+                                    .doc(new ControlPacketContextPO().setNextPacketIdentifier(cpx.packetIdentifier())),
+                            ControlPacketContextPO.class);
+                }
+                addToOutQueue = true;
+            } catch (ResponseException e) {
+                log.info("offerToOutQueueOfTheOfflineSession update failed, now retry it", e);
+            }
+        }
+        return addToOutQueue;
+    }
+
+    final FieldValue oneLevelWildcard = FieldValue.of("+");
+    final FieldValue multiLevelWildcard = FieldValue.of("#");
+
+    final List<FieldValue> multiLevelWildcardList = asList(FieldValue.of("#"));
+
+    @SneakyThrows
+    @Override
+    public List<ClusterTopic> matchTopic(String topicName) {
+        if (topicName == null) {
+            return emptyList();
+        }
+        Query query = buildTopicMatchQuery(topicName);
+        client.search(r -> r.query(query), TopicFilterPO.class);
+        return null;
+    }
+
+    Query buildTopicMatchQuery(String topicName) {
+        String[] levels = topicName.split("/");
+        List<Query> queryList = new ArrayList<>();
+        for (int i = 0; i < levels.length; i++) {
+            final int lastLevel = levels.length - i;
+            List<Query> list = new ArrayList<>(lastLevel + 1);
+            for (int j = 0; j < lastLevel; j++) {
+                final int fieldName = j;
+                Query levelTerms = new Query.Builder().terms(t -> t
+                                .field(String.valueOf(fieldName))
+                                .terms(tq -> tq.value(asList(FieldValue.of(levels[fieldName]), oneLevelWildcard))))
+                        .build();
+                list.add(levelTerms);
+            }
+            String lastLevelField = String.valueOf(lastLevel + 1);
+            Query last = new Query.Builder().bool(b -> b
+                    .should(r -> r.term(t -> t.field(lastLevelField).value(multiLevelWildcard)))
+            ).build();
+            if (lastLevel == levels.length) {
+                last = new Query.Builder().bool(b -> b
+                        .should(r -> r.term(t -> t.field(lastLevelField).value(multiLevelWildcard)))
+                        .should(r -> r.bool(b2 -> b2.mustNot(mn -> mn.exists(e -> e.field(lastLevelField)))))
+                ).build();
+            }
+            list.add(last);
+            queryList.add(new Query.Builder().bool(b -> b.filter(list)).build());
+        }
+        Query matchAll = new Query.Builder().term(t -> t.field("0").value(multiLevelWildcard)).build();
+        queryList.add(matchAll);
+        Query query = new Query.Builder().bool(b -> b.filter(f -> f.bool(fb -> fb.should(queryList)))).build();
+        return query;
+    }
+
+    private ClusterTopic pOToDomain(TopicFilterPO po) {
+        ClusterTopic ret = new ClusterTopic(po.getValue());
+        ret.setNodes(po.getNodes());
+        Map<String, Byte> map = po.getOfflineSessions().stream()
+                .collect(toMap(s -> s.getClientIdentifier(), s -> s.getQos()));
+        ret.setOfflineSessions(map);
+        return ret;
+    }
+
+    private SessionPO domainToPO(ClusterServerSession session) {
+        Set<SessionPO.SubscriptionPO> subscriptions = null;
+        if (!session.subscriptions().isEmpty()) {
+            subscriptions = session.subscriptions().stream().map(this::domainToPO).collect(toSet());
+        }
+        SessionPO po = new SessionPO().setClientIdentifier(session.clientIdentifier())
+                .setNodeId(session.nodeId())
+                .setSubscriptions(subscriptions);
+        return po;
+    }
+
+    private SessionPO.SubscriptionPO domainToPO(Subscribe.Subscription s) {
+        return new SessionPO.SubscriptionPO()
+                .setTopicFilter(s.topicFilter())
+                .setQos((byte) s.qos());
+    }
+
     private ControlPacketContextPO newPOFromDomain(ClusterControlPacketContext cpx) {
         ControlPacketContextPO po = new ControlPacketContextPO()
                 .setId(cpx.id())
@@ -106,13 +353,13 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     @SneakyThrows
     @Override
-    public List<ClusterControlPacketContext> fetchFromSessionQueue(String clientIdentifier,
-                                                                   ClusterDbQueue.Type type,
-                                                                   boolean tail,
-                                                                   int size) {
+    public List<ClusterControlPacketContext> searchSessionQueue(String clientIdentifier,
+                                                                ClusterDbQueue.Type type,
+                                                                boolean tail,
+                                                                int size) {
         log.debug("fetchFromSessionQueue req: {}, {}, {}, {}", clientIdentifier, type, tail, size);
         ControlPacketContext.Type cpxType = (type == ClusterDbQueue.Type.IN_QUEUE) ? IN : OUT;
-        Query cQuery = new Query.Builder().term(t -> t.field("clientIdentifier").value(clientIdentifier)).build();
+        Query cQuery = new Query.Builder().term(t -> t.field(CLIENT_IDENTIFIER).value(clientIdentifier)).build();
         Query tQuery = new Query.Builder().term(t -> t.field("type").value(cpxType.name())).build();
         // 查询前必须 refresh index
         client.indices().refresh(req -> req.index(SESSION_QUEUE_INDEX));
@@ -144,24 +391,40 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         return ccpx;
     }
 
+    private ClusterServerSession pOToDomain(SessionPO po) {
+        if (po == null) {
+            return null;
+        }
+        Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+        Set<SessionPO.SubscriptionPO> sPO = po.getSubscriptions();
+        if (sPO != null) {
+            subscriptions = sPO.stream()
+                    .map(o -> new Subscribe.Subscription(o.getTopicFilter(), o.getQos()))
+                    .collect(toSet());
+        }
+        return ClusterServerSession.from(this, po.getClientIdentifier(),
+                po.getNodeId(), subscriptions, po.getOutQueueTail());
+    }
+
     @Override
-    public void updateSessionQueueStatus(String clientIdentifier, ControlPacketContext.Type type, String id, ControlPacketContext.Status expect, ControlPacketContext.Status update) {
+    public void updateCpxStatus(String clientIdentifier, ControlPacketContext.Type type, String id, ControlPacketContext.Status expect, ControlPacketContext.Status update) {
+        // todo
 
     }
 
     @SneakyThrows
     @Override
-    public ClusterControlPacketContext findFromSessionQueue(String clientIdentifier,
-                                                            ClusterDbQueue.Type type,
-                                                            short packetIdentifier) {
-        log.debug("findFromSessionQueue req: {}, {}, {}", clientIdentifier, type, packetIdentifier);
+    public ClusterControlPacketContext getCpxFromSessionQueue(String clientIdentifier,
+                                                              ClusterDbQueue.Type type,
+                                                              short packetIdentifier) {
+        log.debug("getCpxFromSessionQueue req: {}, {}, {}", clientIdentifier, type, packetIdentifier);
         ControlPacketContext.Type cpxType = (type == ClusterDbQueue.Type.IN_QUEUE) ? IN : OUT;
         GetResponse<ControlPacketContextPO> resp = client.get(req -> req.index(SESSION_QUEUE_INDEX)
                         .routing(clientIdentifier)
                         .id(id(clientIdentifier, cpxType, packetIdentifier))
                 , ControlPacketContextPO.class);
         ClusterControlPacketContext ret = pOToDomain(resp.source());
-        log.debug("findFromSessionQueue resp: {}", ret);
+        log.debug("getCpxFromSessionQueue resp: {}", ret);
         return ret;
     }
 

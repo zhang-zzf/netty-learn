@@ -1,9 +1,8 @@
-package org.example.mqtt.broker.jvm;
+package org.example.mqtt.broker.node;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.BrokerState;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
@@ -11,7 +10,6 @@ import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 
 import java.util.*;
-import java.util.concurrent.Future;
 
 /**
  * @author zhanfeng.zhang
@@ -20,7 +18,7 @@ import java.util.concurrent.Future;
 @Slf4j
 public class DefaultBroker implements Broker {
 
-    private final BrokerState brokerState = new DefaultBrokerState();
+    private final DefaultBrokerState brokerState = new DefaultBrokerState();
 
     @Override
     public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {
@@ -72,10 +70,15 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public void deregister(ServerSession session, Unsubscribe packet) {
+    public void unsubscribe(ServerSession session, Unsubscribe packet) {
         for (Subscribe.Subscription subscription : packet.subscriptions()) {
             brokerState.unsubscribe(session, subscription);
         }
+    }
+
+    @Override
+    public Optional<Topic> topic(String topicFilter) {
+        return brokerState.topic(topicFilter);
     }
 
     @Override
@@ -86,11 +89,8 @@ public class DefaultBroker implements Broker {
     @SneakyThrows
     @Override
     public void connect(ServerSession session) {
-        Future<ServerSession> future = brokerState.connect(session);
-        ServerSession existSession = future.get();
-        if (existSession != null && existSession.cleanSession()) {
-            log.error("Session({}) cleanSession was not removed from broker.", existSession.clientIdentifier());
-        }
+        // sync wait
+        brokerState.connect(session).get();
     }
 
     @Override

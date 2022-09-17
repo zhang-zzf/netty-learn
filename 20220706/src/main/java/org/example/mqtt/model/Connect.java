@@ -34,6 +34,16 @@ public class Connect extends ControlPacket {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1, (byte) 0x02, keepAlive, clientIdentifier, null, null, null, null);
     }
 
+    public static Connect from(String clientIdentifier, boolean cleanSession, short keepAlive) {
+        return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1,
+                cleanSession, false, 0, false,
+                false, false,
+                keepAlive,
+                clientIdentifier,
+                null, null,
+                null, null);
+    }
+
     public static Connect from(int willQos, boolean willRetain,
                                short keepAlive,
                                String clientIdentifier,

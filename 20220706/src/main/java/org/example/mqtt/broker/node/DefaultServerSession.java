@@ -208,6 +208,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         sb.append("\"registered\":").append(registered).append(',');
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
         sb.append("\"cleanSession\":").append(cleanSession()).append(',');
+        sb.append("\"bound\":").append(isBound()).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 

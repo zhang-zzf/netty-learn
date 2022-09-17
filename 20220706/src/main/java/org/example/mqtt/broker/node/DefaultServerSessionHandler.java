@@ -148,25 +148,26 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         String cCId = connect.clientIdentifier();
         ServerSession preSession = broker.session(cCId);
         if (preSession != null && preSession.isBound()) {
-            log.debug("Client({}) exist bound Session", cCId);
+            log.debug("Client({}) exist bound Session: {}", cCId, preSession);
             //  If the ClientId represents a Client already connected to the Server then the Server MUST
             //  disconnect the existing Client
             preSession.close(false);
             // query again
             preSession = broker.session(cCId);
-            log.debug("Client({}) exist bound Session closed: {}", cCId, preSession);
+            log.debug("Client({}) close exist bound Session: {}", cCId, preSession);
         }
         if (connect.cleanSession()) {
-            log.debug("Client({}) need a (cleanSession=1) Session: {}", cCId);
+            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cCId, preSession);
             if (preSession != null) {
                 // 强制清理 Broker 中的 ServerSession
                 preSession.close(true);
-                log.debug("Client({}) closed the old Session: {}", cCId);
+                preSession = broker.session(cCId);
+                log.debug("Client({}) closed the old Session, Broker now has Session: {}", cCId, preSession);
             }
             this.session = DefaultServerSession.from(connect);
             log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cCId, this.session);
         } else {
-            log.debug("Client({}) need a (cleanSession=0) Session", cCId);
+            log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cCId, preSession);
             if (preSession == null) {
                 this.session = DefaultServerSession.from(connect);
                 log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cCId);

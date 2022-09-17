@@ -57,10 +57,11 @@ public class DefaultBroker implements Broker {
         return brokerState.session(clientIdentifier);
     }
 
+    @SneakyThrows
     @Override
     public void disconnect(ServerSession session) {
         // remove the session from the broker
-        brokerState.disconnect(session);
+        brokerState.disconnect(session).get();
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {

@@ -46,4 +46,8 @@ public class PubAck extends ControlPacket {
         return packetIdentifier;
     }
 
+    public String pId() {
+        return hexPId(packetIdentifier);
+    }
+
 }

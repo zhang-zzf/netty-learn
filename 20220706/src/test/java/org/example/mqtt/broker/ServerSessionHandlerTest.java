@@ -8,9 +8,11 @@ import org.example.mqtt.broker.node.DefaultBroker;
 import org.example.mqtt.broker.node.DefaultServerSessionHandler;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.Session;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -21,6 +23,7 @@ import static org.example.mqtt.model.ConnAck.ACCEPTED;
 
 class ServerSessionHandlerTest {
 
+    Broker broker;
     // receiver1
     Session0 sReceiver1;
     EmbeddedChannel receiver1;
@@ -32,26 +35,33 @@ class ServerSessionHandlerTest {
     @BeforeEach
     public void beforeEach() {
         // 每个 UT 一个新的 Broker
-        final Broker broker = new DefaultBroker();
+        broker = createBroker();
         final String strReceiver01 = "receiver1";
         sReceiver1 = new Session0(strReceiver01);
-        receiver1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        receiver1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        receiver1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from(strReceiver01, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(receiver1.readOutbound())).isNotNull();
         //
         sPublish1 = new Session0("publish1");
-        publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        publish1 = createChannel(broker);
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(Connect.from("publish1", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(publish1.readOutbound())).isNotNull();
+    }
+
+    private EmbeddedChannel createChannel(Broker broker) {
+        EmbeddedChannel c = new EmbeddedChannel();
+        // receiver1 Connect to the Broker
+        c.pipeline().addLast(new MqttCodec())
+                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        return c;
+    }
+
+    private DefaultBroker createBroker() {
+        return new DefaultBroker();
     }
 
     /**
@@ -61,11 +71,8 @@ class ServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
-        final Broker broker = new DefaultBroker();
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -82,12 +89,9 @@ class ServerSessionHandlerTest {
      */
     @Test
     void givenExistCleanSession1_whenConnectWithCleanSession1_then() {
-        final Broker broker = new DefaultBroker();
+        final Broker broker = createBroker();
         String clientIdentifier = "strReceiver01";
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -96,10 +100,7 @@ class ServerSessionHandlerTest {
                 .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -115,12 +116,9 @@ class ServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession1_then() {
-        final Broker broker = new DefaultBroker();
+        final Broker broker = createBroker();
         String clientIdentifier = "strReceiver01";
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         // cleanSession=0
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
@@ -130,10 +128,7 @@ class ServerSessionHandlerTest {
                 .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -149,12 +144,9 @@ class ServerSessionHandlerTest {
      */
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession1_then() {
-        final Broker broker = new DefaultBroker();
+        final Broker broker = createBroker();
         String clientIdentifier = "strReceiver01";
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         // cleanSession=0
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
@@ -166,10 +158,7 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Disconnect.from().toByteBuf());
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -185,18 +174,59 @@ class ServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession0_then() {
-        final Broker broker = new DefaultBroker();
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        String clientIdentifier = "strReceiver01";
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
-        c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
+        c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
-        ;
+                .returns(false, ConnAck::sp);
+        then(broker.session(clientIdentifier)).isNotNull()
+                .returns(false, Session::cleanSession);
+    }
+
+    /**
+     * <p>cleanSession=0 Disconnect 后 Broker 保留 Session</p>
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: no Session</p>
+     * <p>创建 new Session</p>
+     * <p>Disconnect</p>
+     */
+    @Test
+    void givenCleanSession0_whenConnectAndDisConnect_then() {
+        // given
+        String clientIdentifier = "strReceiver01";
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
+        // Connect
+        // receiver 模拟接受 Connect 消息
+        c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        new ConnAck(c1.readOutbound());
+        // Disconnect
+        c1.writeInbound(Disconnect.from().toByteBuf());
+        // Channel was closed
+        then(c1.isActive()).isFalse();
+        // 依旧可以从 Broker 中获取 Session 信息
+        then(broker.session(clientIdentifier)).isNotNull()
+                .returns(false, Session::cleanSession)
+                .returns(true, ServerSession::isRegistered)
+                .returns(false, Session::isBound);
+        // 再次 Connect
+        EmbeddedChannel cc1 = createChannel(broker);
+        // receiver 模拟接受 Connect 消息
+        cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns(true, ConnAck::sp);
+        // 从 Broker 中获取 Session 信息
+        then(broker.session(clientIdentifier)).isNotNull()
+                .returns(false, Session::cleanSession)
+                .returns(true, ServerSession::isRegistered)
+                // 再次上线
+                .returns(true, Session::isBound);
     }
 
     /**
@@ -207,11 +237,8 @@ class ServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession0_then() {
         String clientIdentifier = "strReceiver01";
-        final Broker broker = new DefaultBroker();
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -221,10 +248,7 @@ class ServerSessionHandlerTest {
         ;
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -241,11 +265,8 @@ class ServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession0_then() {
         String clientIdentifier = "strReceiver01";
-        final Broker broker = new DefaultBroker();
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -255,16 +276,31 @@ class ServerSessionHandlerTest {
         ;
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
                 .returns(true, ConnAck::sp);
+    }
+
+    /**
+     * <p>Connect 2 times</p>
+     * <p>Channel will be closed by the Broker</p>
+     */
+    @Test
+    void givenConnectedSession_whenConnectAgain_then() {
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
+        // receiver 模拟接受 Connect 消息
+        Connect connect = Connect.from("strReceiver01", (short) 64);
+        c1.writeInbound(connect.toByteBuf());
+        // 读出 ConnAck 消息
+        new ConnAck(c1.readOutbound());
+        c1.writeInbound(connect.toByteBuf());
+        // Channel was closed.
+        then(c1.isActive()).isFalse();
     }
 
     /**
@@ -275,11 +311,8 @@ class ServerSessionHandlerTest {
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession0_then() {
         String clientIdentifier = "strReceiver01";
-        final Broker broker = new DefaultBroker();
-        EmbeddedChannel c1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        c1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        final Broker broker = createBroker();
+        EmbeddedChannel c1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -290,10 +323,7 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Disconnect.from().toByteBuf());
         // cc1 same clientIdentifier with c1
         // that is the same client
-        EmbeddedChannel cc1 = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
-        cc1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -301,6 +331,60 @@ class ServerSessionHandlerTest {
                 .returns((int) ACCEPTED, ConnAck::returnCode)
                 .returns(true, ConnAck::sp);
     }
+
+    /**
+     * QoS0 消息不进入 inQueue / outQueue 队列
+     * <p>Broker(as Receiver) 接受 QoS0 Publish 不进入 Session.inQueue</p>
+     * <p>Broker(as Sender) forward QoS0 Publish to receiver1 不进入 Session.outQueue</p>
+     * <p>观察 DEBUG 日志吧，没想到好办法自动验证</p>
+     */
+    @Test
+    void givenQoS0Publish_whenPublishToBrokerAndForward_then() {
+        // receiver1 subscribe t/0 QoS0
+        short pId = sReceiver1.nextPacketIdentifier();
+        receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
+        // 读出 SubAck 消息
+        new SubAck(receiver1.readOutbound());
+        // publish1 发送 Publish 消息
+        String strPayload = UUID.randomUUID().toString();
+        byte qos = (byte) 0;
+        Publish publish = Publish.outgoing(false, qos, false, "t/0",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(publish.toByteBuf());
+        // Broker forward 后 receiver1 接受 Publish 消息
+        Publish packet = new Publish(receiver1.readOutbound());
+        then(packet)
+                .returns((int) qos, Publish::qos)
+                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+    }
+
+    /**
+     * QoS1 消息不进入 inQueue 队列; 进入 outQueue 队列
+     * <p>观察 DEBUG 日志吧，没想到好办法自动验证</p>
+     * <p>Broker(as Receiver) 接受 QoS1 Publish 不进入 Session.inQueue</p>
+     * <p>Broker(as Sender) forward QoS1 Publish to receiver1 进入 Session.outQueue</p>
+     */
+    @Test
+    void givenQoS1Publish_whenPublishToBrokerAndForward_then() {
+        // receiver1 subscribe t/1 QoS1
+        short pId = sReceiver1.nextPacketIdentifier();
+        receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
+        // 读出 SubAck 消息
+        new SubAck(receiver1.readOutbound());
+        // publish1 发送 Publish 消息
+        String strPayload = UUID.randomUUID().toString();
+        byte qos = (byte) 1;
+        Publish publish = Publish.outgoing(false, qos, false, "t/1",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(publish.toByteBuf());
+        // Broker forward 后 receiver1 接受 Publish 消息
+        Publish packet = new Publish(receiver1.readOutbound());
+        then(packet)
+                .returns((int) qos, Publish::qos)
+                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+        receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+    }
+
 
     /**
      * // given
@@ -582,6 +666,72 @@ class ServerSessionHandlerTest {
 
     /**
      * // given
+     * Client has no Subscription
+     * // when
+     * forward Publish
+     * // then
+     * Client receive no Publish
+     */
+    @Test
+    void givenSubscription_whenPublish_thenWillReceivePublish() {
+        // given
+        // receiver1 subscribe t/0 QoS0
+        short pId = sReceiver1.nextPacketIdentifier();
+        List<Subscribe.Subscription> subscriptions = singletonList(new Subscribe.Subscription("t/0", 0));
+        receiver1.writeInbound(Subscribe.from(pId, subscriptions).toByteBuf());
+        // 读出 SubAck 消息
+        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        // when
+        // publish1 发送 Publish 消息
+        String strPayload = UUID.randomUUID().toString();
+        byte qos = (byte) 0;
+        Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
+                Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(publish.toByteBuf());
+        // Broker forward 后 receiver1 接受 Publish 消息
+        // then
+        Publish m = new Publish(receiver1.readOutbound());
+        then(m).isNotNull()
+                .returns((int) qos, Publish::qos)
+                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+        // 取消订阅
+        // given
+        receiver1.writeInbound(Unsubscribe.from(sReceiver1.nextPacketIdentifier(), subscriptions).toByteBuf());
+        then(new UnsubAck(receiver1.readOutbound())).isNotNull();
+        // when
+        Publish p2 = Publish.outgoing(false, qos, false, "t/0",
+                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(p2.toByteBuf());
+        // then
+        then(receiver1.<ByteBuf>readOutbound()).isNull();
+    }
+
+    /**
+     * // given
+     * Client has no Subscription
+     * // when
+     * forward Publish
+     * // then
+     * Client receive no Publish
+     */
+    @Test
+    void givenNoSubscription_whenPublish_thenWillNotReceivePublish() {
+        // given
+        // when
+        // publish1 发送 Publish 消息
+        String strPayload = UUID.randomUUID().toString();
+        byte qos = (byte) 0;
+        Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
+                Unpooled.copiedBuffer(strPayload, UTF_8));
+        publish1.writeInbound(publish.toByteBuf());
+        // Broker forward 后 receiver1 接受 Publish 消息
+        // then
+        ByteBuf receivedPacket = receiver1.readOutbound();
+        then(receivedPacket).isNull();
+    }
+
+    /**
+     * // given
      * receiver1 subscribe t/0 QoS 0
      * receiver1 subscribe t/0/# QoS 0
      * // when
@@ -804,7 +954,7 @@ class ServerSessionHandlerTest {
     @Test
     void givenWillConnect_whenDisconnect_thenNoWillMessage() {
         // given
-        final Broker broker = new DefaultBroker();
+        final Broker broker = createBroker();
         final String strReceiver01 = "receiver1";
         sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
@@ -821,9 +971,7 @@ class ServerSessionHandlerTest {
         new SubAck(receiver1.readOutbound());
         //
         sPublish1 = new Session0("publish1");
-        publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        publish1 = createChannel(broker);
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,
                 (short) 64,
@@ -849,7 +997,7 @@ class ServerSessionHandlerTest {
     @Test
     void givenWillConnect_whenLostConnection_thenOtherClientReceiveWillMessage() {
         // given
-        final Broker broker = new DefaultBroker();
+        final Broker broker = createBroker();
         final String strReceiver01 = "receiver1";
         sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
@@ -866,9 +1014,7 @@ class ServerSessionHandlerTest {
         new SubAck(receiver1.readOutbound());
         //
         sPublish1 = new Session0("publish1");
-        publish1 = new EmbeddedChannel();
-        publish1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+        publish1 = createChannel(broker);
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,
                 (short) 64,

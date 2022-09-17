@@ -96,7 +96,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
             if (existSession()) {
-                log.error("channelRead send Connect packet more than once, now close session");
+                log.error("Client({}) send Connect packet more than once, now close session.", curSessionClientIdentifier());
                 closeSession(ctx);
                 return;
             }

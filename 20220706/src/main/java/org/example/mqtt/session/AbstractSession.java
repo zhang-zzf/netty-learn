@@ -4,6 +4,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoop;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
@@ -33,7 +34,9 @@ public abstract class AbstractSession implements Session {
     protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
     private Boolean cleanSession;
 
+    @Getter
     private Queue<ControlPacketContext> inQueue;
+    @Getter
     private Queue<ControlPacketContext> outQueue;
 
     /**
@@ -74,7 +77,7 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void send(ControlPacket packet) {
-        log.debug("send: {}, {}", cId(), packet);
+        log.debug("send: broker->{}, {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
         }
@@ -218,8 +221,9 @@ public abstract class AbstractSession implements Session {
     protected void publishSendComplete(ControlPacketContext cpx) {
         if (!enqueueOutQueue(cpx)) {
             log.debug("sendPublish({}) sent [消息发送完成]: {}, {}", cpx.pId(), cId(), cpx);
+        } else {
+            log.debug("sendPublish({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
         }
-        log.debug("sendPublish({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
     }
 
     @Override
@@ -303,7 +307,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         cpx.markStatus(SENT, PUB_ACK);
-        log.debug("sendPublish({}) SENT->PUB_ACK: {}, {}", pId, cId(), cpx);
+        log.debug("sendPublish({}) SENT->PUB_ACK: {}, {}", packet.pId(), cId(), cpx);
         // try clean the queue
         tryCleanOutQueue();
     }

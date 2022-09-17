@@ -11,6 +11,9 @@ import org.example.mqtt.model.Unsubscribe;
 
 import java.util.*;
 
+import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
+import static org.example.mqtt.model.Publish.needAck;
+
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/28
@@ -45,7 +48,8 @@ public class DefaultBroker implements Broker {
                 String topicFilter = topic.topicFilter();
                 int qos = Math.min(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, session.nextPacketIdentifier());
+                short packetIdentifier = needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
+                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier);
                 log.debug("forward: matched topic({}), ClientId({}), {}", topic.topicFilter(), session.clientIdentifier(), outgoing);
                 session.send(outgoing);
             }

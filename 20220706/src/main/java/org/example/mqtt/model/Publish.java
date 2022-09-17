@@ -16,6 +16,7 @@ public class Publish extends ControlPacket {
     public static final int AT_MOST_ONCE = 0;
     public static final int AT_LEAST_ONCE = 1;
     public static final int EXACTLY_ONCE = 2;
+    public static final short NO_PACKET_IDENTIFIER = 0;
 
     private String topicName;
     private short packetIdentifier;
@@ -245,7 +246,7 @@ public class Publish extends ControlPacket {
     }
 
     public String pId() {
-        return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
+        return hexPId(packetIdentifier);
     }
 
     /**

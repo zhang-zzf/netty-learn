@@ -77,7 +77,7 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void send(ControlPacket packet) {
-        log.debug("send: broker->{}, {}", cId(), packet);
+        log.debug("send: .->{}, {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
         }
@@ -114,10 +114,11 @@ public abstract class AbstractSession implements Session {
     private void doSendPublish(Publish outgoing) {
         // very little chance
         if (outQueueQos2DuplicateCheck(outgoing)) {
-            log.warn("Session({}) send same Publish(QoS2), discard it.: {}", cId(), outgoing);
+            log.warn("Session({}) send same Publish(QoS2), discard it: {}", cId(), outgoing);
             return;
         }
         ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
+        log.debug("sender({}/{}) Publish .->INIT: {}", cId(), cpx.pId(), cpx);
         if (isBound()) {
             // online
             // Only enqueue Qos1 and QoS2
@@ -145,7 +146,7 @@ public abstract class AbstractSession implements Session {
 
     private void outQueueEnqueue(ControlPacketContext cpx) {
         outQueue().offer(cpx);
-        log.debug("sendPublish({}) .->INIT [outQueue 入队]: {}, {}", cpx.pId(), cId(), cpx);
+        log.debug("sender({}/{}) [outQueue enqueue]", cId(), cpx.pId());
     }
 
     /**
@@ -199,6 +200,7 @@ public abstract class AbstractSession implements Session {
         // cpx always point to the first cpx in the queue
         while (cpx != null && cpx.complete()) {
             outQueue.poll();
+            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
             publishSendComplete(cpx);
             cpx = outQueue.peek();
         }
@@ -209,8 +211,8 @@ public abstract class AbstractSession implements Session {
      *
      * @param cpx the ControlPacketContext
      */
-    protected void qoS2PublishReceived(ControlPacketContext cpx) {
-        log.debug("receivePublish({}) received [消息接受完成，从 inQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
+    protected void publishReceivedComplete(ControlPacketContext cpx) {
+        log.debug("receiver({}/{}) receive completed", cId(), cpx.pId());
     }
 
     /**
@@ -219,11 +221,7 @@ public abstract class AbstractSession implements Session {
      * @param cpx Publish
      */
     protected void publishSendComplete(ControlPacketContext cpx) {
-        if (!enqueueOutQueue(cpx)) {
-            log.debug("sendPublish({}) sent [消息发送完成]: {}, {}", cpx.pId(), cId(), cpx);
-        } else {
-            log.debug("sendPublish({}) sent [消息发送完成，从 outQueue 中移除]: {}, {}", cpx.pId(), cId(), cpx);
-        }
+        log.debug("sender({}/{}) sent completed", cId(), cpx.pId());
     }
 
     @Override
@@ -253,7 +251,7 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubComp(PubComp packet) {
-        log.debug("receivePubComp: {}, {}", cId(), packet);
+        log.debug("sender({}/{}) [receive PubComp]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         if (cpx == null) {
@@ -262,7 +260,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         cpx.markStatus(PUB_REC, PUB_COMP);
-        log.debug("sendPublish({}) PUB_REC->PUB_COMP [QoS2 收到 Client PUB_COMP]: {}, {}", packet.pId(), cId(), packet);
+        log.debug("sender({}/{}) Publish PUB_REC->PUB_COMP", cId(), packet.pId());
         // try clean the queue
         tryCleanOutQueue();
     }
@@ -271,7 +269,7 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubRec(PubRec packet) {
-        log.debug("receivePubRec: {}, {}", cId(), packet);
+        log.debug("sender({}/{}) [receive PubRec]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         if (cpx == null) {
@@ -280,7 +278,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         cpx.markStatus(SENT, PUB_REC);
-        log.debug("sendPublish({}) SENT->PUB_REC [QoS2 收到 Client PUB_REC]: {}, {}", packet.pId(), cId(), cpx);
+        log.debug("sender({}/{}) Publish SENT->PUB_REC", cId(), packet.pId());
         // send PubRel packet.
         doWritePubRelPacket(cpx);
     }
@@ -288,7 +286,7 @@ public abstract class AbstractSession implements Session {
     private void doWritePubRelPacket(ControlPacketContext cpx) {
         doWrite(cpx.pubRel()).addListener(f -> {
             if (f.isSuccess()) {
-                log.debug("sendPublish({}) PUB_REC->. [QoS2 发送 PUB_REL 给 Client]: {}, {}", cpx.pId(), cId(), cpx);
+                log.debug("sender({}/{}) [PubRel sent]", cId(), cpx.pId());
             }
         });
     }
@@ -297,7 +295,7 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubAck(PubAck packet) {
-        log.debug("receivePubAck: {}, {}", cId(), packet);
+        log.debug("sender({}/{}) [receive PubAck]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null
@@ -307,7 +305,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         cpx.markStatus(SENT, PUB_ACK);
-        log.debug("sendPublish({}) SENT->PUB_ACK: {}, {}", packet.pId(), cId(), cpx);
+        log.debug("sender({}/{}) Publish SENT->PUB_ACK", cId(), packet.pId());
         // try clean the queue
         tryCleanOutQueue();
     }
@@ -316,7 +314,7 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     private void doReceivePubRel(PubRel packet) {
-        log.debug("receivePubRel: {}, {}", cId(), packet);
+        log.debug("receiver({}/{}) [receive PubRel]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInInQueue(pId);
         if (cpx == null) {
@@ -325,12 +323,12 @@ public abstract class AbstractSession implements Session {
             return;
         }
         cpx.markStatus(HANDLED, PUB_REL);
-        log.debug("receivePublish({}) HANDLED->PUB_REL [QoS2 收到 PUB_REL]: {}, {}", cpx.pId(), cId(), cpx);
+        log.debug("receiver({}/{}) Publish HANDLED->PUB_REL", cId(), cpx.pId());
         // ack PubComp
         doWrite(cpx.pubComp()).addListener(f -> {
             if (f.isSuccess()) {
                 cpx.markStatus(PUB_REL, PUB_COMP);
-                log.debug("receivePublish({}) PUB_REL->PUB_COMP [QoS2 已发送 PUB_COMP]: {}, {}", cpx.pId(), cId(), cpx);
+                log.debug("receiver({}/{}) [QoS2 PUB_COMP sent] Publish PUB_REL->PUB_COMP", cId(), cpx.pId());
                 tryCleanInQueue();
             }
         });
@@ -343,7 +341,8 @@ public abstract class AbstractSession implements Session {
         ControlPacketContext cpx = inQueue.peek();
         while (cpx != null && cpx.complete()) {
             inQueue.poll();
-            qoS2PublishReceived(cpx);
+            log.debug("receiver({}/{}) [remove Publish from inQueue]", cId(), cpx.pId());
+            publishReceivedComplete(cpx);
             cpx = inQueue.peek();
         }
     }
@@ -352,7 +351,7 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     protected void doReceivePublish(Publish packet) {
-        log.debug("receivePublish({}): {}, {}", packet.pId(), cId(), packet);
+        log.debug("receiver({}/{}) [receive Publish]: {}", cId(), packet.pId(), packet);
         // QoS 2 duplicate check
         if (packet.exactlyOnce()) {
             ControlPacketContext cpx = findControlPacketInInQueue(packet.packetIdentifier());
@@ -365,30 +364,28 @@ public abstract class AbstractSession implements Session {
         // Client / Broker must be online.
         Queue<ControlPacketContext> inQueue = inQueue();
         ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
+        log.debug("receiver({}/{}) Publish .->INIT", cId(), cpx.pId());
         if (packet.exactlyOnce()) {
-            // Only QoS2 need enqueue
             inQueue.offer(cpx);
-            log.debug("receivePublish({}) .->INIT [inQueue 入队]: {}, {}", cpx.pId(), cId(), cpx);
+            log.debug("receiver({}/{}) [inQueue enqueue]", cId(), cpx.pId());
         }
         // handle the PublishPacket
         onPublish(packet);
         // now cpx is HANDLED
         cpx.markStatus(INIT, HANDLED);
-        log.debug("receivePublish({}) INIT->HANDLED: {}, {}", cpx.pId(), cId(), cpx);
-        if (packet.atLeastOnce()) {
-            // QoS1
+        log.debug("receiver({}/{}) [Publish Handled] Publish INIT->HANDLED", cId(), cpx.pId());
+        if (packet.atMostOnce()) {
+            publishReceivedComplete(cpx);
+        } else if (packet.atLeastOnce()) {
             doWrite(cpx.pubAck()).addListener(f -> {
-                if (f.isSuccess()) {
-                    cpx.markStatus(HANDLED, PUB_ACK);
-                    log.debug("receivePublish({}) HANDLED->PUB_ACK [QoS1 消息已处理且已发送 PUB_ACK]: {}, {}", cpx.pId(), cId(), cpx);
-                }
+                cpx.markStatus(HANDLED, PUB_ACK);
+                log.debug("receiver({}/{}) [QoS1 PUB_ACK sent] Publish HANDLED->PUB_ACK", cId(), cpx.pId());
+                publishReceivedComplete(cpx);
             });
         } else if (packet.exactlyOnce()) {
             // does not modify the status of the cpx
             doWrite(cpx.pubRec()).addListener(f -> {
-                if (f.isSuccess()) {
-                    log.debug("receivePublish({}) HANDLED ->. [QoS2 消息已处理且已发送 PUB_REC]: {}, {}", cpx.pId(), cId(), cpx);
-                }
+                log.debug("receiver({}/{}) [QoS2 PUB_REC sent]", cId(), cpx.pId());
             });
         }
     }
@@ -402,7 +399,7 @@ public abstract class AbstractSession implements Session {
     private void doHandleDuplicateQoS2Publish(ControlPacketContext cpx) {
         switch (cpx.status()) {
             case INIT:
-                log.debug("receivePublish({}) INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}, {}", cpx.pId(), cId(), cpx);
+                log.debug("receiver({}/{}) Publish INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}, {}", cId(), cpx.pId(), cpx);
                 break;
             case HANDLED:
                 doWritePubRecPacket(cpx);
@@ -416,7 +413,7 @@ public abstract class AbstractSession implements Session {
         // does not modify the status of the cpx
         doWrite(cpx.pubRec()).addListener(f -> {
             if (f.isSuccess()) {
-                log.debug("receivePublish({}) HANDLED ->. [QoS2 已发送 PUB_REC]: {}, {}", cpx.pId(), cId(), cpx);
+                log.debug("receiver({}/{}) HANDLED ->. [QoS2 已发送 PUB_REC]: {}, {}", cId(), cpx.pId(), cpx);
             }
         });
     }
@@ -512,7 +509,7 @@ public abstract class AbstractSession implements Session {
         doWrite(cpx.packet()).addListener(f -> {
             if (f.isSuccess()) {
                 cpx.markStatus(INIT, SENT);
-                log.debug("sendPublish({}) INIT->SENT: {}, {}", cpx.pId(), cId(), cpx);
+                log.debug("sender({}/{}) [Publish sent] Publish INIT->SENT", cId(), cpx.pId());
             }
             // must release the retained Publish
             if (!enqueueOutQueue(cpx)) {

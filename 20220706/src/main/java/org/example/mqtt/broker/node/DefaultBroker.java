@@ -50,7 +50,7 @@ public class DefaultBroker implements Broker {
                 // use a shadow copy of the origin Publish
                 short packetIdentifier = needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
                 Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier);
-                log.debug("forward: matched topic({}), ClientId({}), {}", topic.topicFilter(), session.clientIdentifier(), outgoing);
+                log.debug("Publish({}) forward: {}->{}, {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 session.send(outgoing);
             }
         }

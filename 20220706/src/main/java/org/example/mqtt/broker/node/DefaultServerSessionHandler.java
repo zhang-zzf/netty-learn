@@ -164,12 +164,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 preSession = broker.session(cCId);
                 log.debug("Client({}) closed the old Session, Broker now has Session: {}", cCId, preSession);
             }
-            this.session = DefaultServerSession.from(connect);
+            this.session = doCreateNewSession(connect);
             log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cCId, this.session);
         } else {
             log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cCId, preSession);
             if (preSession == null) {
-                this.session = DefaultServerSession.from(connect);
+                this.session = doCreateNewSession(connect);
                 log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cCId);
             } else {
                 connAck = ConnAck.acceptedWithStoredSession();
@@ -178,6 +178,10 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
         }
         return connAck;
+    }
+
+    protected ServerSession doCreateNewSession(Connect connect) {
+        return DefaultServerSession.from(connect);
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {

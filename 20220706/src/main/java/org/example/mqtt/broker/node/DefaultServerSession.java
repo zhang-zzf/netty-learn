@@ -81,10 +81,12 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
+            log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
             /**
              *  {@link DefaultServerSession#publishSendComplete(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
+            log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
             super.send(publish);
         } else {
             throw new IllegalArgumentException();
@@ -97,14 +99,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
          * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
          */
         cpx.packet().payload().release();
+        log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
         super.publishSendComplete(cpx);
     }
 
     @Override
     protected boolean onPublish(Publish packet) {
+        // retain message
         if (packet.retain()) {
             log.debug("Session({}) onPublish receive retain Publish: {}", cId(), packet);
-            // retain message
             broker.retain(packet);
         }
         broker.forward(packet);

@@ -51,4 +51,8 @@ public class PubRel extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
+    public String pId() {
+        return hexPId(packetIdentifier);
+    }
+
 }

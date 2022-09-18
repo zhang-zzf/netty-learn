@@ -3,7 +3,9 @@ package org.example.mqtt.broker.metrics;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.node.DefaultServerSession;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.session.ControlPacketContext;
 
@@ -38,6 +40,11 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
         super(clientIdentifier);
     }
 
+    public static ServerSession from(Connect connect) {
+        return new DefaultServerSessionWithMetrics(connect.clientIdentifier())
+                .reInitWith(connect);
+    }
+
     /**
      * 收到 Publish Packet
      */
@@ -61,14 +68,14 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
      * @param cpx the ControlPacketContext
      */
     @Override
-    protected void qoS2PublishReceived(ControlPacketContext cpx) {
+    protected void publishReceivedComplete(ControlPacketContext cpx) {
         try {
             long millis = cpx.packet().payload().getLong(8);
             received.record(System.currentTimeMillis() - millis, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // ignore
         }
-        super.qoS2PublishReceived(cpx);
+        super.publishReceivedComplete(cpx);
     }
 
     /**

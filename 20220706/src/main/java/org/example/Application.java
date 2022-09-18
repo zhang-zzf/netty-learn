@@ -3,11 +3,12 @@ package org.example;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.micrometer.MicroMeterConfiguration;
-import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.broker.metrics.BrokerBootstrapWithMetrics;
+import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.client.bootstrap.ClientBootstrap;
 
 import javax.net.ssl.SSLException;
+import java.net.URISyntaxException;
 
 /**
  * @author zhang.zzf
@@ -16,7 +17,7 @@ import javax.net.ssl.SSLException;
 @Slf4j
 public class Application {
 
-    public static void main(String[] args) throws SSLException {
+    public static void main(String[] args) throws URISyntaxException, SSLException {
         log.info("Application#main: {}", JSON.toJSONString(args));
         boolean clientMode = Boolean.getBoolean("mqtt.client.mode");
         if (clientMode) {

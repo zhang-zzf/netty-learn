@@ -43,7 +43,7 @@ public class PubComp extends ControlPacket {
     }
 
     public String pId() {
-        return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
+        return hexPId(packetIdentifier);
     }
 
     public short packetIdentifier() {

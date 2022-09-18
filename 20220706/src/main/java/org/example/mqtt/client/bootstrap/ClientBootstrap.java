@@ -137,7 +137,7 @@ public class ClientBootstrap {
         }
 
         @Override
-        protected void qoS2PublishReceived(ControlPacketContext cpx) {
+        protected void publishReceivedComplete(ControlPacketContext cpx) {
             ByteBuf payload = cpx.packet().payload();
             long timeInNano = payload.getLong(0);
             long useTime = System.nanoTime() - timeInNano;
@@ -145,7 +145,7 @@ public class ClientBootstrap {
             log.debug("client sent -> server handle -> client publishReceived: {}ns", useTime);
             // release the payload that retained by onPublish
             payload.release();
-            super.qoS2PublishReceived(cpx);
+            super.publishReceivedComplete(cpx);
         }
 
         @Override

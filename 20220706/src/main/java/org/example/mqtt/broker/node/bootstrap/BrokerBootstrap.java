@@ -1,6 +1,5 @@
 package org.example.mqtt.broker.node.bootstrap;
 
-import com.alibaba.fastjson.JSON;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
@@ -24,7 +23,6 @@ import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -50,9 +48,9 @@ public class BrokerBootstrap {
          */
         String addressArray = System.getProperty("mqtt.server.listened");
         log.info("mqtt.server.listened: {}", addressArray);
-        List<String> addressList = JSON.parseArray(addressArray, String.class);
+        String[] addressList = addressArray.split(",");
         for (String address : addressList) {
-            URI uri = new URI(address);
+            URI uri = new URI(address.trim());
             InetSocketAddress bindAddress = new InetSocketAddress(uri.getHost(), uri.getPort());
             switch (uri.getScheme()) {
                 case "mqtt":

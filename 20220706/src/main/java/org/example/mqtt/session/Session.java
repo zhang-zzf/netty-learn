@@ -31,7 +31,7 @@ public interface Session {
      *
      * @param message message
      */
-    void messageReceived(ControlPacket message);
+    void onPacket(ControlPacket message);
 
     /**
      * the channel that the session bind to

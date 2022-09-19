@@ -96,7 +96,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
             if (existSession()) {
-                log.error("Client({}) send Connect packet more than once, now close session.", curSessionClientIdentifier());
+                log.error("Client({}) send Connect packet more than once, now close session.", csci());
                 closeSession(ctx);
                 return;
             }
@@ -139,7 +139,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             ctx.writeAndFlush(PingResp.from());
         } else {
             // let the session handle the packet
-            session.messageReceived(cp);
+            session.onPacket(cp);
         }
     }
 
@@ -211,7 +211,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("client({}) exceptionCaught. now close the session", curSessionClientIdentifier(), cause);
+        log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
         closeSession(ctx);
     }
 
@@ -221,12 +221,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("Client({}) channelInactive", curSessionClientIdentifier());
+        log.info("Client({}) channelInactive", csci());
         closeSession(ctx);
         super.channelInactive(ctx);
     }
 
-    private String curSessionClientIdentifier() {
+    private String csci() {
         return Optional.ofNullable(session).map(Session::clientIdentifier).orElse(null);
     }
 

@@ -53,7 +53,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void messageReceived(ControlPacket packet) {
+    public void onPacket(ControlPacket packet) {
         switch (packet.type()) {
             case SUBSCRIBE:
                 doReceiveSubscribe((Subscribe) packet);
@@ -65,7 +65,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 doReceiveDisconnect((Disconnect) packet);
                 break;
             default:
-                super.messageReceived(packet);
+                super.onPacket(packet);
         }
     }
 

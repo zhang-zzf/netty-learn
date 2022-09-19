@@ -51,7 +51,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    public void messageReceived(ControlPacket packet) {
+    public void onPacket(ControlPacket packet) {
         switch (packet.type()) {
             case CONNACK:
                 doReceiveConnAck((ConnAck) packet);
@@ -63,7 +63,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
                 doReceiveUnsubAck((UnsubAck) packet);
                 break;
             default:
-                super.messageReceived(packet);
+                super.onPacket(packet);
         }
     }
 

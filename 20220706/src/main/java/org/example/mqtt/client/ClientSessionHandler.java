@@ -37,7 +37,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
                 if (cp instanceof ConnAck && ((ConnAck) cp).connectionAccepted()) {
                     addKeepAliveIdleStateHandler(ctx);
                 }
-                session.messageReceived(cp);
+                session.onPacket(cp);
             } finally {
                 /**
                  * release the ByteBuf retained from

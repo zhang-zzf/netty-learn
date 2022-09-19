@@ -225,7 +225,7 @@ public abstract class AbstractSession implements Session {
     }
 
     @Override
-    public void messageReceived(ControlPacket packet) {
+    public void onPacket(ControlPacket packet) {
         switch (packet.type()) {
             case PUBLISH:
                 doReceivePublish((Publish) packet);
@@ -251,12 +251,12 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubComp(PubComp packet) {
-        log.debug("sender({}/{}) [receive PubComp]", cId(), packet.pId());
+        log.debug("sender({}/{}) [QoS2 receive PubComp]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         if (cpx == null) {
             // Client PubComp nothing
-            log.error("Session({}) PubComp nothing. {}, queue: {}", clientIdentifier(), pId, outQueue());
+            log.error("sender({}/{}) PubComp failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
         cpx.markStatus(PUB_REC, PUB_COMP);
@@ -269,12 +269,12 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubRec(PubRec packet) {
-        log.debug("sender({}/{}) [receive PubRec]", cId(), packet.pId());
+        log.debug("sender({}/{}) [QoS2 receive PubRec]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         if (cpx == null) {
             // Client PubRec nothing
-            log.error("Session({}) PubRec nothing. {}, queue: {}", cId(), pId, outQueue());
+            log.error("sender({}/{}) PubRec failed. No Publish in outQueue", cId(), packet.pId());
             return;
         }
         cpx.markStatus(SENT, PUB_REC);
@@ -295,13 +295,13 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubAck(PubAck packet) {
-        log.debug("sender({}/{}) [receive PubAck]", cId(), packet.pId());
+        log.debug("sender({}/{}) [QoS1 receive PubAck]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null
         if (cpx == null) {
             // Client PubAck nothing
-            log.error("Session({}) PubAck nothing. {}, queue: {}", cId(), pId, outQueue());
+            log.error("sender({}/{}) PubAck failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
         cpx.markStatus(SENT, PUB_ACK);
@@ -314,12 +314,12 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     private void doReceivePubRel(PubRel packet) {
-        log.debug("receiver({}/{}) [receive PubRel]", cId(), packet.pId());
+        log.debug("receiver({}/{}) [QoS2 receive PubRel]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInInQueue(pId);
         if (cpx == null) {
             // PubRel nothing
-            log.error("Session({}) PubRel nothing. {}", cId(), pId);
+            log.error("receiver({}/{}) PubRel failed, No Publish in inQueue", cId(), packet.pId());
             return;
         }
         cpx.markStatus(HANDLED, PUB_REL);

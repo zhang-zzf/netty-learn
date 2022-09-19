@@ -50,7 +50,7 @@ public class ClientBootstrap {
         Integer period = Integer.valueOf(args[6]);
         ByteBuf payload = Unpooled.copiedBuffer(new byte[payloadLength]);
         // start config bootstrap
-        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(4);
+        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors());
         // 配置 bootstrap
         final Bootstrap bootstrap = new Bootstrap()
                 .group(nioEventLoopGroup)
@@ -106,6 +106,8 @@ public class ClientBootstrap {
 
     public static class ClientTestSession extends AbstractSession {
 
+        final Counter counter = Metrics.counter("com.github.zzf.netty.client.msg.out");
+
         final Timer publishReceived = Timer.builder("com.github.zzf.netty.client.msg")
                 .tag("type", "received")
                 .publishPercentileHistogram()
@@ -146,6 +148,12 @@ public class ClientBootstrap {
             // release the payload that retained by onPublish
             payload.release();
             super.publishReceivedComplete(cpx);
+        }
+
+        @Override
+        public void send(ControlPacket packet) {
+            counter.increment();
+            super.send(packet);
         }
 
         @Override
@@ -218,7 +226,7 @@ public class ClientBootstrap {
                         singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
             } else if (cp instanceof SubAck) {
                 // 开启定时任务发送 Publish
-                publishSendTask = ctx.executor().scheduleWithFixedDelay(() -> {
+                publishSendTask = ctx.executor().scheduleAtFixedRate(() -> {
                     ByteBuf timestamp = Unpooled.buffer(16)
                             .writeLong(System.nanoTime())
                             .writeLong(System.currentTimeMillis());
@@ -226,22 +234,15 @@ public class ClientBootstrap {
                             .addComponents(true, timestamp, this.payload);
                     session.send(Publish.outgoing(false, sendQos, false, topic,
                             session.nextPacketIdentifier(), packet));
-                    logOutgoingMetrics();
                 }, 1, period, TimeUnit.SECONDS);
             } else {
-                session.messageReceived(cp);
+                session.onPacket(cp);
             }
-        }
-
-        final Counter counter = Metrics.counter("com.github.zzf.netty.client.msg", "type", "out");
-
-        private void logOutgoingMetrics() {
-            counter.increment();
         }
 
         @Override
         public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-            log.info("client({}) channelInactive, now close the session", session.clientIdentifier());
+            log.info("Client({}) channelInactive, now close the session", session.clientIdentifier());
             if (publishSendTask != null) {
                 publishSendTask.cancel(true);
             }
@@ -251,7 +252,7 @@ public class ClientBootstrap {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-            log.error("client({}) exceptionCaught, now close the session", session.clientIdentifier(), cause);
+            log.error("Client({}) exceptionCaught, now close the session", session.clientIdentifier(), cause);
             session.closeChannel();
         }
 

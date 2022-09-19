@@ -1,11 +1,13 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.*;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
+@Slf4j
 public abstract class ControlPacket {
 
     public static final int _0_BYTE_LENGTH = 1;
@@ -138,6 +140,9 @@ public abstract class ControlPacket {
             }
             // fixed header length + remainingLength
             packetLength = (_0_BYTE_LENGTH + remainingLengthByteCnt(remainingLength)) + remainingLength;
+        } catch (Exception e) {
+            log.error("tryPickupPacket failed: {}", ByteBufUtil.hexDump(in));
+            throw e;
         } finally {
             in.resetReaderIndex();
         }

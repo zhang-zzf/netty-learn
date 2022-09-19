@@ -14,8 +14,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
-import static org.example.mqtt.broker.cluster.ClusterControlPacketContext.packetIdentifier;
-
 @Slf4j
 public class ClusterServerSession extends DefaultServerSession {
 
@@ -24,8 +22,7 @@ public class ClusterServerSession extends DefaultServerSession {
     /**
      * Session 离线时 OutQueue 的 tail
      */
-    // todo -> packetIdentifier
-    private String outQueueTailWhenOffline;
+    private Short outQueuePacketIdentifier;
 
     public ClusterServerSession(String clientIdentifier, ClusterDbRepo clusterDbRepo) {
         super(clientIdentifier);
@@ -35,11 +32,11 @@ public class ClusterServerSession extends DefaultServerSession {
     public static ClusterServerSession from(ClusterDbRepo clusterDbRepo,
                                             String clientIdentifier, String nodeId,
                                             Set<Subscribe.Subscription> subscriptions,
-                                            String outQueueTail) {
+                                            Short outQueuePacketIdentifier) {
         ClusterServerSession s = new ClusterServerSession(clientIdentifier, clusterDbRepo);
         s.subscriptions = subscriptions == null ? new HashSet<>(4) : subscriptions;
         s.nodeId = nodeId;
-        s.outQueueTailWhenOffline(outQueueTail);
+        s.outQueuePacketIdentifier(outQueuePacketIdentifier);
         return s;
     }
 
@@ -102,7 +99,7 @@ public class ClusterServerSession extends DefaultServerSession {
             log.warn("nodeId is not null");
         }
         this.nodeId = ((ClusterBroker) broker).nodeId();
-        this.outQueueTailWhenOffline = null;
+        this.outQueuePacketIdentifier = null;
         // 注册成功,绑定信息保存到 DB
         clusterDbRepo.saveSession(this);
         super.open(ch, broker);
@@ -129,9 +126,9 @@ public class ClusterServerSession extends DefaultServerSession {
         } else {
             this.nodeId = null;
             // 保存 tail
-            List<ClusterControlPacketContext> tail = clusterDbRepo.searchSessionQueue(
-                    clientIdentifier(), ClusterDbQueue.Type.OUT_QUEUE, true, 1);
-            this.outQueueTailWhenOffline = tail.isEmpty() ? null : tail.get(0).id();
+            List<ClusterControlPacketContext> tail =
+                    clusterDbRepo.searchSessionQueue(clientIdentifier(), ClusterDbQueue.Type.OUT_QUEUE, true, 1);
+            this.outQueuePacketIdentifier = tail.isEmpty() ? null : tail.get(0).packetIdentifier();
             clusterDbRepo.saveSession(this);
         }
     }
@@ -146,8 +143,8 @@ public class ClusterServerSession extends DefaultServerSession {
         if (nodeId() != null) {
             sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
         }
-        if (outQueueTailWhenOffline() != null) {
-            sb.append("\"outQueueTailWhenOffline\":\"").append(outQueueTailWhenOffline()).append("\",");
+        if (outQueuePacketIdentifier() != null) {
+            sb.append("\"outQueuePacketIdentifier\":").append(outQueuePacketIdentifier()).append(",");
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
@@ -163,21 +160,21 @@ public class ClusterServerSession extends DefaultServerSession {
     }
 
 
-    public String outQueueTailWhenOffline() {
-        return outQueueTailWhenOffline;
+    public Short outQueuePacketIdentifier() {
+        return outQueuePacketIdentifier;
     }
 
-    public void outQueueTailWhenOffline(String tail) {
-        this.outQueueTailWhenOffline = tail;
-        this.resetPacketIdentifier(packetIdentifier(tail));
+    public void outQueuePacketIdentifier(Short packetIdentifier) {
+        this.outQueuePacketIdentifier = packetIdentifier;
+        this.resetPacketIdentifier(packetIdentifier);
     }
 
-    public void resetPacketIdentifier(Integer packetIdentifier) {
+    public void resetPacketIdentifier(Short packetIdentifier) {
         if (packetIdentifier == null) {
             // do nothing
             return;
         }
-        if (packetIdentifier > Short.MAX_VALUE) {
+        if (packetIdentifier >= Short.MAX_VALUE) {
             throw new IllegalArgumentException();
         }
         this.packetIdentifier.set(packetIdentifier);

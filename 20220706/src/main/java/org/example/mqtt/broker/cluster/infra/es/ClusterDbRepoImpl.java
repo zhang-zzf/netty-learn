@@ -221,8 +221,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         boolean addToOutQueue = false;
         while (!addToOutQueue) {
             try {
-                // todo tailId  -> packetIdentifier
-                String tailId = s.outQueueTailWhenOffline();
+                Short tailPacketIdentifier = s.outQueuePacketIdentifier();
                 GetResponse<SessionPO> resp = getSessionBy(cpx.clientIdentifier());
                 if (!resp.found()) {
                     log.info("offerToOutQueueOfTheOfflineSession [No Session]: {}", s.clientIdentifier());
@@ -234,13 +233,13 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                     log.info("offerToOutQueueOfTheOfflineSession Session bound to Broker(nodeId:{}): {}", s.clientIdentifier(), sPO.getNodeId());
                     break;
                 }
-                if (sPO.getOutQueueTail() != null && !sPO.getOutQueueTail().equals(tailId)) {
+                if (sPO.getOutQueuePacketIdentifier() != null && !sPO.getOutQueuePacketIdentifier().equals(tailPacketIdentifier)) {
                     // reBuild the packetIdentifier
-                    s.outQueueTailWhenOffline(sPO.getOutQueueTail());
+                    s.outQueuePacketIdentifier(sPO.getOutQueuePacketIdentifier());
                     cpx.packet().packetIdentifier(s.nextPacketIdentifier());
                 }
                 // CAS update Session
-                sPO.setOutQueueTail(cpx.id());
+                sPO.setOutQueuePacketIdentifier(cpx.packetIdentifier());
                 // throw ResponseException if CAS failed
                 client.index(req -> req.index(SESSION_INDEX).id(s.clientIdentifier()).document(sPO)
                         .ifPrimaryTerm(resp.primaryTerm()).ifSeqNo(resp.seqNo()));
@@ -249,9 +248,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                         .id(cpx.id()).document(newPOFromDomain(cpx))
                         .opType(OpType.Create));
                 // 更新 next 指针
-                if (tailId != null) {
+                if (tailPacketIdentifier != null) {
                     client.update(req -> req.index(SESSION_QUEUE_INDEX)
-                                    .routing(cpx.clientIdentifier()).id(tailId)
+                                    .routing(cpx.clientIdentifier()).id(id(cpx.clientIdentifier(), OUT, tailPacketIdentifier))
                                     .doc(new ControlPacketContextPO().setNextPacketIdentifier(cpx.packetIdentifier())),
                             ControlPacketContextPO.class);
                 }
@@ -403,7 +402,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                     .collect(toSet());
         }
         return ClusterServerSession.from(this, po.getClientIdentifier(),
-                po.getNodeId(), subscriptions, po.getOutQueueTail());
+                po.getNodeId(), subscriptions, po.getOutQueuePacketIdentifier());
     }
 
     @Override

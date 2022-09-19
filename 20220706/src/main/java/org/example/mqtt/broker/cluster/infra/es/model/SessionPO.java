@@ -17,9 +17,9 @@ public class SessionPO {
     private Set<SubscriptionPO> subscriptions;
     private String nodeId;
     /**
-     * Session 离线后 outQueue.tail 的 id
+     * Session 离线后 outQueue.tail 的 packetIdentifier
      */
-    private String outQueueTail;
+    private Short outQueuePacketIdentifier;
 
     @Override
     public String toString() {
@@ -43,8 +43,8 @@ public class SessionPO {
         if (nodeId != null) {
             sb.append("\"nodeId\":\"").append(nodeId).append('\"').append(',');
         }
-        if (outQueueTail != null) {
-            sb.append("\"outQueueTail\":\"").append(outQueueTail).append("\",");
+        if (outQueuePacketIdentifier != null) {
+            sb.append("\"outQueuePacketIdentifier\":").append(outQueuePacketIdentifier).append(",");
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

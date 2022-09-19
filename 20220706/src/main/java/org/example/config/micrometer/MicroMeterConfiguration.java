@@ -6,6 +6,7 @@ import com.orbitz.consul.model.agent.ImmutableRegistration;
 import com.orbitz.consul.model.agent.Registration;
 import io.micrometer.core.instrument.Metrics;
 import lombok.extern.slf4j.Slf4j;
+import okhttp3.ConnectionPool;
 
 import java.net.InetSocketAddress;
 
@@ -13,9 +14,11 @@ import java.net.InetSocketAddress;
 public class MicroMeterConfiguration {
 
     public void init(String appName) {
+        log.info("MicroMeterConfiguration appName: {}", appName);
         Metrics.globalRegistry.config().commonTags("application", appName);
         String prometheusExport = System.getProperty("prometheus.export.address");
         if (prometheusExport != null) {
+            log.info("MicroMeterConfiguration prometheusExport: {}", prometheusExport);
             String[] hostAndPort = prometheusExport.split(":");
             InetSocketAddress address = new InetSocketAddress(hostAndPort[0], Integer.valueOf(hostAndPort[1]));
             InetSocketAddress listened = new PrometheusConfiguration().init(address);
@@ -27,11 +30,17 @@ public class MicroMeterConfiguration {
 
     private void registerPrometheusToConsul(String name, String id,
                                             String address, int port) {
+        log.info("MicroMeterConfiguration registerPrometheusToConsul name:{}, id:{}, address:{}, port:{}",
+                name, id, address, port);
         String serviceId = (id == null) ? name : id;
         Registration service = ImmutableRegistration.builder()
                 .name(name).id(serviceId).address(address).port(port)
                 .build();
-        AgentClient agentClient = Consul.builder().build().agentClient();
+        log.info("MicroMeterConfiguration registerPrometheusToConsul service: {}", service);
+        AgentClient agentClient = Consul.builder()
+                .withConnectionPool(new ConnectionPool())
+                .build()
+                .agentClient();
         agentClient.register(service);
         log.info("service({}/{}) registered to consul", name, id);
         // shutdown hook

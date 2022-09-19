@@ -38,16 +38,6 @@ public class ClusterControlPacketContext extends ControlPacketContext {
         return clientIdentifier + "_" + type + "_" + packetIdentifier;
     }
 
-    public static Integer packetIdentifier(String id) {
-        if (id == null) {
-            return null;
-        }
-        // todo mqtt_2_1_IN_1555
-        // clientIdentifier has _
-        throw new UnsupportedOperationException();
-        // return Integer.valueOf(id.split("_")[2]);
-    }
-
     public String clientIdentifier() {
         return clientIdentifier;
     }

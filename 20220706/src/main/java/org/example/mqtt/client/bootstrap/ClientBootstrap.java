@@ -50,7 +50,9 @@ public class ClientBootstrap {
         Integer period = Integer.valueOf(args[6]);
         ByteBuf payload = Unpooled.copiedBuffer(new byte[payloadLength]);
         // start config bootstrap
-        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors());
+        Integer threadNum = Integer.getInteger("mqtt.client.thread.num", Runtime.getRuntime().availableProcessors());
+        log.info("ClientBootstrap thread num: {}", threadNum);
+        final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(threadNum);
         // 配置 bootstrap
         final Bootstrap bootstrap = new Bootstrap()
                 .group(nioEventLoopGroup)
@@ -112,13 +114,13 @@ public class ClientBootstrap {
                 .tag("type", "received")
                 .publishPercentileHistogram()
                 // 1μs
-                .minimumExpectedValue(Duration.ofNanos(1000))
-                .maximumExpectedValue(Duration.ofSeconds(10))
+                .minimumExpectedValue(Duration.ofMillis(1))
+                .maximumExpectedValue(Duration.ofSeconds(8))
                 .register(Metrics.globalRegistry);
         final Timer onPublish = Timer.builder("com.github.zzf.netty.client.msg")
                 .tag("type", "in")
                 .publishPercentileHistogram()
-                .minimumExpectedValue(Duration.ofNanos(1000))
+                .minimumExpectedValue(Duration.ofMillis(1))
                 .maximumExpectedValue(Duration.ofSeconds(10))
                 .register(Metrics.globalRegistry);
 
@@ -131,9 +133,9 @@ public class ClientBootstrap {
             ByteBuf payload = packet.payload();
             // retain the payload that will be release by publishReceived() method
             payload.retain();
-            long timeInNano = payload.getLong(0);
-            long useTime = System.nanoTime() - timeInNano;
-            onPublish.record(useTime, TimeUnit.NANOSECONDS);
+            long timeInMills = payload.getLong(0);
+            long useTime = System.currentTimeMillis() - timeInMills;
+            onPublish.record(useTime, TimeUnit.MILLISECONDS);
             log.debug("client sent -> server handle -> client onPublish: {}ns", useTime);
             return true;
         }
@@ -141,10 +143,10 @@ public class ClientBootstrap {
         @Override
         protected void publishReceivedComplete(ControlPacketContext cpx) {
             ByteBuf payload = cpx.packet().payload();
-            long timeInNano = payload.getLong(0);
-            long useTime = System.nanoTime() - timeInNano;
-            publishReceived.record(useTime, TimeUnit.NANOSECONDS);
-            log.debug("client sent -> server handle -> client publishReceived: {}ns", useTime);
+            long timeInMills = payload.getLong(0);
+            long useTime = System.currentTimeMillis() - timeInMills;
+            publishReceived.record(useTime, TimeUnit.MILLISECONDS);
+            log.debug("client sent -> server handle -> client publishReceived: {}ms", useTime);
             // release the payload that retained by onPublish
             payload.release();
             super.publishReceivedComplete(cpx);
@@ -228,7 +230,7 @@ public class ClientBootstrap {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleAtFixedRate(() -> {
                     ByteBuf timestamp = Unpooled.buffer(16)
-                            .writeLong(System.nanoTime())
+                            .writeLong(System.currentTimeMillis())
                             .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);

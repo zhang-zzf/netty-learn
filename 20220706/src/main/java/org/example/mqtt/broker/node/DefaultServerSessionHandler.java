@@ -76,7 +76,9 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     private void closeSession(ChannelHandlerContext ctx) {
         if (existSession()) {
-            session.close(false);
+            if (session.isBound()) {
+                session.close(false);
+            }
         } else {
             ctx.channel().close();
         }

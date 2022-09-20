@@ -26,6 +26,7 @@ public class ClusterServerSession extends DefaultServerSession {
 
     public ClusterServerSession(String clientIdentifier, ClusterDbRepo clusterDbRepo) {
         super(clientIdentifier);
+        super.cleanSession(false);
         this.clusterDbRepo = clusterDbRepo;
     }
 
@@ -48,11 +49,13 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     protected Queue<ControlPacketContext> newInQueue() {
+        log.debug("Node({}) Session({}) now build inQueue", nodeId(), cId());
         return new ClusterDbQueue(clusterDbRepo, cId(), ClusterDbQueue.Type.IN_QUEUE);
     }
 
     @Override
     protected Queue<ControlPacketContext> newOutQueue() {
+        log.debug("Node({}) Session({}) now build outQueue.", nodeId(), cId());
         return new ClusterDbQueue(clusterDbRepo, cId(), ClusterDbQueue.Type.OUT_QUEUE);
     }
 
@@ -96,9 +99,10 @@ public class ClusterServerSession extends DefaultServerSession {
     @Override
     public void open(Channel ch, Broker broker) {
         if (this.nodeId != null) {
-            log.warn("nodeId is not null");
+            log.debug("Session({}) nodeId is Not Null: {}", cId(), nodeId());
         }
         this.nodeId = ((ClusterBroker) broker).nodeId();
+        log.debug("Node({}) Session({}) try to bridge between Channel and Broker: {}, {}", nodeId(), cId(), ch, broker);
         this.outQueuePacketIdentifier = null;
         // 注册成功,绑定信息保存到 DB
         clusterDbRepo.saveSession(this);
@@ -110,6 +114,7 @@ public class ClusterServerSession extends DefaultServerSession {
      */
     @Override
     public void close(boolean force) {
+        log.debug("Node({}) now close Session({}), force: {}", nodeId(), cId(), force);
         if (!isRegistered()) {
             log.warn("ClusterServerSession is not bound to the Node(Broker)");
             return;
@@ -122,14 +127,17 @@ public class ClusterServerSession extends DefaultServerSession {
     public void closeClusterSession(boolean force) {
         if (force) {
             // 清除 cluster leven Session
+            log.debug("Node({}) now force remove cleanSession=0 Session({}) in the Cluster", nodeId(), cId());
             clusterDbRepo.deleteSession(this);
         } else {
+            log.debug("Node({}) now try to disconnect the cleanSession=0 Session({}) from this Node", nodeId(), cId());
             this.nodeId = null;
             // 保存 tail
             List<ClusterControlPacketContext> tail =
                     clusterDbRepo.searchSessionQueue(clientIdentifier(), ClusterDbQueue.Type.OUT_QUEUE, true, 1);
             this.outQueuePacketIdentifier = tail.isEmpty() ? null : tail.get(0).packetIdentifier();
             clusterDbRepo.saveSession(this);
+            log.debug("Node({}) now disconnected the cleanSession=0 Session({}) from this Node", nodeId(), cId());
         }
     }
 
@@ -137,9 +145,11 @@ public class ClusterServerSession extends DefaultServerSession {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"type\":\"ClusterServerSession\"");
         sb.append("\"registered\":").append(isRegistered()).append(',');
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
         sb.append("\"cleanSession\":").append(cleanSession()).append(',');
+        sb.append("\"bound\":").append(isBound()).append(',');
         if (nodeId() != null) {
             sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
         }

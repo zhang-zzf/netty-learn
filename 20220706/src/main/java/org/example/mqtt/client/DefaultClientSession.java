@@ -30,7 +30,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     public void send(ControlPacket packet) {
         if (packet instanceof Publish) {
             /**
-             * {@link DefaultClientSession#publishSendComplete(ControlPacketContext)}
+             * {@link DefaultClientSession#publishPacketSentComplete(ControlPacketContext)}
              * will release the content
              */
             ((Publish) packet).payload().retain();
@@ -40,8 +40,8 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    protected void publishSendComplete(ControlPacketContext cpx) {
-        super.publishSendComplete(cpx);
+    protected void publishPacketSentComplete(ControlPacketContext cpx) {
+        super.publishPacketSentComplete(cpx);
         Publish packet = cpx.packet();
         client.completeRequest(packet.packetIdentifier(), null);
         /**

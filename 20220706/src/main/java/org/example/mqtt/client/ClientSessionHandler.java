@@ -24,12 +24,6 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
     public final ClientSession session;
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        log.info("与远程建立连接");
-        super.channelActive(ctx);
-    }
-
-    @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ControlPacket) {
             ControlPacket cp = (ControlPacket) msg;

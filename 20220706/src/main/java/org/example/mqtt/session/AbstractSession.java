@@ -60,10 +60,12 @@ public abstract class AbstractSession implements Session {
     @Override
     public void closeChannel() {
         if (isBound()) {
+            log.debug("Session({}) now try to unbind from Channel: {}", cId(), channel);
             if (channel.isOpen()) {
                 channel.close();
             }
             channel = null;
+            log.debug("Session({}) unbound from Channel", cId());
         }
     }
 
@@ -132,7 +134,7 @@ public abstract class AbstractSession implements Session {
             if (outgoing.atMostOnce() && !sendQoS0PublishOffline()) {
                 // QoS0 Publish will be discarded by default config.
                 log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
-                publishSendComplete(cpx);
+                publishPacketSentComplete(cpx);
                 return;
             }
             outQueueEnqueue(cpx);
@@ -201,7 +203,7 @@ public abstract class AbstractSession implements Session {
         while (cpx != null && cpx.complete()) {
             outQueue.poll();
             log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
-            publishSendComplete(cpx);
+            publishPacketSentComplete(cpx);
             cpx = outQueue.peek();
         }
     }
@@ -220,8 +222,8 @@ public abstract class AbstractSession implements Session {
      *
      * @param cpx Publish
      */
-    protected void publishSendComplete(ControlPacketContext cpx) {
-        log.debug("sender({}/{}) sent completed", cId(), cpx.pId());
+    protected void publishPacketSentComplete(ControlPacketContext cpx) {
+        log.debug("sender({}/{}) Publish Packet sent completed", cId(), cpx.pId());
     }
 
     @Override
@@ -464,6 +466,7 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void bind(Channel channel) {
+        log.debug("Session({}) now try bind to Channel: {}", cId(), channel);
         while (sendingPublishThread != null && !channel.eventLoop().inEventLoop(sendingPublishThread)) {
             // spin
         }
@@ -473,6 +476,7 @@ public abstract class AbstractSession implements Session {
         // try start retry task
         // send Publish from outQueue immediately.
         this.eventLoop.submit(this::resendOutQueue);
+        log.debug("Session({}) now bound to Channel", cId());
     }
 
     protected void resendOutQueue() {
@@ -507,15 +511,24 @@ public abstract class AbstractSession implements Session {
 
     private void doWritePublishPacket(ControlPacketContext cpx) {
         doWrite(cpx.packet()).addListener(f -> {
+            publishPacketSent(cpx);
             if (f.isSuccess()) {
                 cpx.markStatus(INIT, SENT);
                 log.debug("sender({}/{}) [Publish sent] Publish INIT->SENT", cId(), cpx.pId());
             }
             // must release the retained Publish
             if (!enqueueOutQueue(cpx)) {
-                publishSendComplete(cpx);
+                publishPacketSentComplete(cpx);
+            }
+        }).addListener(f->{
+            if (!f.isSuccess()) {
+                // todo send packet failed -> memory leak
             }
         });
+    }
+
+    private void publishPacketSent(ControlPacketContext cpx) {
+        log.debug("sender({}/{}) Publish Packet sent", cId(), cpx.pId());
     }
 
     @Override

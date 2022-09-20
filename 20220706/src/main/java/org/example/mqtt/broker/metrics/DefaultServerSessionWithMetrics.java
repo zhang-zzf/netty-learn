@@ -89,14 +89,14 @@ public class DefaultServerSessionWithMetrics extends DefaultServerSession {
     }
 
     @Override
-    protected void publishSendComplete(ControlPacketContext cpx) {
+    protected void publishPacketSentComplete(ControlPacketContext cpx) {
         try {
             long millis = cpx.packet().payload().getLong(8);
             sent.record(System.currentTimeMillis() - millis, TimeUnit.MILLISECONDS);
         } catch (Exception e) {
             // ignore
         }
-        super.publishSendComplete(cpx);
+        super.publishPacketSentComplete(cpx);
     }
 
 }

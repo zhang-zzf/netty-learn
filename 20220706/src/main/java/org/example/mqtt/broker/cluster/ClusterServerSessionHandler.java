@@ -32,9 +32,9 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
         ConnAck connAck = ConnAck.accepted();
         String ccId = connect.clientIdentifier();
         var preSession = broker().session(ccId);
-        log.debug("Client({}) query preSession: {}", ccId, preSession);
+        log.debug("Client({}) Cluster now has Session: {}", ccId, preSession);
         if (connect.cleanSession()) {
-            log.debug("Client({}) need a clean Session", ccId);
+            log.debug("Client({}) need a (cleanSession=1) Session", ccId);
             // CleanSession=1 cluster level Session
             if (preSession != null) {
                 // close the Session
@@ -43,21 +43,24 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             }
             // build a new one (just local Node Session)
             this.session = DefaultServerSession.from(connect);
-            log.debug("Client({}) need a clean Session, created new Session: {}", ccId, session);
+            log.debug("Client({}) Node created a new Session: {}", ccId, session);
         } else {
             // need a CleanSession=0 cluster level Session
             log.debug("Client({}) need a (cleanSession=0) Session", ccId);
             if (preSession == null) {
                 // no Exist Session
                 this.session = ClusterServerSession.from(broker().clusterDbRepo(), connect);
-                log.debug("Client({}) need a (cleanSession=0) Session, created new Session: {}", ccId, session);
+                log.debug("Client({}) Cluster created a new Session: {}", ccId, session);
             } else if (preSession instanceof ClusterServerSession) {
                 // exist cluster level Session.
                 var css = (ClusterServerSession) preSession;
-                closeServerSession(css, false);
-                log.debug("Client({}) closed the exist preSession", ccId);
-                css = (ClusterServerSession) broker().session(ccId);
-                log.debug("Client({}) exist Session: {}", ccId, css);
+                if (css.isBound()) {
+                    log.debug("Client({}) Cluster try to close the old Session", ccId);
+                    closeServerSession(css, false);
+                    css = (ClusterServerSession) broker().session(ccId);
+                    log.debug("Client({}) Cluster closed the old Session", ccId);
+                    log.debug("Client({}) Cluster now has Session: {}", ccId, preSession);
+                }
                 this.session = css.reInitWith(connect);
                 connAck = ConnAck.acceptedWithStoredSession();
                 log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", ccId, this.session);

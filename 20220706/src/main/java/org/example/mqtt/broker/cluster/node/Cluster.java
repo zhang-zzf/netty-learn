@@ -94,7 +94,7 @@ public class Cluster implements AutoCloseable {
         syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> {
             Map<String, String> state = nodes.entrySet().stream()
                     .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
-            log.debug("Node({}) publish Cluster State: {}, {}", nodeId(), $_SYS_CLUSTER_NODES_TOPIC, state);
+            log.trace("Node({}) publish Cluster State: {}, {}", nodeId(), $_SYS_CLUSTER_NODES_TOPIC, state);
             NodeMessage nm = NodeMessage.wrapClusterState(nodeId(), state);
             Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
             clusterBroker.nodeBroker().forward(publish);

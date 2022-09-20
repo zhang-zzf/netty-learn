@@ -83,7 +83,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             Publish publish = (Publish) packet;
             log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
             /**
-             *  {@link DefaultServerSession#publishSendComplete(ControlPacketContext)}  will release the payload
+             *  {@link DefaultServerSession#publishPacketSentComplete(ControlPacketContext)}  will release the payload
              */
             publish.payload().retain();
             log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
@@ -94,13 +94,13 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    protected void publishSendComplete(ControlPacketContext cpx) {
+    protected void publishPacketSentComplete(ControlPacketContext cpx) {
         /**
          * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
          */
         cpx.packet().payload().release();
         log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
-        super.publishSendComplete(cpx);
+        super.publishPacketSentComplete(cpx);
     }
 
     @Override
@@ -177,16 +177,20 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void open(Channel ch, Broker broker) {
+        log.debug("Session({}) now open bridge between Channel and Broker: {}, {}", cId(), ch, broker);
         bind(ch);
         if (!registered) {
+            log.debug("Session({}) now try to connect to Broker: {}", cId(), broker);
             this.broker = broker;
             broker.connect(this);
             registered = true;
+            log.debug("Session({}) now connected to Broker", cId());
         }
     }
 
     @Override
     public void close(boolean force) {
+        log.debug("Session({}) close - force: {}, Session: {}", cId(), force, this);
         // send will message
         if (willMessage != null) {
             log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
@@ -196,13 +200,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         // 取消与 Broker 的关联
         if (cleanSession() || force) {
             if (registered) {
+                log.debug("Session({}) now try to disconnect from Broker: {}", cId(), broker);
                 // disconnect the session from the broker
                 broker.disconnect(this);
                 registered = false;
+                log.debug("Session({}) disconnected from Broker", cId());
             }
         }
         // 关闭底层连接
         closeChannel();
+        log.debug("Session({}) closed", cId());
     }
 
     @Override

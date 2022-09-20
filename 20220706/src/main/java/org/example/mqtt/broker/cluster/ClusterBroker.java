@@ -38,12 +38,13 @@ public class ClusterBroker implements Broker {
     @Override
     public ServerSession session(String clientIdentifier) {
         var localSession = nodeBroker.session(clientIdentifier);
+        log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
         if (localSession != null) {
-            log.info("session [local Session found] for {}", clientIdentifier);
+            log.info("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
             return localSession;
         }
         var session = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
-        log.info("session [find Session in cluster] for {}, {}", clientIdentifier, session);
+        log.info("Client({}) find session in Cluster: {}", clientIdentifier, session);
         return session;
     }
 
@@ -169,4 +170,12 @@ public class ClusterBroker implements Broker {
     public ClusterDbRepo clusterDbRepo() {
         return clusterDbRepo;
     }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
 }

@@ -12,6 +12,7 @@ import org.example.mqtt.broker.cluster.infra.es.config.ElasticsearchClientConfig
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.node.DefaultServerSessionHandler;
 
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -27,8 +28,22 @@ public class BrokerBootstrap {
         final ClusterBroker clusterBroker = new ClusterBroker(elasticsearchDbRepoImpl());
         final Cluster cluster = new Cluster(clusterBroker);
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
-                new ClusterServerSessionHandler(clusterBroker, authenticator, 3, cluster);
-        org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
+                new ClusterServerSessionHandler(authenticator, 3, cluster);
+        Map<String, String> protocolToUrl =
+                org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
+        String mqttUrl = protocolToUrl.get("mqtt");
+        if (mqttUrl == null) {
+            throw new UnsupportedOperationException("Cluster mode need mqtt protocol enabled");
+        }
+        // 开启集群节点信息同步
+        cluster.localNode(mqttUrl).startSyncJob();
+        String anotherNode = System.getProperty("mqtt.server.cluster.join");
+        if (anotherNode != null) {
+            log.info("Node({}) try to connect to anotherNode({})", clusterBroker.nodeId(), anotherNode);
+            cluster.join(anotherNode);
+            log.info("Node({}) connected to the anotherNode({})", clusterBroker.nodeId(), anotherNode);
+        }
+        log.info("Node({}) start success", clusterBroker.nodeId());
     }
 
     private static ClusterDbRepo elasticsearchDbRepoImpl() {

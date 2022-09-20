@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.concurrent.*;
 
 import static java.util.stream.Collectors.toMap;
+import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
 
 @Slf4j
 public class Cluster implements AutoCloseable {
@@ -29,8 +30,7 @@ public class Cluster implements AutoCloseable {
     }
 
     public Cluster localNode(String listenedAddress) {
-        String nodeId = clusterBroker.nodeId();
-        nodes.putIfAbsent(nodeId, new Node(nodeId, listenedAddress));
+        nodes.putIfAbsent(nodeId(), new Node(nodeId(), listenedAddress));
         return this;
     }
 
@@ -38,17 +38,26 @@ public class Cluster implements AutoCloseable {
         return nodes;
     }
 
-    public Cluster addNode(String nodeId, String remoteAddress) {
+    public void addNode(String nodeId, String remoteAddress) {
+        Node firstJoinedNode = nodes.get(NODE_ID_UNKNOWN);
+        if (firstJoinedNode != null && firstJoinedNode.address().equals(remoteAddress)) {
+            log.info("Node({}) receive first joined node's nodeId: {}", nodeId);
+            Node updateFirstNode = new Node(nodeId, remoteAddress).nodeClient(firstJoinedNode.nodeClient());
+            nodes.put(nodeId, updateFirstNode);
+            nodes.remove(NODE_ID_UNKNOWN);
+            log.info("Node({}) cur Cluster: {}", nodes);
+            return;
+        }
         if (nodes.get(nodeId) != null) {
             if (!nodes.get(nodeId).address().equals(remoteAddress)) {
                 log.error("Cluster add Node failed, same nodeId with different remoteAddress", nodeId, remoteAddress);
             }
-            return this;
+            return;
         }
         Node nn = new Node(nodeId, remoteAddress);
         if (nodes.putIfAbsent(nodeId, nn) != null) {
             log.warn("Cluster add Node failed, may be other Thread add it.", nodeId, remoteAddress);
-            return this;
+            return;
         }
         // try to connect the Node
         NodeClient nc = connectNewNode(remoteAddress);
@@ -60,7 +69,6 @@ public class Cluster implements AutoCloseable {
             nn.nodeClient(nc);
             log.info("Cluster add new Node: {}", nn);
         }
-        return this;
     }
 
     public void updateNodes(Map<String, String> nodeIdToAddress) {
@@ -72,8 +80,9 @@ public class Cluster implements AutoCloseable {
 
     private NodeClient connectNewNode(String address) {
         try {
-            return new NodeClient(clusterBroker, address, this);
+            return new NodeClient(address, this);
         } catch (Exception e) {
+            log.error("Node({" + nodeId() + "}) connect to another node failed", e);
             return null;
         }
     }
@@ -105,6 +114,20 @@ public class Cluster implements AutoCloseable {
 
     public Node node(String nodeId) {
         return nodes.get(nodeId);
+    }
+
+    public ClusterBroker broker() {
+        return clusterBroker;
+    }
+
+    public void join(String anotherNodeAddress) {
+        NodeClient nc = connectNewNode(anotherNodeAddress);
+        if (nc == null) {
+            throw new IllegalArgumentException("can not join the Cluster with another Node: " + anotherNodeAddress);
+        }
+        Node node = new Node(NODE_ID_UNKNOWN, anotherNodeAddress).nodeClient(nc);
+        this.nodes.put(NODE_ID_UNKNOWN, node);
+        log.info("Node({}) join to another Node({}), now Cluster: {}", nodeId(), anotherNodeAddress, nodes);
     }
 
 }

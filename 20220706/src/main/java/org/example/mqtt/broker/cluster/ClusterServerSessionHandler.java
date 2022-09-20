@@ -20,11 +20,10 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
 
     private final Cluster cluster;
 
-    public ClusterServerSessionHandler(ClusterBroker broker,
-                                       Authenticator authenticator,
+    public ClusterServerSessionHandler(Authenticator authenticator,
                                        int activeIdleTimeoutSecond,
                                        Cluster cluster) {
-        super(broker, authenticator, activeIdleTimeoutSecond);
+        super(cluster.broker(), authenticator, activeIdleTimeoutSecond);
         this.cluster = cluster;
     }
 

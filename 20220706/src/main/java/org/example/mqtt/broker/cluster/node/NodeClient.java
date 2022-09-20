@@ -20,21 +20,18 @@ public class NodeClient implements MessageHandler {
 
     private final ClusterBroker broker;
     private final Client client;
-    private final String nodeId;
-
     private final Cluster cluster;
 
-    public NodeClient(ClusterBroker broker, String address, Cluster cluster) {
-        this.broker = broker;
-        this.nodeId = broker.nodeId();
-        this.client = new Client(nodeId, address, this);
+    public NodeClient(String address, Cluster cluster) {
+        this.broker = cluster.broker();
+        this.client = new Client(broker.nodeId(), address, this);
         this.cluster = cluster;
         initSubscribe();
     }
 
     private void initSubscribe() {
         Subscribe.Subscription nodeSubscription =
-                new Subscribe.Subscription($_SYS_NODES_TOPIC + nodeId, Publish.EXACTLY_ONCE);
+                new Subscribe.Subscription($_SYS_NODES_TOPIC + broker.nodeId(), Publish.EXACTLY_ONCE);
         Subscribe.Subscription clusterNodes =
                 new Subscribe.Subscription($_SYS_CLUSTER_NODES_TOPIC, Publish.AT_LEAST_ONCE);
         this.client.subscribe(Arrays.asList(nodeSubscription, clusterNodes));
@@ -74,6 +71,12 @@ public class NodeClient implements MessageHandler {
 
     private String cId() {
         return broker.nodeId();
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
 }

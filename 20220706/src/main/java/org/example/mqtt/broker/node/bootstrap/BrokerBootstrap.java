@@ -23,6 +23,8 @@ import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -41,8 +43,9 @@ public class BrokerBootstrap {
         startServer(handlerSupplier);
     }
 
-    public static void startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
+    public static Map<String, String> startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
             SSLException {
+        Map<String, String> protocolToUrl = new HashMap<>(8);
         /**
          * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
          */
@@ -55,20 +58,25 @@ public class BrokerBootstrap {
             switch (uri.getScheme()) {
                 case "mqtt":
                     mqttServer(bindAddress, handlerSupplier);
+                    protocolToUrl.put("mqtt", address);
                     break;
                 case "mqtts":
                     secureMqttServer(bindAddress, handlerSupplier);
+                    protocolToUrl.put("mqtts", address);
                     break;
                 case "ws":
                     mqttOverWebsocket(bindAddress, handlerSupplier);
+                    protocolToUrl.put("ws", address);
                     break;
                 case "wss":
                     mqttOverSecureWebSocket(bindAddress, handlerSupplier);
+                    protocolToUrl.put("wss", address);
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported Schema: " + uri.getScheme());
             }
         }
+        return protocolToUrl;
     }
 
     private static void mqttOverSecureWebSocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {

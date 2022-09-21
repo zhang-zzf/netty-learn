@@ -270,12 +270,24 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @SneakyThrows
     @Override
     public List<ClusterTopic> matchTopic(String topicName) {
+        log.debug("matchTopic req: {}", topicName);
         if (topicName == null) {
             return emptyList();
         }
         Query query = buildTopicMatchQuery(topicName);
-        client.search(r -> r.query(query), TopicFilterPO.class);
-        return null;
+        SearchResponse<TopicFilterPO> resp = client.search(r -> r
+                        .index(TOPIC_FILTER)
+                        .trackTotalHits(t -> t.enabled(true))
+                        .query(query),
+                TopicFilterPO.class);
+        // todo match 10K topic?
+        log.debug("matchTopic num: {}", resp.hits().total().value());
+        List<ClusterTopic> ret = resp.hits().hits().stream()
+                .map(Hit::source)
+                .map(this::pOToDomain)
+                .collect(toList());
+        log.debug("matchTopic resp: {}", ret);
+        return ret;
     }
 
     Query buildTopicMatchQuery(String topicName) {

@@ -40,11 +40,11 @@ public class ClusterBroker implements Broker {
         var localSession = nodeBroker.session(clientIdentifier);
         log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
         if (localSession != null) {
-            log.info("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
+            log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
             return localSession;
         }
         var session = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
-        log.info("Client({}) find session in Cluster: {}", clientIdentifier, session);
+        log.debug("Client({}) find session in Cluster: {}", clientIdentifier, session);
         return session;
     }
 
@@ -60,9 +60,9 @@ public class ClusterBroker implements Broker {
 
     @Override
     public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {
-        log.debug("Node receive subscribe: {}, {}", session, subscribe);
+        log.debug("Node({}) Session({}) receive Subscribe: {}", nodeId(), session.clientIdentifier(), subscribe);
         List<Subscribe.Subscription> subscriptions = nodeBroker.subscribe(session, subscribe);
-        log.debug("Node permitted subscribe: {}, {}", session, subscriptions);
+        log.debug("Node({}) Session({}) permitted Subscribe: {}", nodeId(), session.clientIdentifier(), subscriptions);
         Set<String> tfSet = subscriptions.stream().map(Subscribe.Subscription::topicFilter).collect(toSet());
         // super.subscribe 成功，但是 cluster 操作失败（抛出异常）。-> Session.close()
         clusterDbRepo.addNodeToTopic(nodeId(), new ArrayList<>(tfSet));
@@ -71,12 +71,14 @@ public class ClusterBroker implements Broker {
 
     @Override
     public void unsubscribe(ServerSession session, Unsubscribe packet) {
+        log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
         nodeBroker.unsubscribe(session, packet);
         List<String> topicToRemove = packet.subscriptions().stream()
                 .map(s -> s.topicFilter())
                 .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
                 .collect(toList());
         clusterDbRepo.removeNodeFromTopic(nodeId(), topicToRemove);
+        log.debug("Node({}) Session({}) unsubscribe done", nodeId(), session.clientIdentifier());
     }
 
     @Override

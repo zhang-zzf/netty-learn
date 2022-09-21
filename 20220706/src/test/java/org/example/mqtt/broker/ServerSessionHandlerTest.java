@@ -665,12 +665,8 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * Client has no Subscription
-     * // when
-     * forward Publish
-     * // then
-     * Client receive no Publish
+     * <p>订阅 -> 可以接收到消息</p>
+     * <p>取消订阅 -> 无法接收到消息</p>
      */
     @Test
     void givenSubscription_whenPublish_thenWillReceivePublish() {

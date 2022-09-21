@@ -167,7 +167,7 @@ class ClusterDbRepoImplTest {
     void givenTopicName_whenMatchTopicFilter_then() {
         Query query = dbRepo.buildTopicMatchQuery("topic/abc/de");
         String queryString = query.toString();
-        then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"bool\":{\"filter\":[{\"terms\":{\"0\":[\"topic\",\"+\"]}},{\"terms\":{\"1\":[\"abc\",\"+\"]}},{\"terms\":{\"2\":[\"de\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"4\":{\"value\":\"#\"}}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"4\"}}]}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"0\":[\"topic\",\"+\"]}},{\"terms\":{\"1\":[\"abc\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"3\":{\"value\":\"#\"}}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"0\":[\"topic\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"2\":{\"value\":\"#\"}}}]}}]}},{\"term\":{\"0\":{\"value\":\"#\"}}}]}}]}}");
+        then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"terms\":{\"topicLevel.2\":[\"de\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"topicLevel.4\":{\"value\":\"#\"}}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.4\"}}]}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"term\":{\"topicLevel.3\":{\"value\":\"#\"}}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"term\":{\"topicLevel.2\":{\"value\":\"#\"}}}]}},{\"term\":{\"topicLevel.0\":{\"value\":\"#\"}}}]}}]}}");
     }
 
 }

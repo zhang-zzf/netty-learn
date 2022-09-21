@@ -62,11 +62,6 @@ public class ControlPacketContext {
 
     public boolean complete() {
         Status s = status();
-        if (packet().atMostOnce()) {
-            if (s == HANDLED || s == SENT) {
-                return true;
-            }
-        }
         if (packet().atLeastOnce() && s == PUB_ACK) {
             return true;
         }

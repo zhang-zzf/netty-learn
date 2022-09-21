@@ -31,8 +31,10 @@ import java.util.function.Function;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.*;
 import static org.example.mqtt.broker.cluster.ClusterControlPacketContext.id;
+import static org.example.mqtt.model.ControlPacket.hexPId;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -44,6 +46,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public static final String TOPIC_FILTER = "topic_filter";
     public static final String SESSION_QUEUE_INDEX = "session_queue";
     private static final String SESSION_INDEX = "session";
+    public static final String TOPIC_LEVEL_PATH = "topicLevel.";
 
     private final ElasticsearchClient client;
 
@@ -146,7 +149,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     private String mapToDbId(String id) {
-        return id.replace("/", "-");
+        return id.replace("/", "_");
     }
 
     @Override
@@ -250,7 +253,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 // 更新 next 指针
                 if (tailPacketIdentifier != null) {
                     client.update(req -> req.index(SESSION_QUEUE_INDEX)
-                                    .routing(cpx.clientIdentifier()).id(id(cpx.clientIdentifier(), OUT, tailPacketIdentifier))
+                                    .routing(cpx.clientIdentifier())
+                                    .id(id(cpx.clientIdentifier(), OUT, tailPacketIdentifier))
                                     .doc(new ControlPacketContextPO().setNextPacketIdentifier(cpx.packetIdentifier())),
                             ControlPacketContextPO.class);
                 }
@@ -299,25 +303,27 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
             for (int j = 0; j < lastLevel; j++) {
                 final int fieldName = j;
                 Query levelTerms = new Query.Builder().terms(t -> t
-                                .field(String.valueOf(fieldName))
+                                .field(TOPIC_LEVEL_PATH + fieldName)
                                 .terms(tq -> tq.value(asList(FieldValue.of(levels[fieldName]), oneLevelWildcard))))
                         .build();
                 list.add(levelTerms);
             }
-            String lastLevelField = String.valueOf(lastLevel + 1);
-            Query last = new Query.Builder().bool(b -> b
-                    .should(r -> r.term(t -> t.field(lastLevelField).value(multiLevelWildcard)))
-            ).build();
+            Query last;
             if (lastLevel == levels.length) {
+                String lastLevelField = TOPIC_LEVEL_PATH + (lastLevel + 1);
                 last = new Query.Builder().bool(b -> b
                         .should(r -> r.term(t -> t.field(lastLevelField).value(multiLevelWildcard)))
                         .should(r -> r.bool(b2 -> b2.mustNot(mn -> mn.exists(e -> e.field(lastLevelField)))))
                 ).build();
+            } else {
+                last = new Query.Builder()
+                        .term(t -> t.field(TOPIC_LEVEL_PATH + lastLevel).value(multiLevelWildcard))
+                        .build();
             }
             list.add(last);
             queryList.add(new Query.Builder().bool(b -> b.filter(list)).build());
         }
-        Query matchAll = new Query.Builder().term(t -> t.field("0").value(multiLevelWildcard)).build();
+        Query matchAll = new Query.Builder().term(t -> t.field(TOPIC_LEVEL_PATH + "0").value(multiLevelWildcard)).build();
         queryList.add(matchAll);
         Query query = new Query.Builder().bool(b -> b.filter(f -> f.bool(fb -> fb.should(queryList)))).build();
         return query;
@@ -326,9 +332,13 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     private ClusterTopic pOToDomain(TopicFilterPO po) {
         ClusterTopic ret = new ClusterTopic(po.getValue());
         ret.setNodes(po.getNodes());
-        Map<String, Byte> map = po.getOfflineSessions().stream()
-                .collect(toMap(s -> s.getClientIdentifier(), s -> s.getQos()));
-        ret.setOfflineSessions(map);
+        if (po.getOfflineSessions() != null) {
+            Map<String, Byte> map = po.getOfflineSessions().stream()
+                    .collect(toMap(s -> s.getClientIdentifier(), s -> s.getQos()));
+            ret.setOfflineSessions(map);
+        } else {
+            ret.setOfflineSessions(emptyMap());
+        }
         return ret;
     }
 
@@ -417,10 +427,24 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 po.getNodeId(), subscriptions, po.getOutQueuePacketIdentifier());
     }
 
+    @SneakyThrows
     @Override
-    public void updateCpxStatus(String clientIdentifier, ControlPacketContext.Type type, String id, ControlPacketContext.Status expect, ControlPacketContext.Status update) {
-        // todo
-
+    public void updateCpxStatus(ClusterControlPacketContext cpx) {
+        // 无需并发控制
+        log.debug("updateCpxStatus req: {}", cpx);
+        try {
+            client.update(req -> req.index(SESSION_QUEUE_INDEX)
+                           // 以 clientIdentifier 作为路由策略
+                           .routing(cpx.clientIdentifier())
+                           .id(cpx.id())
+                           .doc(new ControlPacketContextPO()
+                                   .setStatus(cpx.status().name())
+                                   .setUpdatedAt(System.currentTimeMillis())),
+                   ClusterControlPacketContext.class
+           );
+        } catch (Exception e) {
+            log.error("updateCpxStatus update a not existed cpx");
+        }
     }
 
     @SneakyThrows
@@ -428,7 +452,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public ClusterControlPacketContext getCpxFromSessionQueue(String clientIdentifier,
                                                               ClusterDbQueue.Type type,
                                                               short packetIdentifier) {
-        log.debug("getCpxFromSessionQueue req: {}, {}, {}", clientIdentifier, type, packetIdentifier);
+        log.debug("getCpxFromSessionQueue req: {}, {}, {}", clientIdentifier, type, hexPId(packetIdentifier));
         ControlPacketContext.Type cpxType = (type == ClusterDbQueue.Type.IN_QUEUE) ? IN : OUT;
         GetResponse<ControlPacketContextPO> resp = client.get(req -> req.index(SESSION_QUEUE_INDEX)
                         .routing(clientIdentifier)

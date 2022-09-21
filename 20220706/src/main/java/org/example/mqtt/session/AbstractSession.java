@@ -4,11 +4,13 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoop;
-import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
-import java.util.*;
+import java.util.LinkedList;
+import java.util.Objects;
+import java.util.Queue;
+import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
@@ -34,9 +36,7 @@ public abstract class AbstractSession implements Session {
     protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
     private Boolean cleanSession;
 
-    @Getter
     private Queue<ControlPacketContext> inQueue;
-    @Getter
     private Queue<ControlPacketContext> outQueue;
 
     /**
@@ -124,7 +124,7 @@ public abstract class AbstractSession implements Session {
         if (isBound()) {
             // online
             // Only enqueue Qos1 and QoS2
-            if (enqueueOutQueue(cpx)) {
+            if (enqueueOutQueue(cpx.packet())) {
                 outQueueEnqueue(cpx);
             }
             // online. send immediately
@@ -141,8 +141,7 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private boolean enqueueOutQueue(ControlPacketContext cpx) {
-        Publish packet = cpx.packet();
+    protected boolean enqueueOutQueue(Publish packet) {
         return packet.atLeastOnce() || packet.exactlyOnce();
     }
 
@@ -296,7 +295,7 @@ public abstract class AbstractSession implements Session {
     /**
      * as Sender
      */
-    private void doReceivePubAck(PubAck packet) {
+    protected void doReceivePubAck(PubAck packet) {
         log.debug("sender({}/{}) [QoS1 receive PubAck]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
@@ -367,7 +366,7 @@ public abstract class AbstractSession implements Session {
         Queue<ControlPacketContext> inQueue = inQueue();
         ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
         log.debug("receiver({}/{}) Publish .->INIT", cId(), cpx.pId());
-        if (packet.exactlyOnce()) {
+        if (enqueueInQueue(packet)) {
             inQueue.offer(cpx);
             log.debug("receiver({}/{}) [inQueue enqueue]", cId(), cpx.pId());
         }
@@ -390,6 +389,10 @@ public abstract class AbstractSession implements Session {
                 log.debug("receiver({}/{}) [QoS2 PUB_REC sent]", cId(), cpx.pId());
             });
         }
+    }
+
+    protected boolean enqueueInQueue(Publish packet) {
+        return packet.exactlyOnce();
     }
 
     protected ControlPacketContext createNewCpx(Publish packet,
@@ -517,7 +520,7 @@ public abstract class AbstractSession implements Session {
                 log.debug("sender({}/{}) [Publish sent] Publish INIT->SENT", cId(), cpx.pId());
             }
             // must release the retained Publish
-            if (!enqueueOutQueue(cpx)) {
+            if (!enqueueOutQueue(cpx.packet())) {
                 publishPacketSentComplete(cpx);
             }
         }).addListener(f->{
@@ -567,7 +570,7 @@ public abstract class AbstractSession implements Session {
         return Objects.hash(clientIdentifier);
     }
 
-    private Queue<ControlPacketContext> inQueue() {
+    protected Queue<ControlPacketContext> inQueue() {
         if (inQueue == null) {
             inQueue = newInQueue();
         }

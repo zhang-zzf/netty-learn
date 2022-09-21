@@ -1,8 +1,11 @@
 package org.example.mqtt.broker.cluster;
 
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.session.ControlPacketContext;
 
+@Slf4j
 public class ClusterControlPacketContext extends ControlPacketContext {
 
     private final ClusterDbRepo clusterDbRepo;
@@ -21,9 +24,33 @@ public class ClusterControlPacketContext extends ControlPacketContext {
 
     @Override
     public ClusterControlPacketContext markStatus(Status expect, Status update) {
-        clusterDbRepo.updateCpxStatus(clientIdentifier, type(), pId(), expect, update);
+        log.debug("cpx({}/{}/{}) markStatus->expected:{}, updated:{}", cId(), type(), pId(), expect, update);
+        if (atLeastOnceIgnoreStatus(update)) {
+            log.debug("cpx({}/{}/{}) markStatus->no need to update Status", cId(), type(), pId());
+            return this;
+        }
         super.markStatus(expect, update);
+        clusterDbRepo.updateCpxStatus(this);
         return this;
+    }
+
+    private boolean atLeastOnceIgnoreStatus(Status update) {
+        if (!packet().atLeastOnce()) {
+            return false;
+        }
+        if (type() == Type.OUT) {
+            switch (update) {
+                case SENT:
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        return false;
+    }
+
+    private String cId() {
+        return clientIdentifier;
     }
 
     public String id() {
@@ -35,7 +62,7 @@ public class ClusterControlPacketContext extends ControlPacketContext {
     }
 
     public static String id(String clientIdentifier, Type type, short packetIdentifier) {
-        return clientIdentifier + "_" + type + "_" + packetIdentifier;
+        return clientIdentifier + "_" + type + "_" + ControlPacket.hexPId(packetIdentifier);
     }
 
     public String clientIdentifier() {
@@ -60,6 +87,9 @@ public class ClusterControlPacketContext extends ControlPacketContext {
         }
         sb.append("\"type\":\"").append(type().name()).append("\",");
         sb.append("\"status\":\"").append(status().name()).append("\",");
+        if (nextPacketIdentifier != null) {
+            sb.append("\"nextPacketIdentifier\":").append(nextPacketIdentifier()).append(",");
+        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 

@@ -1,7 +1,5 @@
 package org.example.mqtt.broker.cluster;
 
-import org.example.mqtt.session.ControlPacketContext;
-
 import java.util.List;
 import java.util.Map;
 
@@ -17,11 +15,7 @@ public interface ClusterDbRepo {
                                                          boolean tail,
                                                          int size);
 
-    void updateCpxStatus(String clientIdentifier,
-                         ControlPacketContext.Type type,
-                         String packetIdentifier,
-                         ControlPacketContext.Status expect,
-                         ControlPacketContext.Status update);
+    void updateCpxStatus(ClusterControlPacketContext cpx);
 
     ClusterControlPacketContext getCpxFromSessionQueue(String clientIdentifier,
                                                        ClusterDbQueue.Type inQueue,

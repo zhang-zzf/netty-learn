@@ -59,12 +59,14 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
 
     @Override
     public ClusterControlPacketContext poll() {
+        log.debug("Queue({}/{}) poll", cId(), type);
         ClusterControlPacketContext first = peek();
         if (first == null) {
             return null;
         }
         Short nPId = first.nextPacketIdentifier();
         if (nPId != null) {
+            log.debug("Queue({}/{}) fetch next from db", cId(), type);
             ClusterControlPacketContext next = clusterDbRepo.getCpxFromSessionQueue(clientIdentifier, type, nPId);
             if (next == null) {
                 // should exist
@@ -80,7 +82,12 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
         }
         // delete
         clusterDbRepo.deleteFromSessionQueue(first);
+        log.debug("Queue({}/{}) delete from db->{}", cId(), type, first);
         return first;
+    }
+
+    private String cId() {
+        return clientIdentifier;
     }
 
     @Override

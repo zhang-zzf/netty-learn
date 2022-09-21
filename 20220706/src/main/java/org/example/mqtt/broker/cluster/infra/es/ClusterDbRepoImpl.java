@@ -442,8 +442,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                                    .setUpdatedAt(System.currentTimeMillis())),
                    ClusterControlPacketContext.class
            );
-        } catch (Exception e) {
-            log.error("updateCpxStatus update a not existed cpx");
+        } catch (ElasticsearchException e) {
+            log.error("updateCpxStatus update a not existed cpx", e);
         }
     }
 

@@ -170,4 +170,12 @@ class ClusterDbRepoImplTest {
         then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"terms\":{\"topicLevel.2\":[\"de\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"topicLevel.4\":{\"value\":\"#\"}}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.4\"}}]}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"term\":{\"topicLevel.3\":{\"value\":\"#\"}}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"term\":{\"topicLevel.2\":{\"value\":\"#\"}}}]}},{\"term\":{\"topicLevel.0\":{\"value\":\"#\"}}}]}}]}}");
     }
 
+
+    @Test
+    void givenSessionQueue_whenUpdateCpx_then() {
+        String notExistClientIdentifier = UUID.randomUUID().toString();
+        ClusterControlPacketContext ccpx = newCcpx(notExistClientIdentifier, (short) 1);
+        dbRepo.updateCpxStatus(ccpx);
+    }
+
 }

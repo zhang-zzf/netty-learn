@@ -25,28 +25,9 @@ public class ClusterControlPacketContext extends ControlPacketContext {
     @Override
     public ClusterControlPacketContext markStatus(Status expect, Status update) {
         log.debug("cpx({}/{}/{}) markStatus->expected:{}, updated:{}", cId(), type(), pId(), expect, update);
-        if (atLeastOnceIgnoreStatus(update)) {
-            log.debug("cpx({}/{}/{}) markStatus->no need to update Status", cId(), type(), pId());
-            return this;
-        }
         super.markStatus(expect, update);
         clusterDbRepo.updateCpxStatus(this);
         return this;
-    }
-
-    private boolean atLeastOnceIgnoreStatus(Status update) {
-        if (!packet().atLeastOnce()) {
-            return false;
-        }
-        if (type() == Type.OUT) {
-            switch (update) {
-                case SENT:
-                    return true;
-                default:
-                    return false;
-            }
-        }
-        return false;
     }
 
     private String cId() {

@@ -23,7 +23,6 @@ public class ControlPacketContext {
     public enum Status {
         INIT,
         HANDLED,
-        SENT,
         PUB_REC,
         PUB_REL,
         PUB_COMP,

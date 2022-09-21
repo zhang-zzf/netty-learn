@@ -5,7 +5,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.node.DefaultServerSession;
 import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.PubAck;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
@@ -15,7 +14,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.Set;
 
-import static org.example.mqtt.session.ControlPacketContext.Status.PUB_ACK;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -82,37 +80,6 @@ public class ClusterServerSession extends DefaultServerSession {
             return head;
         }
         return clusterDbRepo.getCpxFromSessionQueue(cId(), ClusterDbQueue.Type.IN_QUEUE, packetIdentifier);
-    }
-
-    /**
-     * <p>性能优化考虑</p>
-     * <p>省去2次DB更新操作</p>
-     */
-    @Override
-    protected void doReceivePubAck(PubAck packet) {
-        log.debug("sender({}/{}) [QoS1 receive PubAck]", cId(), packet.pId());
-        short pId = packet.packetIdentifier();
-        ClusterControlPacketContext head = (ClusterControlPacketContext) outQueue().peek();
-        if (head != null && pId == head.packetIdentifier()) {
-            // the header, just delete it from the queue
-            outQueue().poll();
-            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), packet.pId());
-            publishPacketSentComplete(head);
-        } else {
-            ControlPacketContext cpx = findControlPacketInOutQueue(pId);
-            // now cpx point to the first QoS 1 ControlPacketContext or null
-            if (cpx == null) {
-                // Client PubAck nothing
-                log.error("sender({}/{}) PubAck failed, No Publish in outQueue", cId(), packet.pId());
-                return;
-            }
-            ControlPacketContext.Status preStatus = cpx.status();
-            // 强制更新为 PUB_ACK
-            cpx.markStatus(PUB_ACK);
-            log.debug("sender({}/{}) Publish {}->PUB_ACK", cId(), packet.pId(), preStatus);
-            // try clean the queue
-            // tryCleanOutQueue();
-        }
     }
 
     @Override

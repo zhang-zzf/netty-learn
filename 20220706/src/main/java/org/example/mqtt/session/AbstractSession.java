@@ -260,10 +260,19 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubComp failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        cpx.markStatus(PUB_REC, PUB_COMP);
-        log.debug("sender({}/{}) Publish PUB_REC->PUB_COMP", cId(), packet.pId());
-        // try clean the queue
-        tryCleanOutQueue();
+        if (outQueue().peek().packetIdentifier() == pId) {
+            // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
+            log.debug("sender({}/{}) [PubComp the Header of the outQueue]", cId(), cpx.pId());
+            // the header, remove it from the queue
+            outQueue.poll();
+            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
+            publishPacketSentComplete(cpx);
+            // try clean the queue
+            tryCleanOutQueue();
+        } else {
+            cpx.markStatus(PUB_REC, PUB_COMP);
+            log.debug("sender({}/{}) Publish PUB_REC->PUB_COMP", cId(), packet.pId());
+        }
     }
 
     /**
@@ -278,8 +287,8 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubRec failed. No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        cpx.markStatus(SENT, PUB_REC);
-        log.debug("sender({}/{}) Publish SENT->PUB_REC", cId(), packet.pId());
+        cpx.markStatus(PUB_REC);
+        log.debug("sender({}/{}) Publish INIT->PUB_REC", cId(), packet.pId());
         // send PubRel packet.
         doWritePubRelPacket(cpx);
     }
@@ -295,7 +304,7 @@ public abstract class AbstractSession implements Session {
     /**
      * as Sender
      */
-    protected void doReceivePubAck(PubAck packet) {
+    private void doReceivePubAck(PubAck packet) {
         log.debug("sender({}/{}) [QoS1 receive PubAck]", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
@@ -305,10 +314,19 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubAck failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        cpx.markStatus(SENT, PUB_ACK);
-        log.debug("sender({}/{}) Publish SENT->PUB_ACK", cId(), packet.pId());
-        // try clean the queue
-        tryCleanOutQueue();
+        if (outQueue().peek().packetIdentifier() == pId) {
+            // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
+            // the header, just delete it from the queue
+            log.debug("sender({}/{}) [PubAck the Header of the outQueue]", cId(), cpx.pId());
+            outQueue().poll();
+            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), packet.pId());
+            publishPacketSentComplete(cpx);
+            // try clean the queue
+            tryCleanOutQueue();
+        } else {
+            cpx.markStatus(PUB_ACK);
+            log.debug("sender({}/{}) Publish INIT->PUB_ACK", cId(), packet.pId());
+        }
     }
 
     /**
@@ -498,7 +516,6 @@ public abstract class AbstractSession implements Session {
         } else if (packet.exactlyOnce()) {
             switch (cpx.status()) {
                 case INIT:
-                case SENT:
                     cpx.markStatus(INIT);
                     doWritePublishPacket(cpx);
                     break;
@@ -514,16 +531,14 @@ public abstract class AbstractSession implements Session {
 
     private void doWritePublishPacket(ControlPacketContext cpx) {
         doWrite(cpx.packet()).addListener(f -> {
-            publishPacketSent(cpx);
             if (f.isSuccess()) {
-                cpx.markStatus(INIT, SENT);
-                log.debug("sender({}/{}) [Publish sent] Publish INIT->SENT", cId(), cpx.pId());
+                publishPacketSent(cpx);
             }
             // must release the retained Publish
             if (!enqueueOutQueue(cpx.packet())) {
                 publishPacketSentComplete(cpx);
             }
-        }).addListener(f->{
+        }).addListener(f -> {
             if (!f.isSuccess()) {
                 // todo send packet failed -> memory leak
             }
@@ -531,7 +546,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void publishPacketSent(ControlPacketContext cpx) {
-        log.debug("sender({}/{}) Publish Packet sent", cId(), cpx.pId());
+        log.debug("sender({}/{}) [Publish sent]", cId(), cpx.pId());
     }
 
     @Override

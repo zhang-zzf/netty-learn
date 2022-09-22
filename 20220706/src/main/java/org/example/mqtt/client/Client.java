@@ -66,7 +66,7 @@ public class Client implements AutoCloseable {
         return clientIdentifier;
     }
 
-    public void syncSend(byte qos, String topicName, ByteBuf payload) throws ExecutionException, InterruptedException {
+    public void syncSend(int qos, String topicName, ByteBuf payload) throws ExecutionException, InterruptedException {
         send(qos, topicName, payload).get();
     }
 

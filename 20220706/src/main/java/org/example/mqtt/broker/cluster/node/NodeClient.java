@@ -10,6 +10,7 @@ import org.example.mqtt.model.Subscribe;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_CLUSTER_NODES_TOPIC;
 import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODES_TOPIC;
@@ -102,9 +103,9 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public void syncLocalNode(Map<String, String> nodes) {
+    public void syncLocalNode(Map<String, String> nodes) throws ExecutionException, InterruptedException {
         NodeMessage nm = wrapClusterState(broker().nodeId(), nodes);
-        client.send(Publish.AT_LEAST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
+        client.syncSend(Publish.AT_LEAST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
     }
 
     @Override

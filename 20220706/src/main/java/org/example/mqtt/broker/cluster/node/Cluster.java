@@ -37,16 +37,6 @@ public class Cluster implements AutoCloseable {
 
     @SneakyThrows
     public void addNode(String nodeId, String remoteAddress) {
-        Node firstJoinedNode = nodes.get(NODE_ID_UNKNOWN);
-        if (firstJoinedNode != null && firstJoinedNode.address().equals(remoteAddress)) {
-            log.info("Cluster receive first joined node's nodeId: {}", nodeId);
-            if (nodes.remove(NODE_ID_UNKNOWN, firstJoinedNode)) {
-                firstJoinedNode.nodeClient().close();
-                addNode(nodeId, remoteAddress);
-                log.info("Cluster.Nodes->{}", nodes);
-            }
-            return;
-        }
         if (nodes.get(nodeId) != null) {
             if (!nodes.get(nodeId).address().equals(remoteAddress)) {
                 log.error("Cluster add Node failed, same nodeId with different remoteAddress", nodeId, remoteAddress);
@@ -69,6 +59,8 @@ public class Cluster implements AutoCloseable {
             nn.nodeClient(nc);
             log.info("Cluster connected to new Node->{}", nn);
             log.info("Cluster.Nodes->{}", JSON.toJSONString(nodes));
+            // sync Cluster.Nodes immediately.
+            syncClusterNodes();
         }
     }
 
@@ -94,15 +86,18 @@ public class Cluster implements AutoCloseable {
             return;
         }
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, new DefaultThreadFactory("Cluster-Sync"));
-        syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> {
-            Map<String, String> state = nodes.entrySet().stream()
-                    .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
-            log.trace("Node({}) publish Cluster State: {}, {}", nodeId(), $_SYS_CLUSTER_NODES_TOPIC, state);
-            NodeMessage nm = NodeMessage.wrapClusterState(nodeId(), state);
-            Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
-            // publish to topicName: $SYS/cluster/nodes
-            localBroker.nodeBroker().forward(publish);
-        }, 16, 16, TimeUnit.SECONDS);
+        syncJob = scheduledExecutorService
+                .scheduleAtFixedRate(() -> syncClusterNodes(), 16, 16, TimeUnit.SECONDS);
+    }
+
+    private void syncClusterNodes() {
+        Map<String, String> state = nodes.entrySet().stream()
+                .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
+        log.trace("Node({}) publish Cluster State: {}, {}", nodeId(), $_SYS_CLUSTER_NODES_TOPIC, state);
+        NodeMessage nm = NodeMessage.wrapClusterState(nodeId(), state);
+        Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
+        // publish to topicName: $SYS/cluster/nodes
+        localBroker.nodeBroker().forward(publish);
     }
 
     private String nodeId() {
@@ -124,6 +119,7 @@ public class Cluster implements AutoCloseable {
         return localBroker;
     }
 
+    @SneakyThrows
     public void join(String anotherNodeAddress) {
         if (!started.get()) {
             throw new IllegalStateException("Cluster is not started yet.");
@@ -133,10 +129,11 @@ public class Cluster implements AutoCloseable {
         if (nc == null) {
             throw new IllegalArgumentException("can not join the Cluster with another Node: " + anotherNodeAddress);
         }
-        nodes.put(NODE_ID_UNKNOWN, node.nodeClient(nc));
         Map<String, String> localNode = localNodeInfo();
+        log.info("Cluster start sync Local Node({}) with remote Node({})", localNode, node);
         nc.syncLocalNode(localNode);
-        log.info("Cluster sync Local Node({}) with remote Node({})", localNode, node);
+        log.info("Cluster sync done");
+        nc.close();
     }
 
     private Map<String, String> localNodeInfo() {

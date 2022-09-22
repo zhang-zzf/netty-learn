@@ -136,11 +136,11 @@ public class Client implements AutoCloseable {
             connect(channel);
             channel.closeFuture().addListener(f -> {
                 log.info("Client({}) Channel was closed.", cId());
-                close();
+                eventLoop.shutdownGracefully();
             });
         } catch (Exception e) {
             log.info("Client(" + cId() + ") Channel connect to remote broker exception. ", e);
-            close();
+            eventLoop.shutdownGracefully();
             throw new RuntimeException(e);
         }
     }

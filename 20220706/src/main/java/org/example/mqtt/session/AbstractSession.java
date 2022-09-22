@@ -67,6 +67,8 @@ public abstract class AbstractSession implements Session {
             channel = null;
             channelClosed();
             log.debug("Session({}) unbound from Channel", cId());
+        } else {
+            log.debug("Session({}) was not bound with a Channel", cId());
         }
     }
 

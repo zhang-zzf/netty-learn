@@ -2,6 +2,7 @@ package org.example.mqtt.broker.cluster.node;
 
 import com.alibaba.fastjson.JSON;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.model.Publish;
@@ -34,14 +35,16 @@ public class Cluster implements AutoCloseable {
         return nodes;
     }
 
+    @SneakyThrows
     public void addNode(String nodeId, String remoteAddress) {
         Node firstJoinedNode = nodes.get(NODE_ID_UNKNOWN);
         if (firstJoinedNode != null && firstJoinedNode.address().equals(remoteAddress)) {
             log.info("Cluster receive first joined node's nodeId: {}", nodeId);
-            Node updateFirstNode = new Node(nodeId, remoteAddress).nodeClient(firstJoinedNode.nodeClient());
-            nodes.put(nodeId, updateFirstNode);
-            nodes.remove(NODE_ID_UNKNOWN);
-            log.info("Cluster.Nodes->{}", nodes);
+            if (nodes.remove(NODE_ID_UNKNOWN, firstJoinedNode)) {
+                firstJoinedNode.nodeClient().close();
+                addNode(nodeId, remoteAddress);
+                log.info("Cluster.Nodes->{}", nodes);
+            }
             return;
         }
         if (nodes.get(nodeId) != null) {
@@ -55,15 +58,16 @@ public class Cluster implements AutoCloseable {
             log.warn("Cluster add Node failed, may be other Thread add it.", nodeId, remoteAddress);
             return;
         }
+        log.info("Cluster now try to connect to new Node->{}", nn);
         // try to connect the Node
         NodeClient nc = connectNewNode(nn);
         if (nc == null) {
             // wait for next update
             nodes.remove(nodeId, nn);
-            log.error("Cluster try connect to {}/{} failed", nodeId, remoteAddress);
+            log.error("Cluster connect to new Node failed->{}", nn);
         } else {
             nn.nodeClient(nc);
-            log.info("Cluster add new Node->{}", nn);
+            log.info("Cluster connected to new Node->{}", nn);
             log.info("Cluster.Nodes->{}", JSON.toJSONString(nodes));
         }
     }
@@ -169,9 +173,7 @@ public class Cluster implements AutoCloseable {
     public void removeNode(Node node) {
         log.info("Cluster remove Node->{}", node);
         log.info("Cluster.Nodes before remove->{}", JSON.toJSONString(nodes));
-        if (!nodes.remove(node.id(), node)) {
-            log.error("Cluster.Nodes remove node failed");
-        }
+        nodes.remove(node.id(), node);
         log.info("Cluster.Nodes after remove->{}", JSON.toJSONString(nodes));
     }
 

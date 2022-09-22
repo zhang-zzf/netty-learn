@@ -47,6 +47,9 @@ public class ClusterBroker implements Broker {
         this.cluster = cluster;
     }
 
+    /**
+     * Broker join the Cluster
+     */
     public Cluster cluster() {
         return this.cluster;
     }

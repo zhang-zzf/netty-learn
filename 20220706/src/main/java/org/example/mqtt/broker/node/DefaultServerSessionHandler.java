@@ -133,7 +133,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                     .addListener(FIRE_EXCEPTION_ON_FAILURE)
                     .addListener(f -> {
                         this.session.open(ctx.channel(), broker);
-                        log.info("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
+                        log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
                     })
             ;
         } else if (cp instanceof PingReq) {

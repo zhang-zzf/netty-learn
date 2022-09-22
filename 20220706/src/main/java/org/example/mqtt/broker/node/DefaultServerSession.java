@@ -134,11 +134,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceiveSubscribe(Subscribe packet) {
-        log.info("Session({}) doReceiveSubscribe req: {}", cId(), packet);
+        log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
         // register the Subscribe
         List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
-        log.info("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
+        log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
         doAddSubscriptions(permitted);
         channel().writeAndFlush(subAck);
         doSendRetainPublish(permitted);

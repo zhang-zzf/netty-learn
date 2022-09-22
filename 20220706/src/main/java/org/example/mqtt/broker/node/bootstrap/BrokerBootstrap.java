@@ -97,7 +97,7 @@ public class BrokerBootstrap {
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
-                    .handler(new LoggingHandler(LogLevel.INFO))
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new MqttOverSecureWebsocketServerInitializer("/mqtt", sslCtx, handlerSupplier))
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", address))
@@ -126,7 +126,7 @@ public class BrokerBootstrap {
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
-                    .handler(new LoggingHandler(LogLevel.INFO))
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new MqttOverWebsocketServerInitializer("/mqtt", handlerSupplier))
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT over Websocket server listened at {}", address))
@@ -162,7 +162,7 @@ public class BrokerBootstrap {
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
-                    .handler(new LoggingHandler(LogLevel.INFO))
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new SecureMqttServerInitializer(sslCtx, handlerSupplier))
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT TLS server listened at {}", address))
@@ -191,7 +191,7 @@ public class BrokerBootstrap {
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
-                    .handler(new LoggingHandler(LogLevel.INFO))
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new MqttServerInitializer(handlerSupplier))
                     .bind(address).sync().addListener(f -> log.info("MQTT server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {

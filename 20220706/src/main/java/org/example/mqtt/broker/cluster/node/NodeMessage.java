@@ -30,6 +30,10 @@ public class NodeMessage {
         return nm;
     }
 
+    public static NodeMessage fromBytes(ByteBuf payload) {
+        return fromBytes(ByteBufUtil.getBytes(payload));
+    }
+
     public Publish unwrapPublish() {
         return new Publish(Unpooled.copiedBuffer(getPayload()));
     }

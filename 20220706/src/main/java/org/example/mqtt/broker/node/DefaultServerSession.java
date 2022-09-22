@@ -110,7 +110,13 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) onPublish receive retain Publish: {}", cId(), packet);
             broker.retain(packet);
         }
-        broker.forward(packet);
+        // $SYS/* 特殊处理
+        // ¥SYS 发送给 Broker 的消息，不做转发
+        if (packet.topicName().startsWith("$SYS")) {
+            broker.receiveSysPublish(packet);
+        } else {
+            broker.forward(packet);
+        }
         return true;
     }
 
@@ -177,7 +183,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void open(Channel ch, Broker broker) {
-        log.debug("Session({}) now open bridge between Channel and Broker: {}, {}", cId(), ch, broker);
+        log.debug("Session({}) Channel<->Session<->Broker: {}, {}", cId(), ch, broker);
         bind(ch);
         if (!registered) {
             log.debug("Session({}) now try to connect to Broker: {}", cId(), broker);

@@ -49,7 +49,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             log.debug("Client({}) need a (cleanSession=0) Session", ccId);
             if (preSession == null) {
                 // no Exist Session
-                this.session = ClusterServerSession.from(broker().clusterDbRepo(), connect);
+                this.session = ClusterServerSession.from(connect);
                 log.debug("Client({}) Cluster created a new Session: {}", ccId, session);
             } else if (preSession instanceof ClusterServerSession) {
                 // exist cluster level Session.
@@ -70,7 +70,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 // preSession is (CleanSession=1) Session
                 preSession.close(true);
                 // build a new Cluster level Session
-                this.session = ClusterServerSession.from(broker().clusterDbRepo(), connect);
+                this.session = ClusterServerSession.from(connect);
                 log.debug("Client({}) need a (cleanSession=0) Session, created new Session: {}", ccId, session);
             } else {
                 throw new IllegalArgumentException();

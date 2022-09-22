@@ -12,6 +12,7 @@ import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.PingReq;
+import org.example.mqtt.model.PingResp;
 
 import java.util.List;
 
@@ -28,6 +29,10 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
         if (msg instanceof ControlPacket) {
             ControlPacket cp = (ControlPacket) msg;
             try {
+                if (cp instanceof PingResp) {
+                    log.debug("receive PingResp");
+                    return;
+                }
                 if (cp instanceof ConnAck && ((ConnAck) cp).connectionAccepted()) {
                     addKeepAliveIdleStateHandler(ctx);
                 }
@@ -53,7 +58,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("client({}) channelInactive, now close the Session", session.clientIdentifier());
+        log.info("Client({}) channelInactive, now close the Session", session.clientIdentifier());
         session.closeChannel();
         super.channelInactive(ctx);
     }

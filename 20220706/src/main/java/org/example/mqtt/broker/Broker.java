@@ -5,6 +5,7 @@ import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -60,5 +61,9 @@ public interface Broker extends AutoCloseable {
      * @return matched PublishPacket List
      */
     List<Publish> retainMatch(String topicFilter);
+
+    Map<String, String> listenedServer();
+
+    void receiveSysPublish(Publish packet);
 
 }

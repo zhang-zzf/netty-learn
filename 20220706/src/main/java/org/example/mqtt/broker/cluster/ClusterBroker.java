@@ -24,15 +24,31 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 public class ClusterBroker implements Broker {
 
     private final ClusterDbRepo clusterDbRepo;
-    private final Broker nodeBroker = new DefaultBroker();
+    private final DefaultBroker nodeBroker = new DefaultBroker();
+    private Cluster cluster;
 
     /**
      * JVM 级别
      */
-    private static final String nodeId = UUID.randomUUID().toString().replace("-", "");
+    private static final String nodeId = System.getProperty("mqtt.server.cluster.nodeName", UUID.randomUUID().toString().replace("-", ""));
+
+    static {
+        log.info("Broker.nodeId->{}", nodeId);
+    }
 
     public ClusterBroker(ClusterDbRepo clusterDbRepo) {
         this.clusterDbRepo = clusterDbRepo;
+    }
+
+    /**
+     * Broker join the Cluster
+     */
+    public void join(Cluster cluster) {
+        this.cluster = cluster;
+    }
+
+    public Cluster cluster() {
+        return this.cluster;
     }
 
     @Override
@@ -74,7 +90,7 @@ public class ClusterBroker implements Broker {
         log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
         nodeBroker.unsubscribe(session, packet);
         List<String> topicToRemove = packet.subscriptions().stream()
-                .map(s -> s.topicFilter())
+                .map(Subscribe.Subscription::topicFilter)
                 .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
                 .collect(toList());
         clusterDbRepo.removeNodeFromTopic(nodeId(), topicToRemove);
@@ -102,6 +118,11 @@ public class ClusterBroker implements Broker {
     }
 
     @Override
+    public Map<String, String> listenedServer() {
+        return nodeBroker().listenedServer();
+    }
+
+    @Override
     public void forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
@@ -119,9 +140,9 @@ public class ClusterBroker implements Broker {
                 forwardToOtherNode(packet, targetNodeId);
             }
             // forward the PublishPacket to offline client's Session.
-            for (Map.Entry<String, Byte> e : ct.getOfflineSessions().entrySet()) {
-                forwardToOfflineSession(packet, ct, e);
-            }
+            // for (Map.Entry<String, Byte> e : ct.getOfflineSessions().entrySet()) {
+            //     forwardToOfflineSession(packet, ct, e);
+            // }
         }
     }
 
@@ -129,7 +150,7 @@ public class ClusterBroker implements Broker {
         NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
         String topicName = Cluster.$_SYS_NODES_TOPIC + targetNodeId;
         Publish outgoing = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
-        log.debug("Publish forward to other Node: {}", nodeId());
+        log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
         nodeBroker.forward(outgoing);
     }
 
@@ -163,9 +184,10 @@ public class ClusterBroker implements Broker {
     @Override
     public void close() throws Exception {
         nodeBroker.close();
+        clusterDbRepo.close();
     }
 
-    public Broker nodeBroker() {
+    public DefaultBroker nodeBroker() {
         return nodeBroker;
     }
 
@@ -178,6 +200,25 @@ public class ClusterBroker implements Broker {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public void listenedServer(Map<String, String> protocolToUrl) {
+        nodeBroker().listenedServer(protocolToUrl);
+    }
+
+    public void receiveSysPublish(Publish packet) {
+        log.info("Broker receive SysPublish->{}", packet);
+        String topicName = packet.topicName();
+        switch (topicName) {
+            case Cluster.$_SYS_CLUSTER_NODES_TOPIC:
+                NodeMessage m = NodeMessage.fromBytes(packet.payload());
+                Map<String, String> state = m.unwrapClusterState();
+                log.info("Broker receive Cluster.Nodes->{}", state);
+                cluster.updateNodes(state);
+                break;
+            default:
+                throw new UnsupportedOperationException();
+        }
     }
 
 }

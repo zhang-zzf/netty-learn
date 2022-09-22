@@ -22,6 +22,7 @@ import static org.example.mqtt.model.Publish.needAck;
 public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
+    private final Map<String, String> listenedServer = new HashMap<>(8);
 
     @Override
     public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {
@@ -119,6 +120,22 @@ public class DefaultBroker implements Broker {
         return brokerState.matchRetain(topicFilter);
     }
 
+    @Override
+    public Map<String, String> listenedServer() {
+        return listenedServer;
+    }
+
+    @Override
+    public void receiveSysPublish(Publish packet) {
+        log.info("Broker receive SysPublish->{}", packet);
+        throw new UnsupportedOperationException();
+    }
+
+    public DefaultBroker listenedServer(String protocol, String url) {
+        listenedServer.put(protocol, url);
+        return this;
+    }
+
     private boolean zeroBytesPayload(Publish publish) {
         return !publish.payload().isReadable();
     }
@@ -126,6 +143,12 @@ public class DefaultBroker implements Broker {
     @Override
     public void close() throws Exception {
 
+    }
+
+    public void listenedServer(Map<String, String> protocolToUrl) {
+        for (Map.Entry<String, String> entry : protocolToUrl.entrySet()) {
+            listenedServer(entry.getKey(), entry.getValue());
+        }
     }
 
 }

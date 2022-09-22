@@ -33,7 +33,6 @@ public class Client implements AutoCloseable {
     private final ConcurrentMap<Short, SyncFuture<Object>> requestMap = new ConcurrentHashMap<>();
     private final String clientIdentifier;
     private final ClientSession session;
-
     /**
      * mqtt://host:port
      */
@@ -45,12 +44,6 @@ public class Client implements AutoCloseable {
 
     private final MessageHandler handler;
 
-    @SneakyThrows
-    public Client(String clientIdentifier, MessageHandler handler) {
-        this(clientIdentifier, null, handler);
-    }
-
-    @SneakyThrows
     public Client(String clientIdentifier, String remoteAddress, MessageHandler handler) {
         this(clientIdentifier, remoteAddress, eventLoopGroup(clientIdentifier), handler);
     }
@@ -77,7 +70,7 @@ public class Client implements AutoCloseable {
         send(qos, topicName, payload).get();
     }
 
-    public Future<Void> send(byte qos, String topicName, ByteBuf payload) {
+    public Future<Void> send(int qos, String topicName, ByteBuf payload) {
         short packetIdentifier = session.nextPacketIdentifier();
         session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload));
         return cacheRequest(packetIdentifier);
@@ -107,7 +100,7 @@ public class Client implements AutoCloseable {
     }
 
     private String cId() {
-        return clientIdentifier;
+        return clientIdentifier + "->" + remoteAddress;
     }
 
     public List<Subscribe.Subscription> syncUnsubscribe(List<Subscribe.Subscription> unsub) throws ExecutionException, InterruptedException {
@@ -129,16 +122,15 @@ public class Client implements AutoCloseable {
     public void close() {
         session.closeChannel();
         eventLoop.shutdownGracefully();
-        // todo request
     }
 
     private void connectToBroker(String remoteAddress) {
         try {
-            log.info("Client({}) Channel connect to remote broker: {}", cId(), remoteAddress);
             Bootstrap bootstrap = bootstrap(eventLoop, session);
             URI uri = new URI(remoteAddress);
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
             Channel channel = bootstrap.connect(address).sync().channel();
+            log.info("Client({}) Channel connected to remote broker", cId());
             // bind Channel with Session
             session.bind(channel);
             connect(channel);
@@ -202,6 +194,14 @@ public class Client implements AutoCloseable {
     public void receivePublish(Publish packet) {
         log.debug("receivePublish: {}", packet);
         handler.handle(packet.topicName(), ByteBufUtil.getBytes(packet.payload()));
+    }
+
+    /**
+     * Client 连接断开回调
+     */
+    public void disconnected() {
+        log.info("Client({}) disconnected from remote Broker", cId());
+        handler.clientClosed();
     }
 
     public static class SyncFuture<V> implements Future<V> {

@@ -65,8 +65,13 @@ public abstract class AbstractSession implements Session {
                 channel.close();
             }
             channel = null;
+            channelClosed();
             log.debug("Session({}) unbound from Channel", cId());
         }
+    }
+
+    protected void channelClosed() {
+        log.info("Session({}) was closed.", cId());
     }
 
     @Override
@@ -244,6 +249,7 @@ public abstract class AbstractSession implements Session {
                 doReceivePubComp((PubComp) packet);
                 break;
             default:
+                log.error("unhandled ControlPacket type->{}", packet);
                 throw new IllegalArgumentException();
         }
     }

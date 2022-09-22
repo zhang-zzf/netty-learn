@@ -79,6 +79,7 @@ public abstract class ControlPacket {
     public static ControlPacket from(ByteBuf buf) {
         ControlPacket controlPacket = convertToControlPacket(buf);
         if (!controlPacket.packetValidate()) {
+            log.error("ControlPacket validate failed->{}", controlPacket);
             throw new IllegalArgumentException("packet validate failed: protocol violation.");
         }
         return controlPacket;

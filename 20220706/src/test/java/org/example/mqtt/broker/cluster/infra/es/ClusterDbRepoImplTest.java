@@ -125,7 +125,7 @@ class ClusterDbRepoImplTest {
     void givenEmptyOutQueue_whenOfferToOfflineSession_then() {
         // given
         String clientIdentifier = UUID.randomUUID().toString();
-        ClusterServerSession session = ClusterServerSession.from(dbRepo, clientIdentifier, null, null, null);
+        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
         dbRepo.saveSession(session);
         // use a shadow copy of the origin Publish
         String payload = "Hello, World!\n你好，世界。";
@@ -144,7 +144,7 @@ class ClusterDbRepoImplTest {
     void givenNotEmptyOutQueue_whenOfferToOfflineSession_then() {
         // given
         String clientIdentifier = UUID.randomUUID().toString();
-        ClusterServerSession session = ClusterServerSession.from(dbRepo, clientIdentifier, null, null, null);
+        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
         dbRepo.saveSession(session);
         // 空队列追加
         ClusterControlPacketContext ccpx = newCcpx(clientIdentifier, session.nextPacketIdentifier());

@@ -38,7 +38,8 @@ class ClusterServerSessionHandlerTest {
 
     @BeforeEach
     public void beforeEach() {
-        cluster = new Cluster(new ClusterBroker(dbRepo));
+        ClusterBroker broker = new ClusterBroker(dbRepo);
+        cluster = new Cluster().join(broker);
         mqttClientA = new Session0(MQTT_CLIENT_A);
         clientA = createChannel(cluster);
         // clientA 模拟接受 Connect 消息
@@ -59,7 +60,8 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession1_whenConnectAndDisconnect_thenSuccess() {
-        EmbeddedChannel c1 = createChannel(new Cluster(new ClusterBroker(dbRepo)));
+        ClusterBroker broker = new ClusterBroker(dbRepo);
+        EmbeddedChannel c1 = createChannel(new Cluster().join(broker));
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -77,7 +79,8 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
-        EmbeddedChannel c1 = createChannel(new Cluster(new ClusterBroker(dbRepo)));
+        ClusterBroker clusterBroker = new ClusterBroker(dbRepo);
+        EmbeddedChannel c1 = createChannel(new Cluster().join(clusterBroker));
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)

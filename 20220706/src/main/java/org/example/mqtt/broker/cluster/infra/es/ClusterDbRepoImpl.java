@@ -294,6 +294,10 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         return ret;
     }
 
+    @Override
+    public void close() {
+    }
+
     Query buildTopicMatchQuery(String topicName) {
         String[] levels = topicName.split("/");
         List<Query> queryList = new ArrayList<>();
@@ -423,8 +427,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                     .map(o -> new Subscribe.Subscription(o.getTopicFilter(), o.getQos()))
                     .collect(toSet());
         }
-        return ClusterServerSession.from(this, po.getClientIdentifier(),
-                po.getNodeId(), subscriptions, po.getOutQueuePacketIdentifier());
+        return ClusterServerSession.from(po.getClientIdentifier(), po.getNodeId(),
+                subscriptions, po.getOutQueuePacketIdentifier());
     }
 
     @SneakyThrows

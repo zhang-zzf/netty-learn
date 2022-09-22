@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.bootstrap;
 
 import co.elastic.clients.elasticsearch.ElasticsearchClient;
+import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
@@ -25,23 +26,22 @@ public class BrokerBootstrap {
     @SneakyThrows
     public static void main(String[] args) {
         Authenticator authenticator = packet -> 0x00;
+        final Cluster cluster = new Cluster();
         final ClusterBroker clusterBroker = new ClusterBroker(elasticsearchDbRepoImpl());
-        final Cluster cluster = new Cluster(clusterBroker);
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new ClusterServerSessionHandler(authenticator, 3, cluster);
         Map<String, String> protocolToUrl =
                 org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
-        String mqttUrl = protocolToUrl.get("mqtt");
-        if (mqttUrl == null) {
-            throw new UnsupportedOperationException("Cluster mode need mqtt protocol enabled");
-        }
+        clusterBroker.listenedServer(protocolToUrl);
         // 开启集群节点信息同步
-        cluster.localNode(mqttUrl).startSyncJob();
+        // broker join the Cluster
+        cluster.join(clusterBroker).start();
         String anotherNode = System.getProperty("mqtt.server.cluster.join");
         if (anotherNode != null) {
-            log.info("Node({}) try to connect to anotherNode({})", clusterBroker.nodeId(), anotherNode);
+            log.info("Node({}) try to connect to another Node({})", clusterBroker.nodeId(), anotherNode);
             cluster.join(anotherNode);
-            log.info("Node({}) connected to the anotherNode({})", clusterBroker.nodeId(), anotherNode);
+            log.info("Node({}) connected to the another Node({})", clusterBroker.nodeId(), anotherNode);
+            log.info("Cluster.Nodes->{}", JSON.toJSONString(cluster.nodes()));
         }
         log.info("Node({}) start success", clusterBroker.nodeId());
     }

@@ -37,4 +37,6 @@ public interface ClusterDbRepo {
 
     List<ClusterTopic> matchTopic(String topicName);
 
+    void close();
+
 }

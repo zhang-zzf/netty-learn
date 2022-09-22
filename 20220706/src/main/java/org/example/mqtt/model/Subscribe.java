@@ -140,9 +140,6 @@ public class Subscribe extends ControlPacket {
                 return false;
             }
         }
-        if (topicFilter.startsWith("$")) {
-            return false;
-        }
         return true;
     }
 

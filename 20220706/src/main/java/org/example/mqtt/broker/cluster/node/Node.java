@@ -1,15 +1,17 @@
 package org.example.mqtt.broker.cluster.node;
 
-import java.util.UUID;
+import lombok.Getter;
 
 public class Node {
 
-    public static final String NODE_ID_UNKNOWN = UUID.randomUUID().toString().replace("-", "");
+    public static final String NODE_ID_UNKNOWN = "NODE_ID_UNKNOWN";
 
+    @Getter
     private final String id;
     /**
      * mqtt://host:port
      */
+    @Getter
     private final String address;
     private volatile NodeClient nodeClient;
 
@@ -43,18 +45,6 @@ public class Node {
         }
         if (address != null) {
             sb.append("\"address\":\"").append(address).append('\"').append(',');
-        }
-        if (nodeClient != null) {
-            sb.append("\"nodeClient\":");
-            String objectStr = nodeClient.toString().trim();
-            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
-                sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
-                sb.append(objectStr);
-            } else {
-                sb.append("\"").append(objectStr).append("\"");
-            }
-            sb.append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

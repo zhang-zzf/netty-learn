@@ -14,14 +14,7 @@ class ClusterTest {
 
     ClusterDbRepo dbRepo = mock(ClusterDbRepo.class);
     ClusterBroker clusterBroker = new ClusterBroker(dbRepo);
-    Cluster cluster = new Cluster(clusterBroker);
-
-    @Test
-    void given_when_then() {
-        cluster.localNode("mqtt://10.255.5.1:1883");
-        Map<String, Node> nodes = cluster.nodes();
-        then(nodes).hasSize(1);
-    }
+    Cluster cluster = new Cluster();
 
     @Test
     void given_whenBuildPublish_when() {

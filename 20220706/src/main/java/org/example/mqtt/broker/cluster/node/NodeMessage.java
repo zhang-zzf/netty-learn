@@ -3,13 +3,14 @@ package org.example.mqtt.broker.cluster.node;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.TypeReference;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
 import org.example.mqtt.model.Publish;
 
+import java.util.Base64;
 import java.util.Map;
 
+import static io.netty.buffer.ByteBufUtil.getBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @Data
@@ -20,50 +21,48 @@ public class NodeMessage {
     public static final String SESSION_CLOSE = "Session.Close";
     private String nodeId;
     private String packet;
-    private byte[] payload;
+    private String payload;
 
     public static NodeMessage wrapPublish(String nodeId, Publish packet) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
         nm.setPacket(PACKET_PUBLISH);
-        nm.setPayload(ByteBufUtil.getBytes(packet.toByteBuf()));
+        nm.setPayload(Base64.getEncoder().encodeToString(getBytes(packet.toByteBuf())));
         return nm;
     }
 
     public static NodeMessage fromBytes(ByteBuf payload) {
-        return fromBytes(ByteBufUtil.getBytes(payload));
+        return fromBytes(getBytes(payload));
     }
 
     public Publish unwrapPublish() {
-        return new Publish(Unpooled.copiedBuffer(getPayload()));
+        return new Publish(Unpooled.copiedBuffer(Base64.getDecoder().decode(getPayload())));
     }
 
     public static NodeMessage wrapSessionClose(String nodeId, String clientIdentifier) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
         nm.setPacket(SESSION_CLOSE);
-        nm.setPayload(clientIdentifier.getBytes(UTF_8));
+        nm.setPayload(clientIdentifier);
         return nm;
     }
 
     public String unwrapSessionClose() {
-        return new String(getPayload(), UTF_8);
+        return payload;
     }
 
     public static NodeMessage wrapClusterState(String nodeId, Map<String, String> state) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
         nm.setPacket(PACKET_CLUSTER_NODES);
-        nm.setPayload(JSON.toJSONString(state).getBytes(UTF_8));
+        nm.setPayload(JSON.toJSONString(state));
         return nm;
     }
 
     public Map<String, String> unwrapClusterState() {
-        String json = new String(getPayload(), UTF_8);
-        Map<String, String> state = JSON.parseObject(json,
+        return JSON.parseObject(payload,
                 new TypeReference<Map<String, String>>() {
                 });
-        return state;
     }
 
     @Override

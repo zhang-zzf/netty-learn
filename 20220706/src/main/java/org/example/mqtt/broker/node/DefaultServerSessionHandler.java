@@ -223,7 +223,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.info("Client({}) channelInactive", csci());
+        log.debug("Client({}) channelInactive", csci());
         closeSession(ctx);
         super.channelInactive(ctx);
     }

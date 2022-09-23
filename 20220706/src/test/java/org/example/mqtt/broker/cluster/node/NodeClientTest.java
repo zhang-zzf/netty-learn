@@ -13,10 +13,11 @@ class NodeClientTest {
         NodeMessage m = new NodeMessage();
         m.setNodeId("nodeId");
         m.setPacket("Publish");
-        m.setPayload(new byte[8]);
+        String payload = "payload";
+        m.setPayload(payload);
         String jsonStr = JSON.toJSONString(m);
         NodeMessage nm = JSON.parseObject(jsonStr, NodeMessage.class);
-        then(nm.getPayload()).hasSize(8);
+        then(nm.getPayload()).isEqualTo(payload);
     }
 
 }

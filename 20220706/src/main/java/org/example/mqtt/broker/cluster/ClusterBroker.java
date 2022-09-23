@@ -134,13 +134,17 @@ public class ClusterBroker implements Broker {
         // forward to offline Clients
         List<ClusterTopic> clusterTopics = clusterDbRepo.matchTopic(packet.topicName());
         log.debug("Publish({}) match Cluster Topics: {}", packet.topicName(), clusterTopics);
+        if (clusterTopics.isEmpty()) {
+            return;
+        }
+        Publish nodeMessagePacket = createNodeMessagePacket(packet);
         for (ClusterTopic ct : clusterTopics) {
             // forward to another Node in the cluster
             for (String targetNodeId : ct.getNodes()) {
                 if (nodeId().equals(targetNodeId)) {
                     continue;
                 }
-                forwardToOtherNode(packet, targetNodeId);
+                forwardToOtherNode(nodeMessagePacket, targetNodeId);
             }
             // forward the PublishPacket to offline client's Session.
             // for (Map.Entry<String, Byte> e : ct.getOfflineSessions().entrySet()) {
@@ -149,12 +153,16 @@ public class ClusterBroker implements Broker {
         }
     }
 
-    private void forwardToOtherNode(Publish packet, String targetNodeId) {
+    private Publish createNodeMessagePacket(Publish packet) {
         NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
+        return Publish.outgoing(packet.qos(), packet.topicName(), nm.toByteBuf());
+    }
+
+    private void forwardToOtherNode(Publish packet, String targetNodeId) {
         String topicName = Cluster.$_SYS_NODES_TOPIC + targetNodeId;
-        Publish outgoing = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
+        packet.topicName(topicName);
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
-        nodeBroker.forward(outgoing);
+        nodeBroker.forward(packet);
     }
 
     // todo

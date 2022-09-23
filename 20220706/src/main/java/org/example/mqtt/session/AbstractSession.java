@@ -73,7 +73,7 @@ public abstract class AbstractSession implements Session {
     }
 
     protected void channelClosed() {
-        log.info("Session({}) was closed.", cId());
+        log.debug("Session({}) was closed.", cId());
     }
 
     @Override

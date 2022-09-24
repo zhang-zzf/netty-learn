@@ -16,9 +16,10 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 @Data
 public class NodeMessage {
 
-    public static final String PACKET_PUBLISH = "Publish";
-    public static final String PACKET_CLUSTER_NODES = "Cluster.Nodes";
-    public static final String SESSION_CLOSE = "Session.Close";
+    public static final String ACTION_PUBLISH_FORWARD = "Publish.forward";
+    public static final String ACTION_SESSION_CLOSE = "Session.Close";
+    public static final String INFO_CLUSTER_NODES = "Cluster.Nodes";
+    public static final String INFO_CLIENT_CONNECT = "Client.Connect";
     private String nodeId;
     private String packet;
     private String payload;
@@ -26,13 +27,21 @@ public class NodeMessage {
     public static NodeMessage wrapPublish(String nodeId, Publish packet) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
-        nm.setPacket(PACKET_PUBLISH);
+        nm.setPacket(ACTION_PUBLISH_FORWARD);
         nm.setPayload(Base64.getEncoder().encodeToString(getBytes(packet.toByteBuf())));
         return nm;
     }
 
     public static NodeMessage fromBytes(ByteBuf payload) {
         return fromBytes(getBytes(payload));
+    }
+
+    public static NodeMessage wrapConnect(String nodeId, String clientIdentifier) {
+        NodeMessage nm = new NodeMessage();
+        nm.setNodeId(nodeId);
+        nm.setPacket(INFO_CLIENT_CONNECT);
+        nm.setPayload(clientIdentifier);
+        return nm;
     }
 
     public Publish unwrapPublish() {
@@ -42,7 +51,7 @@ public class NodeMessage {
     public static NodeMessage wrapSessionClose(String nodeId, String clientIdentifier) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
-        nm.setPacket(SESSION_CLOSE);
+        nm.setPacket(ACTION_SESSION_CLOSE);
         nm.setPayload(clientIdentifier);
         return nm;
     }
@@ -54,7 +63,7 @@ public class NodeMessage {
     public static NodeMessage wrapClusterState(String nodeId, Map<String, String> state) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
-        nm.setPacket(PACKET_CLUSTER_NODES);
+        nm.setPacket(INFO_CLUSTER_NODES);
         nm.setPayload(JSON.toJSONString(state));
         return nm;
     }

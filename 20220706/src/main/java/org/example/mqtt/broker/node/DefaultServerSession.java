@@ -16,6 +16,8 @@ import java.util.Set;
 import static org.example.mqtt.model.ControlPacket.*;
 
 /**
+ * Session 的生命周期由 Broker 控制
+ *
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
@@ -110,8 +112,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) onPublish receive retain Publish: {}", cId(), packet);
             broker.retain(packet);
         }
-        // $SYS/* 特殊处理
-        // ¥SYS 发送给 Broker 的消息，不做转发
+        // $SYS/# 特殊处理
+        // 发送给 Broker 的 $SYS/# 消息，不做转发
         if (packet.topicName().startsWith("$SYS")) {
             broker.receiveSysPublish(packet);
         } else {
@@ -168,7 +170,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
             willMessage = null;
         }
-        close(false);
+        close();
     }
 
     @Override
@@ -195,8 +197,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void close(boolean force) {
-        log.debug("Session({}) close - force: {}, Session: {}", cId(), force, this);
+    public void channelClosed() {
+        super.channelClosed();
         // send will message
         if (willMessage != null) {
             log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
@@ -204,18 +206,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             willMessage = null;
         }
         // 取消与 Broker 的关联
-        if (cleanSession() || force) {
-            if (registered) {
+        if (registered) {
+            if (cleanSession()) {
                 log.debug("Session({}) now try to disconnect from Broker: {}", cId(), broker);
                 // disconnect the session from the broker
-                broker.disconnect(this);
+                broker.destroySession(this);
                 registered = false;
                 log.debug("Session({}) disconnected from Broker", cId());
             }
         }
-        // 关闭底层连接
-        closeChannel();
-        log.debug("Session({}) closed", cId());
     }
 
     @Override

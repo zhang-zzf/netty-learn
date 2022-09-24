@@ -4,6 +4,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoop;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 
@@ -57,23 +58,26 @@ public abstract class AbstractSession implements Session {
     /**
      * Close the Channel that was used to connect to the client.
      */
+    @SneakyThrows
     @Override
-    public void closeChannel() {
+    public void close() {
+        log.debug("Session({}) try to close->{}", cId(), this);
         if (isBound()) {
             log.debug("Session({}) now try to unbind from Channel: {}", cId(), channel);
             if (channel.isOpen()) {
                 channel.close();
             }
             channel = null;
-            channelClosed();
             log.debug("Session({}) unbound from Channel", cId());
         } else {
             log.debug("Session({}) was not bound with a Channel", cId());
         }
     }
 
-    protected void channelClosed() {
-        log.debug("Session({}) was closed.", cId());
+    @Override
+    public void channelClosed() {
+        channel = null;
+        log.debug("Session({}).Channel was closed.", cId());
     }
 
     @Override

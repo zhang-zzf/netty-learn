@@ -18,8 +18,20 @@ import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
 @Slf4j
 public class Cluster implements AutoCloseable {
 
-    public static final String $_SYS_NODES_TOPIC = "$SYS/nodes/";
-    public static final String $_SYS_CLUSTER_NODES_TOPIC = "$SYS/cluster/nodes";
+    /**
+     * 集群中 Node 监听的 topic。
+     * <p>每个 node 都有唯一的 topic, 用于接受发送到 Node 的消息</p>
+     * <p>Example: $SYS/cluster/node1</p>
+     */
+    public static final String $_SYS_NODE_TOPIC = "$SYS/cluster/%s";
+    /**
+     * 集群中 Node 发布消息的 topic
+     * <p>Example: Node1 会发布集群变动消息到 $SYS/cluster/node1/node</p>
+     * <p>Example: Node1 会发布 Session 变动消息到 $SYS/cluster/node1/session</p>
+     * <p>Example: Node2 会发布集群变动消息到 $SYS/cluster/node2/node</p>
+     */
+    public static final String $_SYS_NODE_PUBLISH_TOPIC = "$SYS/cluster/%s/%s";
+    public static final String $_SYS_TOPIC = "$SYS";
     private final Map<String, Node> nodes = new ConcurrentHashMap<>();
 
     private ClusterBroker localBroker;
@@ -27,6 +39,8 @@ public class Cluster implements AutoCloseable {
     private final AtomicBoolean started = new AtomicBoolean(false);
     private ScheduledThreadPoolExecutor scheduledExecutorService;
     private ScheduledFuture<?> syncJob;
+
+    private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 16);
 
     public Cluster() {
     }
@@ -60,7 +74,7 @@ public class Cluster implements AutoCloseable {
             log.info("Cluster connected to new Node->{}", nn);
             log.info("Cluster.Nodes->{}", JSON.toJSONString(nodes));
             // sync Cluster.Nodes immediately.
-            syncClusterNodes();
+            publishClusterNodes();
         }
     }
 
@@ -86,17 +100,17 @@ public class Cluster implements AutoCloseable {
             return;
         }
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, new DefaultThreadFactory("Cluster-Sync"));
-        syncJob = scheduledExecutorService
-                .scheduleAtFixedRate(() -> syncClusterNodes(), 16, 16, TimeUnit.SECONDS);
+        syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> publishClusterNodes(),
+                16, publishClusterNodesPeriod, TimeUnit.SECONDS);
     }
 
-    private void syncClusterNodes() {
+    private void publishClusterNodes() {
         Map<String, String> state = nodes.entrySet().stream()
                 .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
-        log.trace("Node({}) publish Cluster State: {}, {}", nodeId(), $_SYS_CLUSTER_NODES_TOPIC, state);
+        String publishTopic = clusterNodeChangePublishTopic(nodeId());
+        log.debug("Cluster publish Cluster.Nodes:{}->{}", state, publishTopic);
         NodeMessage nm = NodeMessage.wrapClusterState(nodeId(), state);
-        Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
-        // publish to topicName: $SYS/cluster/nodes
+        Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, publishTopic, nm.toByteBuf());
         localBroker.nodeBroker().forward(publish);
     }
 
@@ -172,6 +186,26 @@ public class Cluster implements AutoCloseable {
         log.info("Cluster.Nodes before remove->{}", JSON.toJSONString(nodes));
         nodes.remove(node.id(), node);
         log.info("Cluster.Nodes after remove->{}", JSON.toJSONString(nodes));
+    }
+
+    public static String nodeListenTopic(String localNodeId) {
+        return String.format($_SYS_NODE_TOPIC, localNodeId);
+    }
+
+    public static String sessionChangePublishTopic(String localNodeId) {
+        return nodePublishTopic(localNodeId, "session");
+    }
+
+    public static String clusterNodeChangePublishTopic(String localNodeId) {
+        return nodePublishTopic(localNodeId, "node");
+    }
+
+    public static String nodePublishTopic(String localNodeId, String type) {
+        return String.format($_SYS_NODE_PUBLISH_TOPIC, localNodeId, type);
+    }
+
+    public static String subscribeAllNode() {
+        return String.format($_SYS_NODE_PUBLISH_TOPIC, "+", "+");
     }
 
 }

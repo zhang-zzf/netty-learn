@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
@@ -64,9 +65,10 @@ public class DefaultBroker implements Broker {
 
     @SneakyThrows
     @Override
-    public void disconnect(ServerSession session) {
-        // remove the session from the broker
+    public void destroySession(ServerSession session) {
+        log.debug("Broker try to destroySession->{}", session);
         brokerState.disconnect(session).get();
+        log.info("Session was remove from the Broker->{}", session);
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {
@@ -129,6 +131,11 @@ public class DefaultBroker implements Broker {
     public void receiveSysPublish(Publish packet) {
         log.info("Broker receive SysPublish->{}", packet);
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public ServerSession createSession(Connect connect) {
+        return DefaultServerSession.from(connect);
     }
 
     public DefaultBroker listenedServer(String protocol, String url) {

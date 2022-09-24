@@ -10,7 +10,7 @@ import java.util.Set;
  * @author zhanfeng.zhang
  * @date 2022/06/23
  */
-public interface Session {
+public interface Session extends AutoCloseable {
 
     /**
      * clientId
@@ -69,9 +69,9 @@ public interface Session {
     short nextPacketIdentifier();
 
     /**
-     * close the Channel
+     * close Session
      */
-    void closeChannel();
+    void close();
 
     /**
      * whether the session is cleanSession
@@ -79,5 +79,10 @@ public interface Session {
      * @return true if session is CleanSession otherwise false
      */
     boolean cleanSession();
+
+    /**
+     * will be called after Channel was closed
+     */
+    void channelClosed();
 
 }

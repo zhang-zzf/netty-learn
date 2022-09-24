@@ -120,7 +120,7 @@ public class Client implements AutoCloseable {
 
     @Override
     public void close() {
-        session.closeChannel();
+        session.close();
         eventLoop.shutdownGracefully();
     }
 
@@ -135,7 +135,7 @@ public class Client implements AutoCloseable {
             session.bind(channel);
             connect(channel);
             channel.closeFuture().addListener(f -> {
-                log.info("Client({}) Channel was closed.", cId());
+                log.debug("Client({}) Channel was closed.", cId());
                 eventLoop.shutdownGracefully();
             });
         } catch (Exception e) {

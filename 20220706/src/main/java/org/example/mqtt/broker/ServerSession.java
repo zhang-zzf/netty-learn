@@ -28,11 +28,4 @@ public interface ServerSession extends Session {
      */
     void open(Channel ch, Broker broker);
 
-    /**
-     * deregister from Broker and close the Channel
-     *
-     * @param force force clean Session from Broker if true
-     */
-    void close(boolean force);
-
 }

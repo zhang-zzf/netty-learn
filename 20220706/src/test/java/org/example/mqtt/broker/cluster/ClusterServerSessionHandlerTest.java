@@ -9,6 +9,7 @@ import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 
 import java.util.List;
 import java.util.Set;
@@ -19,6 +20,8 @@ import static java.util.Collections.singletonList;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.example.mqtt.broker.node.DefaultServerSessionHandler.HANDLER_NAME;
 import static org.example.mqtt.model.ConnAck.ACCEPTED;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 class ClusterServerSessionHandlerTest {
@@ -60,8 +63,8 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession1_whenConnectAndDisconnect_thenSuccess() {
-        ClusterBroker broker = new ClusterBroker(dbRepo);
-        EmbeddedChannel c1 = createChannel(new Cluster().join(broker));
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -73,19 +76,210 @@ class ClusterServerSessionHandlerTest {
     }
 
     /**
+     * cleanSession1 新建 Session
      * <p>Connect cleanSession=1</p>
      * <p>Broker: no Session</p>
      * <p>创建 new Session</p>
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
-        ClusterBroker clusterBroker = new ClusterBroker(dbRepo);
-        EmbeddedChannel c1 = createChannel(new Cluster().join(clusterBroker));
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
                 .returns(false, ConnAck::sp)
         ;
+    }
+
+    /**
+     * <p>Connect cleanSession=1</p>
+     * <p>Broker: exist cleanSession=1 Session</p>
+     * <p>关闭 exist Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOnlineCleanSession1_whenConnectWithCleanSession1_then() {
+        String clientIdentifier = "strReceiver01";
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        // receiver 模拟接受 Connect 消息
+        c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+        // cc1 same clientIdentifier with c1
+        // that is the same client
+        EmbeddedChannel cc1 = createChannel(cluster);
+        // receiver 模拟接受 Connect 消息
+        cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
+        // 读出 ConnAck 消息
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+    }
+
+    /**
+     * <p>Connect cleanSession=1</p>
+     * <p>Broker: exist cleanSession=0 online Session</p>
+     * <p>关闭 exist online Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOnlineCleanSession0_whenConnectWithCleanSession1_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp)
+        ;
+        EmbeddedChannel cc1 = createChannel(cluster);
+        cc1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+        // 删除 ClusterServerSession
+        BDDMockito.then(dbRepo).should().deleteSession(any());
+    }
+
+    /**
+     * <p>Connect cleanSession=1</p>
+     * <p>Broker: exist cleanSession=0 offline Session</p>
+     * <p>关闭 exist offline Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOfflineCleanSession0_whenConnectWithCleanSession1_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        String strReceiver01 = "strReceiver01";
+        EmbeddedChannel cc1 = createChannel(cluster);
+        // mock
+        ClusterServerSession offlineSession = ClusterServerSession.from(Connect.from(strReceiver01, false, (short) 64));
+        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(offlineSession);
+        cc1.writeInbound(Connect.from(strReceiver01, true, (short) 64).toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+        BDDMockito.then(dbRepo).should().deleteSession(offlineSession);
+    }
+
+    /**
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: no Session</p>
+     * <p>创建 new Session</p>
+     */
+    @Test
+    void givenEmptySession_whenConnectWithCleanSession0_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp)
+        ;
+    }
+
+    /**
+     * <p>cleanSession=0 Disconnect 后 Broker 保留 Session</p>
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: no Session</p>
+     * <p>创建 new Session</p>
+     * <p>Disconnect</p>
+     */
+    @Test
+    void givenCleanSession0_whenConnectAndDisConnect_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        // Connect
+        c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+        // Disconnect
+        c1.writeInbound(Disconnect.from().toByteBuf());
+        then(c1.isActive()).isFalse();
+    }
+
+    /**
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: cleanSession=1 Session</p>
+     * <p>Close Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOnlineCleanSession1_whenConnectWithCleanSession0_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        c1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp)
+        ;
+        EmbeddedChannel cc1 = createChannel(cluster);
+        cc1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp);
+    }
+
+    /**
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: cleanSession=0 online Session</p>
+     * <p>Close Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOnlineCleanSession0_whenConnectWithCleanSession0_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        EmbeddedChannel c1 = createChannel(cluster);
+        Connect connect = Connect.from("strReceiver01", false, (short) 64);
+        c1.writeInbound(connect.toByteBuf());
+        then(new ConnAck(c1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(false, ConnAck::sp)
+        ;
+        EmbeddedChannel cc1 = createChannel(cluster);
+        // mock
+        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        cc1.writeInbound(connect.toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(true, ConnAck::sp)
+        ;
+    }
+
+    /**
+     * <p>Connect 2 times</p>
+     * <p>Channel will be closed by the Broker</p>
+     */
+    @Test
+    void givenConnectedSession_whenConnectAgain_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Connect connect = Connect.from("strReceiver01", false, (short) 64);
+        EmbeddedChannel cc1 = createChannel(cluster);
+        // mock
+        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        cc1.writeInbound(connect.toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(true, ConnAck::sp);
+        cc1.writeInbound(connect.toByteBuf());
+        then(cc1.isActive()).isFalse();
+    }
+
+    /**
+     * <p>Connect cleanSession=0</p>
+     * <p>Broker: cleanSession=0 offline Session</p>
+     * <p>Close Session -> 创建 new Session</p>
+     */
+    @Test
+    void givenExistOfflineCleanSession0_whenConnectWithCleanSession0_then() {
+        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Connect connect = Connect.from("strReceiver01", false, (short) 64);
+        EmbeddedChannel cc1 = createChannel(cluster);
+        // mock
+        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        cc1.writeInbound(connect.toByteBuf());
+        then(new ConnAck(cc1.readOutbound())).isNotNull()
+                .returns((int) ACCEPTED, ConnAck::returnCode)
+                .returns(true, ConnAck::sp);
     }
 
     /**

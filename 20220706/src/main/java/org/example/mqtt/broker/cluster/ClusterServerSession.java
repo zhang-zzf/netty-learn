@@ -17,10 +17,13 @@ import java.util.Set;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
+/**
+ * Session 的生命周期由 Broker 控制
+ */
 @Slf4j
 public class ClusterServerSession extends DefaultServerSession {
 
-    private String nodeId;
+    private volatile String nodeId;
     /**
      * Session 离线时 OutQueue 的 tail
      */
@@ -49,7 +52,7 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     protected Queue<ControlPacketContext> newInQueue() {
-        log.debug("Node({}) Session({}) now build inQueue", nodeId(), cId());
+        log.debug("Session({}) now build inQueue", cId());
         return new ClusterDbQueue(clusterDbRepo(), cId(), ClusterDbQueue.Type.IN_QUEUE);
     }
 
@@ -59,7 +62,7 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     protected Queue<ControlPacketContext> newOutQueue() {
-        log.debug("Node({}) Session({}) now build outQueue.", nodeId(), cId());
+        log.debug("Session({}) now build outQueue.", cId());
         return new ClusterDbQueue(clusterDbRepo(), cId(), ClusterDbQueue.Type.OUT_QUEUE);
     }
 
@@ -119,6 +122,7 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     public void open(Channel ch, Broker broker) {
+        log.debug("Cluster Session({}) Channel<->Session<->Broker", cId());
         super.open(ch, broker);
         if (this.nodeId != null) {
             log.debug("Session({}) nodeId is Not Null: {}", cId(), nodeId());
@@ -127,51 +131,50 @@ public class ClusterServerSession extends DefaultServerSession {
         this.nodeId = cb.nodeId();
         this.outQueuePacketIdentifier = null;
         // 注册成功,绑定信息保存到 DB
-        log.debug("Node({}) Session({}) Channel<->Session<->Broker: {}, {}", nodeId(), cId());
         cb.clusterDbRepo().saveSession(this);
     }
 
-    /**
-     * @param force force clean Session from Cluster if true
-     */
     @Override
-    public void close(boolean force) {
-        log.debug("Node({}) now close Session({}), force: {}", nodeId(), cId(), force);
-        if (!isRegistered()) {
+    public void close() {
+        log.debug("Cluster now try close Session->{}", this);
+        if (!isOnline()) {
             log.warn("ClusterServerSession is not bound to the Node(Broker)");
             return;
         }
-        closeClusterSession(force);
-        // 清除本 broker 中的 Session (even if CleanSession=0)
-        super.close(true);
+        disconnectSessionFromThisNode();
+        super.close();
     }
 
-    public void closeClusterSession(boolean force) {
-        if (force) {
-            // 清除 cluster leven Session
-            log.debug("Node({}) now force remove cleanSession=0 Session({}) in the Cluster", nodeId(), cId());
-            clusterDbRepo().deleteSession(this);
-        } else {
-            log.debug("Node({}) now try to disconnect the cleanSession=0 Session({}) from this Node", nodeId(), cId());
+    private void disconnectSessionFromThisNode() {
+        if (isOnline()) {
             this.nodeId = null;
             // 保存 tail
             List<ClusterControlPacketContext> tail =
                     clusterDbRepo().searchSessionQueue(clientIdentifier(), ClusterDbQueue.Type.OUT_QUEUE, true, 1);
             this.outQueuePacketIdentifier = tail.isEmpty() ? null : tail.get(0).packetIdentifier();
+            // 清除本 broker 中的 Session (even if CleanSession=0)
+            log.debug("Cluster now try to disconnect the cleanSession=0 Session from this Node->{}", this);
             clusterDbRepo().saveSession(this);
-            log.debug("Node({}) now disconnected the cleanSession=0 Session({}) from this Node", nodeId(), cId());
+            log.debug("the cleanSession=0 Session was disconnected from this Node");
+            broker().nodeBroker().destroySession(this);
         }
     }
 
+    @Override
+    public void channelClosed() {
+        super.channelClosed();
+        disconnectSessionFromThisNode();
+    }
 
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"type\":\"ClusterServerSession\"");
+        sb.append("\"type\":\"ClusterServerSession\",");
         sb.append("\"registered\":").append(isRegistered()).append(',');
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
         sb.append("\"cleanSession\":").append(cleanSession()).append(',');
         sb.append("\"bound\":").append(isBound()).append(',');
+        sb.append("\"isOnline\":").append(isOnline()).append(',');
         if (nodeId() != null) {
             sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
         }
@@ -179,11 +182,6 @@ public class ClusterServerSession extends DefaultServerSession {
             sb.append("\"outQueuePacketIdentifier\":").append(outQueuePacketIdentifier()).append(",");
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
-    @Override
-    public boolean isBound() {
-        return nodeId() != null;
     }
 
     @Override
@@ -210,6 +208,10 @@ public class ClusterServerSession extends DefaultServerSession {
             throw new IllegalArgumentException();
         }
         this.packetIdentifier.set(packetIdentifier);
+    }
+
+    public boolean isOnline() {
+        return nodeId() != null;
     }
 
 }

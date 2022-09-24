@@ -96,7 +96,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    protected void channelClosed() {
+    public void channelClosed() {
         client.disconnected();
     }
 

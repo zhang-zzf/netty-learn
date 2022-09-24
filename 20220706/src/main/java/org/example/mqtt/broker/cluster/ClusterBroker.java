@@ -8,6 +8,8 @@ import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
 import org.example.mqtt.broker.node.DefaultBroker;
+import org.example.mqtt.broker.node.DefaultServerSession;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
@@ -17,6 +19,9 @@ import java.util.*;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
+import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
+import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -68,13 +73,33 @@ public class ClusterBroker implements Broker {
     }
 
     @Override
-    public void connect(ServerSession session) {
-        nodeBroker.connect(session);
+    public void destroySession(ServerSession session) {
+        log.debug("ClusterBroker try to destroySession->{}", session);
+        if (session instanceof ClusterServerSession) {
+            ClusterServerSession css = (ClusterServerSession) session;
+            String cId = session.clientIdentifier();
+            // 清除 cluster leven Session
+            clusterDbRepo().deleteSession(css);
+            log.info("Session({}) was removed from the Cluster", nodeId(), cId);
+        } else if (session instanceof DefaultServerSession) {
+            nodeBroker.destroySession(session);
+        } else {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
-    public void disconnect(ServerSession session) {
-        nodeBroker.disconnect(session);
+    public void connect(ServerSession session) {
+        nodeBroker.connect(session);
+        // publish Connect to Cluster
+        publishConnectToCluster(session.clientIdentifier());
+    }
+
+    private void publishConnectToCluster(String clientIdentifier) {
+        NodeMessage nm = NodeMessage.wrapConnect(nodeId(), clientIdentifier);
+        Publish packet = Publish.outgoing(1, sessionChangePublishTopic(nodeId()), nm.toByteBuf());
+        nodeBroker.forward(packet);
+        log.debug("Client({}).Connect was published to the Cluster", clientIdentifier);
     }
 
     @Override
@@ -159,7 +184,7 @@ public class ClusterBroker implements Broker {
     }
 
     private void forwardToOtherNode(Publish packet, String targetNodeId) {
-        String topicName = Cluster.$_SYS_NODES_TOPIC + targetNodeId;
+        String topicName = nodeListenTopic(targetNodeId);
         packet.topicName(topicName);
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
         nodeBroker.forward(packet);
@@ -180,7 +205,7 @@ public class ClusterBroker implements Broker {
         if (!added) {
             log.warn("Publish forward to offline Client[添加失败]: {}", clientIdentifier);
             ClusterServerSession curS = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
-            if (curS.isBound()) {
+            if (curS.isOnline()) {
                 log.warn("Pubish forward to offline Client[添加失败，Client online], now forward it: {}", clientIdentifier);
                 // todo online forward
                 String nodeId = curS.nodeId();
@@ -219,16 +244,26 @@ public class ClusterBroker implements Broker {
 
     public void receiveSysPublish(Publish packet) {
         log.info("Broker receive SysPublish->{}", packet);
-        String topicName = packet.topicName();
-        switch (topicName) {
-            case Cluster.$_SYS_CLUSTER_NODES_TOPIC:
-                NodeMessage m = NodeMessage.fromBytes(packet.payload());
+        NodeMessage m = NodeMessage.fromBytes(packet.payload());
+        switch (m.getPacket()) {
+            case INFO_CLUSTER_NODES:
                 Map<String, String> state = m.unwrapClusterState();
                 log.info("Broker receive Cluster.Nodes->{}", state);
                 cluster.updateNodes(state);
                 break;
             default:
                 throw new UnsupportedOperationException();
+        }
+    }
+
+    @Override
+    public ServerSession createSession(Connect connect) {
+        if (connect.cleanSession()) {
+            log.debug("Broker now try create a new DefaultServerSession");
+            return DefaultServerSession.from(connect);
+        } else {
+            log.debug("Broker now try create a new ClusterServerSession");
+            return ClusterServerSession.from(connect);
         }
     }
 

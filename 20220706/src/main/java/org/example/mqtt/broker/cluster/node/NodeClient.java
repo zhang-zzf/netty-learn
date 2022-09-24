@@ -3,6 +3,7 @@ package org.example.mqtt.broker.cluster.node;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.cluster.ClusterBroker;
+import org.example.mqtt.broker.cluster.ClusterServerSession;
 import org.example.mqtt.client.Client;
 import org.example.mqtt.client.MessageHandler;
 import org.example.mqtt.model.Publish;
@@ -12,8 +13,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_CLUSTER_NODES_TOPIC;
-import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODES_TOPIC;
+import static org.example.mqtt.broker.cluster.node.Cluster.*;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 
 @Slf4j
@@ -32,10 +32,11 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     private void initSubscribe() {
+        String subscribeOnlyMyself = nodeListenTopic(broker().nodeId());
         Subscribe.Subscription nodeSubscription =
-                new Subscribe.Subscription($_SYS_NODES_TOPIC + broker().nodeId(), Publish.EXACTLY_ONCE);
+                new Subscribe.Subscription(subscribeOnlyMyself, Publish.EXACTLY_ONCE);
         Subscribe.Subscription clusterNodes =
-                new Subscribe.Subscription($_SYS_CLUSTER_NODES_TOPIC, Publish.AT_LEAST_ONCE);
+                new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
         client.subscribe(Arrays.asList(nodeSubscription, clusterNodes));
     }
 
@@ -48,30 +49,48 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         NodeMessage m = NodeMessage.fromBytes(payload);
         log.debug("NodeClient receive message->{}", m);
         switch (m.getPacket()) {
-            case PACKET_PUBLISH:
+            case ACTION_PUBLISH_FORWARD:
                 // forward Publish
                 Publish packet = m.unwrapPublish();
                 log.debug("NodeClient receive Publish: {}", packet);
                 // just use LocalBroker to forward the PublishPacket
                 broker().nodeBroker().forward(packet);
                 break;
-            case PACKET_CLUSTER_NODES:
+            case INFO_CLUSTER_NODES:
                 Map<String, String> state = m.unwrapClusterState();
-                log.debug("NodeClient receive Cluster.Nodes->{}", cId(), state);
                 cluster.updateNodes(state);
                 break;
-            case SESSION_CLOSE:
+            case ACTION_SESSION_CLOSE:
                 String clientIdentifier = m.unwrapSessionClose();
-                log.debug("NodeClient receive Session.Close from {}: {}", m.getNodeId(), clientIdentifier);
                 ServerSession session = broker().session(clientIdentifier);
                 if (session != null) {
-                    session.close(false);
+                    session.close();
                     log.debug("NodeClient Session({}).Closed.", clientIdentifier);
                 } else {
                     log.warn("NodeClient does not exist Session({})", clientIdentifier);
                 }
+                break;
+            case INFO_CLIENT_CONNECT:
+                doHandleClientConnect(m);
+                break;
             default:
                 throw new IllegalArgumentException();
+        }
+    }
+
+    private void doHandleClientConnect(NodeMessage m) {
+        String clientIdentifier = m.unwrapSessionClose();
+        // just get Session from local Node(Broker)
+        ServerSession session = broker().nodeBroker().session(clientIdentifier);
+        if (session != null) {
+            if (session instanceof ClusterServerSession) {
+                // should not exist
+                log.error("Client.Connect from {}, Node has a ClusterServerSession", m.getNodeId(), session);
+                return;
+            }
+            log.info("Client.Connect from {}, now close Session: {}", m.getNodeId(), session);
+            session.close();
+            broker().destroySession(session);
         }
     }
 
@@ -105,7 +124,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
 
     public void syncLocalNode(Map<String, String> nodes) throws ExecutionException, InterruptedException {
         NodeMessage nm = wrapClusterState(broker().nodeId(), nodes);
-        client.syncSend(Publish.AT_LEAST_ONCE, $_SYS_CLUSTER_NODES_TOPIC, nm.toByteBuf());
+        client.syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
     }
 
     @Override

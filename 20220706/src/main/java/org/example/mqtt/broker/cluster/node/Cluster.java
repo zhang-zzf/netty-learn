@@ -23,14 +23,14 @@ public class Cluster implements AutoCloseable {
      * <p>每个 node 都有唯一的 topic, 用于接受发送到 Node 的消息</p>
      * <p>Example: $SYS/cluster/node1</p>
      */
-    public static final String $_SYS_NODE_TOPIC = "$SYS/cluster/%s";
+    public static final String $_SYS_NODE_TOPIC = "$SYS/cluster/nodes/%s";
     /**
      * 集群中 Node 发布消息的 topic
      * <p>Example: Node1 会发布集群变动消息到 $SYS/cluster/node1/node</p>
      * <p>Example: Node1 会发布 Session 变动消息到 $SYS/cluster/node1/session</p>
      * <p>Example: Node2 会发布集群变动消息到 $SYS/cluster/node2/node</p>
      */
-    public static final String $_SYS_NODE_PUBLISH_TOPIC = "$SYS/cluster/%s/%s";
+    public static final String $_SYS_NODE_PUBLISH_TOPIC = "$SYS/cluster/nodes/%s/%s";
     public static final String $_SYS_TOPIC = "$SYS";
     private final Map<String, Node> nodes = new ConcurrentHashMap<>();
 
@@ -40,7 +40,7 @@ public class Cluster implements AutoCloseable {
     private ScheduledThreadPoolExecutor scheduledExecutorService;
     private ScheduledFuture<?> syncJob;
 
-    private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 16);
+    private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 300);
 
     public Cluster() {
     }
@@ -109,7 +109,7 @@ public class Cluster implements AutoCloseable {
                 .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
         String publishTopic = clusterNodeChangePublishTopic(nodeId());
         log.debug("Cluster publish Cluster.Nodes:{}->{}", state, publishTopic);
-        NodeMessage nm = NodeMessage.wrapClusterState(nodeId(), state);
+        NodeMessage nm = NodeMessage.wrapClusterNodes(nodeId(), state);
         Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, publishTopic, nm.toByteBuf());
         localBroker.nodeBroker().forward(publish);
     }

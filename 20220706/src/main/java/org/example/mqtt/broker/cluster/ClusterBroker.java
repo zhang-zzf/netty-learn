@@ -136,11 +136,6 @@ public class ClusterBroker implements Broker {
     }
 
     @Override
-    public void retain(Publish packet) {
-        nodeBroker.retain(packet);
-    }
-
-    @Override
     public List<Publish> retainMatch(String topicFilter) {
         return nodeBroker.retainMatch(topicFilter);
     }
@@ -242,12 +237,27 @@ public class ClusterBroker implements Broker {
         nodeBroker().listenedServer(protocolToUrl);
     }
 
-    public void receiveSysPublish(Publish packet) {
+    public void handlePublish(Publish packet) {
+        // $SYS/# 特殊处理. 发送给 Broker 的 $SYS/# 消息，不做转发
+        if (packet.topicName().startsWith("$SYS")) {
+            doHandleSysPublish(packet);
+            return;
+        }
+        // retain message
+        if (packet.retain()) {
+            // todo
+            throw new UnsupportedOperationException();
+        }
+        // Broker forward Publish to relative topic after receive a PublishPacket
+        forward(packet);
+    }
+
+    private void doHandleSysPublish(Publish packet) {
         log.info("Broker receive SysPublish->{}", packet);
         NodeMessage m = NodeMessage.fromBytes(packet.payload());
         switch (m.getPacket()) {
             case INFO_CLUSTER_NODES:
-                Map<String, String> state = m.unwrapClusterState();
+                Map<String, String> state = m.unwrapClusterNodes();
                 log.info("Broker receive Cluster.Nodes->{}", state);
                 cluster.updateNodes(state);
                 break;

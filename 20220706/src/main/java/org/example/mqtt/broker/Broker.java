@@ -40,13 +40,6 @@ public interface Broker extends AutoCloseable {
     Set<Integer> supportProtocolLevel();
 
     /**
-     * retain the Publish
-     *
-     * @param packet Publish Packet
-     */
-    void retain(Publish packet);
-
-    /**
      * find retain PublishPacket that match the topicFilter
      *
      * @param topicFilter TopicFilter
@@ -56,7 +49,7 @@ public interface Broker extends AutoCloseable {
 
     Map<String, String> listenedServer();
 
-    void receiveSysPublish(Publish packet);
+    void handlePublish(Publish packet);
 
     ServerSession createSession(Connect connect);
 

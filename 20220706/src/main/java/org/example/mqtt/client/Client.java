@@ -40,7 +40,7 @@ public class Client implements AutoCloseable {
     private final EventLoopGroup eventLoop;
     public static final short KEEP_ALIVE = 120;
 
-    private ChannelPromise connAck;
+    private volatile ChannelPromise connAck;
 
     private final MessageHandler handler;
 
@@ -71,9 +71,15 @@ public class Client implements AutoCloseable {
     }
 
     public Future<Void> send(int qos, String topicName, ByteBuf payload) {
-        short packetIdentifier = session.nextPacketIdentifier();
-        session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload));
-        return cacheRequest(packetIdentifier);
+        if (qos == Publish.AT_MOST_ONCE) {
+            session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload));
+            // no need to wait
+            return SyncFuture.completedFuture(null);
+        } else {
+            short packetIdentifier = session.nextPacketIdentifier();
+            session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload));
+            return cacheRequest(packetIdentifier);
+        }
     }
 
     public List<Subscribe.Subscription> syncSubscribe(List<Subscribe.Subscription> sub) throws InterruptedException, ExecutionException {
@@ -121,7 +127,6 @@ public class Client implements AutoCloseable {
     @Override
     public void close() {
         session.close();
-        eventLoop.shutdownGracefully();
     }
 
     private void connectToBroker(String remoteAddress) {
@@ -130,7 +135,7 @@ public class Client implements AutoCloseable {
             URI uri = new URI(remoteAddress);
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
             Channel channel = bootstrap.connect(address).sync().channel();
-            log.info("Client({}) Channel connected to remote broker", cId());
+            log.debug("Client({}) Channel connected to remote broker", cId());
             // bind Channel with Session
             session.bind(channel);
             connect(channel);
@@ -146,12 +151,13 @@ public class Client implements AutoCloseable {
     }
 
     private void connect(Channel channel) throws InterruptedException {
+        log.debug("Client({}) try send Connect", cId());
         // send Connect
         connAck = channel.newPromise();
         session.send(Connect.from(clientIdentifier, KEEP_ALIVE));
         // wait for ConnAck
-        // todo test
         connAck.sync();
+        log.debug("Client({}) received ConnAck", cId());
     }
 
     private Bootstrap bootstrap(EventLoopGroup eventLoop, ClientSession clientSession) {
@@ -179,6 +185,7 @@ public class Client implements AutoCloseable {
     }
 
     public void connAck(ConnAck packet) {
+        log.debug("Client({}) receive ConnAck->{}", cId(), packet);
         if (packet.connectionAccepted()) {
             connAck.setSuccess();
         } else {

@@ -38,7 +38,7 @@ public class BrokerBootstrap {
         cluster.join(clusterBroker).start();
         String anotherNode = System.getProperty("mqtt.server.cluster.join");
         if (anotherNode != null) {
-            log.info("Cluster try to connect to another Node: {}->{}", clusterBroker.nodeId(), anotherNode);
+            log.info("Cluster try to connect to another Node->{}", anotherNode);
             cluster.join(anotherNode);
             log.info("Cluster.Nodes->{}", JSON.toJSONString(cluster.nodes()));
         }

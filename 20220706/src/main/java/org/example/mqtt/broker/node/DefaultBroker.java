@@ -101,8 +101,7 @@ public class DefaultBroker implements Broker {
         brokerState.connect(session).get();
     }
 
-    @Override
-    public void retain(Publish publish) {
+    private void retain(Publish publish) {
         if (!publish.retain()) {
             throw new IllegalArgumentException();
         }
@@ -128,9 +127,13 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public void receiveSysPublish(Publish packet) {
-        log.info("Broker receive SysPublish->{}", packet);
-        throw new UnsupportedOperationException();
+    public void handlePublish(Publish packet) {
+        // retain message
+        if (packet.retain()) {
+            retain(packet);
+        }
+        // Broker forward Publish to relative topic after receive a PublishPacket
+        forward(packet);
     }
 
     @Override

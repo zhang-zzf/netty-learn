@@ -107,18 +107,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     protected boolean onPublish(Publish packet) {
-        // retain message
-        if (packet.retain()) {
-            log.debug("Session({}) onPublish receive retain Publish: {}", cId(), packet);
-            broker.retain(packet);
-        }
-        // $SYS/# 特殊处理
-        // 发送给 Broker 的 $SYS/# 消息，不做转发
-        if (packet.topicName().startsWith("$SYS")) {
-            broker.receiveSysPublish(packet);
-        } else {
-            broker.forward(packet);
-        }
+        broker.handlePublish(packet);
         return true;
     }
 

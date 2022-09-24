@@ -60,15 +60,15 @@ public class NodeMessage {
         return payload;
     }
 
-    public static NodeMessage wrapClusterState(String nodeId, Map<String, String> state) {
+    public static NodeMessage wrapClusterNodes(String nodeId, Map<String, String> nodes) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
         nm.setPacket(INFO_CLUSTER_NODES);
-        nm.setPayload(JSON.toJSONString(state));
+        nm.setPayload(JSON.toJSONString(nodes));
         return nm;
     }
 
-    public Map<String, String> unwrapClusterState() {
+    public Map<String, String> unwrapClusterNodes() {
         return JSON.parseObject(payload,
                 new TypeReference<Map<String, String>>() {
                 });

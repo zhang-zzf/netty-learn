@@ -22,8 +22,8 @@ class ClusterTest {
             put("node1", "mqtt://node1:1883");
             put("node2", "mqtt://node2:1883");
         }};
-        NodeMessage nm = NodeMessage.wrapClusterState("node3", hashMap);
-        Map<String, String> map = nm.unwrapClusterState();
+        NodeMessage nm = NodeMessage.wrapClusterNodes("node3", hashMap);
+        Map<String, String> map = nm.unwrapClusterNodes();
         then(map).containsExactlyEntriesOf(hashMap);
     }
 

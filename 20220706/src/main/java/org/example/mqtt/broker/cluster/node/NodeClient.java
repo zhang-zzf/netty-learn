@@ -10,6 +10,7 @@ import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
@@ -37,7 +38,9 @@ public class NodeClient implements MessageHandler, AutoCloseable {
                 new Subscribe.Subscription(subscribeOnlyMyself, Publish.EXACTLY_ONCE);
         Subscribe.Subscription clusterNodes =
                 new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
-        client.subscribe(Arrays.asList(nodeSubscription, clusterNodes));
+        List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription, clusterNodes);
+        log.debug("NodeClient try to subscribe: {}", sub);
+        client.subscribe(sub);
     }
 
     private ClusterBroker broker() {
@@ -57,7 +60,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
                 broker().nodeBroker().forward(packet);
                 break;
             case INFO_CLUSTER_NODES:
-                Map<String, String> state = m.unwrapClusterState();
+                Map<String, String> state = m.unwrapClusterNodes();
                 cluster.updateNodes(state);
                 break;
             case ACTION_SESSION_CLOSE:
@@ -123,7 +126,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     public void syncLocalNode(Map<String, String> nodes) throws ExecutionException, InterruptedException {
-        NodeMessage nm = wrapClusterState(broker().nodeId(), nodes);
+        NodeMessage nm = wrapClusterNodes(broker().nodeId(), nodes);
         client.syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
     }
 

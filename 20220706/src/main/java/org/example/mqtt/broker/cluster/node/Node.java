@@ -7,7 +7,7 @@ public class Node {
     public static final String NODE_ID_UNKNOWN = "NODE_ID_UNKNOWN";
 
     @Getter
-    private final String id;
+    private String id;
     /**
      * mqtt://host:port
      */
@@ -47,6 +47,11 @@ public class Node {
             sb.append("\"address\":\"").append(address).append('\"').append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public Node nodeId(String nodeId) {
+        this.id = nodeId;
+        return this;
     }
 
 }

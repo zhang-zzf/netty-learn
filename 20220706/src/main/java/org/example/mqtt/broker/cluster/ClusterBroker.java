@@ -35,9 +35,11 @@ public class ClusterBroker implements Broker {
     /**
      * JVM 级别
      */
-    private static final String nodeId = System.getProperty("mqtt.server.cluster.nodeName", UUID.randomUUID().toString().replace("-", ""));
+    private static final String nodeId;
 
     static {
+        String nodeName = System.getProperty("mqtt.server.cluster.nodeName", "node");
+        nodeId = nodeName + "(" + System.currentTimeMillis() + ")";
         log.info("Broker.nodeId->{}", nodeId);
     }
 

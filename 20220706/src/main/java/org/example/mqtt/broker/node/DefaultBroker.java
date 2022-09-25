@@ -44,9 +44,6 @@ public class DefaultBroker implements Broker {
         for (Topic topic : brokerState.match(packet.topicName())) {
             for (Map.Entry<ServerSession, Integer> e : topic.subscribers().entrySet()) {
                 ServerSession session = e.getKey();
-                if (!session.isRegistered()) {
-                    continue;
-                }
                 String topicFilter = topic.topicFilter();
                 int qos = Math.min(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
@@ -66,9 +63,12 @@ public class DefaultBroker implements Broker {
     @SneakyThrows
     @Override
     public void destroySession(ServerSession session) {
+        if (brokerState.session(session.clientIdentifier()) == null) {
+            return;
+        }
         log.debug("Broker try to destroySession->{}", session);
         brokerState.disconnect(session).get();
-        log.info("Session was remove from the Broker->{}", session);
+        log.debug("Broker destroyed Session");
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {

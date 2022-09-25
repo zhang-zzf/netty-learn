@@ -20,7 +20,6 @@ import java.net.URI;
 import java.util.List;
 import java.util.concurrent.*;
 
-import static java.util.Collections.emptyList;
 import static org.example.mqtt.client.ClientSessionHandler.HANDLER_NAME;
 
 /**
@@ -82,14 +81,17 @@ public class Client implements AutoCloseable {
         }
     }
 
-    public List<Subscribe.Subscription> syncSubscribe(List<Subscribe.Subscription> sub) throws InterruptedException, ExecutionException {
-        return subscribe(sub).get();
+    @SneakyThrows
+    public List<Subscribe.Subscription> syncSubscribe(List<Subscribe.Subscription> sub) {
+        SubAck subAck = subscribe(sub).get();
+        log.debug("Client({}) subAck: {}", cId(), subAck);
+        return subAck.subscriptions();
     }
 
-    public Future<List<Subscribe.Subscription>> subscribe(List<Subscribe.Subscription> sub) {
-        log.info("Client({}) subscribe: {}", cId(), sub);
+    public Future<SubAck> subscribe(List<Subscribe.Subscription> sub) {
+        log.debug("Client({}) subscribe: {}", cId(), sub);
         if (sub == null || sub.isEmpty()) {
-            return SyncFuture.completedFuture(emptyList());
+            throw new IllegalArgumentException();
         }
         short packetIdentifier = session.nextPacketIdentifier();
         Subscribe packet = Subscribe.from(sub).packetIdentifier(packetIdentifier);
@@ -109,14 +111,16 @@ public class Client implements AutoCloseable {
         return clientIdentifier + "->" + remoteAddress;
     }
 
-    public List<Subscribe.Subscription> syncUnsubscribe(List<Subscribe.Subscription> unsub) throws ExecutionException, InterruptedException {
-        return unsubscribe(unsub).get();
+    @SneakyThrows
+    public void syncUnsubscribe(List<Subscribe.Subscription> unsub) throws ExecutionException, InterruptedException {
+        UnsubAck unsubAck = unsubscribe(unsub).get();
+        log.debug("Client({}) unsubAck: {}", cId(), unsubAck);
     }
 
-    public Future<List<Subscribe.Subscription>> unsubscribe(List<Subscribe.Subscription> unsub) {
+    public Future<UnsubAck> unsubscribe(List<Subscribe.Subscription> unsub) {
         log.info("Client({}) unsubscribe: {}", cId(), unsub);
         if (unsub == null || unsub.isEmpty()) {
-            return SyncFuture.completedFuture(emptyList());
+            throw new IllegalArgumentException();
         }
         short packetIdentifier = session.nextPacketIdentifier();
         Unsubscribe packet = Unsubscribe.from(unsub).packetIdentifier(packetIdentifier);
@@ -141,6 +145,7 @@ public class Client implements AutoCloseable {
             connect(channel);
             channel.closeFuture().addListener(f -> {
                 log.debug("Client({}) Channel was closed.", cId());
+                // session.channelClosed();
                 eventLoop.shutdownGracefully();
             });
         } catch (Exception e) {

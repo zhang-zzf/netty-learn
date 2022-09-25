@@ -49,18 +49,31 @@ public class Cluster implements AutoCloseable {
         return nodes;
     }
 
+    private void updateNode(String nodeId, String remoteAddress) {
+        Node firstJoinedNode = nodes.get(NODE_ID_UNKNOWN);
+        if (firstJoinedNode != null && firstJoinedNode.address().equals(remoteAddress)) {
+            log.debug("Cluster receive first joined Node's nodeId->{}", nodeId);
+            if (nodes.remove(NODE_ID_UNKNOWN, firstJoinedNode)) {
+                nodes.put(nodeId, firstJoinedNode.nodeId(nodeId));
+            }
+        } else {
+            addNode(nodeId, remoteAddress);
+        }
+    }
+
     @SneakyThrows
-    public void addNode(String nodeId, String remoteAddress) {
+    public boolean addNode(String nodeId, String remoteAddress) {
         if (nodes.get(nodeId) != null) {
             if (!nodes.get(nodeId).address().equals(remoteAddress)) {
                 log.error("Cluster add Node failed, same nodeId with different remoteAddress", nodeId, remoteAddress);
+                return false;
             }
-            return;
+            return true;
         }
         Node nn = new Node(nodeId, remoteAddress);
         if (nodes.putIfAbsent(nodeId, nn) != null) {
             log.warn("Cluster add Node failed, may be other Thread add it.", nodeId, remoteAddress);
-            return;
+            return true;
         }
         log.info("Cluster now try to connect to new Node->{}", nn);
         // try to connect the Node
@@ -69,19 +82,21 @@ public class Cluster implements AutoCloseable {
             // wait for next update
             nodes.remove(nodeId, nn);
             log.error("Cluster connect to new Node failed->{}", nn);
+            return false;
         } else {
             nn.nodeClient(nc);
             log.info("Cluster connected to new Node->{}", nn);
             log.info("Cluster.Nodes->{}", JSON.toJSONString(nodes));
             // sync Cluster.Nodes immediately.
             publishClusterNodes();
+            return true;
         }
     }
 
     public void updateNodes(Map<String, String> nodeIdToAddress) {
         log.debug("Cluster before update: {}", nodes);
         for (Map.Entry<String, String> e : nodeIdToAddress.entrySet()) {
-            addNode(e.getKey(), e.getValue());
+            updateNode(e.getKey(), e.getValue());
         }
         log.debug("Cluster after update: {}", nodes);
     }
@@ -106,11 +121,12 @@ public class Cluster implements AutoCloseable {
 
     private void publishClusterNodes() {
         Map<String, String> state = nodes.entrySet().stream()
+                .filter(e -> !e.getKey().equals(NODE_ID_UNKNOWN))
                 .collect(toMap(Map.Entry::getKey, e -> e.getValue().address()));
         String publishTopic = clusterNodeChangePublishTopic(nodeId());
         log.debug("Cluster publish Cluster.Nodes:{}->{}", state, publishTopic);
         NodeMessage nm = NodeMessage.wrapClusterNodes(nodeId(), state);
-        Publish publish = Publish.outgoing(Publish.AT_MOST_ONCE, publishTopic, nm.toByteBuf());
+        Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
         localBroker.nodeBroker().forward(publish);
     }
 
@@ -138,16 +154,13 @@ public class Cluster implements AutoCloseable {
         if (!started.get()) {
             throw new IllegalStateException("Cluster is not started yet.");
         }
-        Node node = new Node(NODE_ID_UNKNOWN, anotherNodeAddress);
-        NodeClient nc = connectNewNode(node);
-        if (nc == null) {
-            throw new IllegalArgumentException("can not join the Cluster with another Node: " + anotherNodeAddress);
+        boolean nodeAdded = addNode(NODE_ID_UNKNOWN, anotherNodeAddress);
+        if (nodeAdded) {
+            Map<String, String> localNode = localNodeInfo();
+            log.info("Cluster start sync Local Node with remote Node({})->{}", anotherNodeAddress, localNode);
+            nodes.get(NODE_ID_UNKNOWN).nodeClient().syncLocalNode(localNode);
+            log.info("Cluster sync done");
         }
-        Map<String, String> localNode = localNodeInfo();
-        log.info("Cluster start sync Local Node({}) with remote Node({})", localNode, node);
-        nc.syncLocalNode(localNode);
-        log.info("Cluster sync done");
-        nc.close();
     }
 
     private Map<String, String> localNodeInfo() {

@@ -8,7 +8,6 @@ import org.example.mqtt.session.Session;
  */
 public interface ClientSession extends Session {
 
-
     int keepAlive();
 
 }

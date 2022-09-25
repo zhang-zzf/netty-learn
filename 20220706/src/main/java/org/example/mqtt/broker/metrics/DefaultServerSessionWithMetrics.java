@@ -3,6 +3,7 @@ package org.example.mqtt.broker.metrics;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.node.DefaultServerSession;
 import org.example.mqtt.model.Connect;

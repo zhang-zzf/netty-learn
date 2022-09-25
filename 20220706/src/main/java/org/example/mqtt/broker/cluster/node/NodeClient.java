@@ -13,6 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.example.mqtt.broker.cluster.node.Cluster.*;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
@@ -23,11 +24,12 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final Client client;
     private final Cluster cluster;
     private final Node node;
+    private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
     public NodeClient(Node node, Cluster cluster) {
         this.node = node;
         this.cluster = cluster;
-        String clientIdentifier = cluster.broker().nodeId();
+        String clientIdentifier = cluster.broker().nodeId() + "/" + clientIdentifierCounter.getAndIncrement();
         this.client = new Client(clientIdentifier, node.address(), this);
         initSubscribe();
     }
@@ -40,7 +42,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
                 new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
         List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription, clusterNodes);
         log.debug("NodeClient try to subscribe: {}", sub);
-        client.subscribe(sub);
+        client.syncSubscribe(sub);
     }
 
     private ClusterBroker broker() {

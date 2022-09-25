@@ -1,9 +1,7 @@
 package org.example.mqtt.broker;
 
-import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
-import org.example.mqtt.model.Unsubscribe;
+import io.netty.channel.Channel;
+import org.example.mqtt.model.*;
 
 import java.util.List;
 import java.util.Map;

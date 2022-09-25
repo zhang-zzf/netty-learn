@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.cluster;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -37,6 +38,6 @@ public interface ClusterDbRepo {
 
     List<ClusterTopic> matchTopic(String topicName);
 
-    void close();
+    void close() throws IOException;
 
 }

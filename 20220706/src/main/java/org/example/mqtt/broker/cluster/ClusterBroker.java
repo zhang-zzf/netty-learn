@@ -1,5 +1,7 @@
 package org.example.mqtt.broker.cluster;
 
+import io.netty.buffer.ByteBufUtil;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
 import org.example.mqtt.broker.Broker;
@@ -16,11 +18,13 @@ import org.example.mqtt.model.Unsubscribe;
 import org.example.mqtt.session.ControlPacketContext;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
 import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
@@ -31,6 +35,15 @@ public class ClusterBroker implements Broker {
     private final ClusterDbRepo clusterDbRepo;
     private final DefaultBroker nodeBroker = new DefaultBroker();
     private Cluster cluster;
+
+    /**
+     * <pre>
+     * 0 ->open
+     * 1 ->closing
+     * 2 ->closed
+     * </pre>
+     */
+    private final AtomicInteger closeStatus = new AtomicInteger(0);
 
     /**
      * JVM 级别
@@ -45,6 +58,13 @@ public class ClusterBroker implements Broker {
 
     public ClusterBroker(ClusterDbRepo clusterDbRepo) {
         this.clusterDbRepo = clusterDbRepo;
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            try {
+                close();
+            } catch (Exception e) {
+                log.error("unExpected exception", e);
+            }
+        }, "ClusterBrokerShutdown"));
     }
 
     /**
@@ -142,7 +162,7 @@ public class ClusterBroker implements Broker {
     }
 
     @Override
-    public Map<String, String> listenedServer() {
+    public Map<String, Broker.ListenPort> listenedServer() {
         return nodeBroker().listenedServer();
     }
 
@@ -215,8 +235,32 @@ public class ClusterBroker implements Broker {
 
     @Override
     public void close() throws Exception {
+        log.info("Broker now close itself.");
+        if (!closeStatus.compareAndSet(0, 1)) {
+            log.info("Broker is closing.");
+            return;
+        }
+        log.info("Broker now try to shutdown Session(cleanSession=0)");
+        closeAllSession0();
+        // close the Cluster
+        log.info("Broker now try to shutdown Cluster");
+        cluster.close();
+        // shutdown Broker
+        log.info("Broker now try to shutdown NodeBroker");
         nodeBroker.close();
+        log.info("Broker now try to shutdown ClusterDbRepo");
         clusterDbRepo.close();
+        closeStatus.compareAndSet(1, 2);
+        log.info("Broker is closed.");
+    }
+
+    private void closeAllSession0() {
+        for (Map.Entry<String, ServerSession> e : nodeBroker.session().entrySet()) {
+            ServerSession s = e.getValue();
+            if (!s.cleanSession()) {
+                s.close();
+            }
+        }
     }
 
     public DefaultBroker nodeBroker() {
@@ -234,7 +278,7 @@ public class ClusterBroker implements Broker {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public void listenedServer(Map<String, String> protocolToUrl) {
+    public void listenedServer(Map<String, ListenPort> protocolToUrl) {
         nodeBroker().listenedServer(protocolToUrl);
     }
 
@@ -262,9 +306,19 @@ public class ClusterBroker implements Broker {
                 log.info("Broker receive Cluster.Nodes->{}", state);
                 cluster.updateNodes(state);
                 break;
+            case ACTION_BROKER_CLOSE:
+                log.info("Broker receive shutdown Instruction");
+                shutdownGracefully();
+                break;
             default:
+                log.error("Broker receive Unknown Instruction->{}, {}", m, ByteBufUtil.prettyHexDump(packet.payload()));
                 throw new UnsupportedOperationException();
         }
+    }
+
+    @SneakyThrows
+    public void shutdownGracefully() {
+        close();
     }
 
     @Override
@@ -276,6 +330,11 @@ public class ClusterBroker implements Broker {
             log.debug("Broker now try create a new ClusterServerSession");
             return ClusterServerSession.from(connect);
         }
+    }
+
+    @Override
+    public boolean closed() {
+        return closeStatus.get() != 0;
     }
 
 }

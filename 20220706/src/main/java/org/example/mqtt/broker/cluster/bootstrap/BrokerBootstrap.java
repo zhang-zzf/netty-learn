@@ -5,6 +5,7 @@ import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
+import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.example.mqtt.broker.cluster.ClusterServerSessionHandler;
@@ -30,7 +31,7 @@ public class BrokerBootstrap {
         final ClusterBroker clusterBroker = new ClusterBroker(elasticsearchDbRepoImpl());
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new ClusterServerSessionHandler(authenticator, 3, cluster);
-        Map<String, String> protocolToUrl =
+        Map<String, Broker.ListenPort> protocolToUrl =
                 org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
         clusterBroker.listenedServer(protocolToUrl);
         // 开启集群节点信息同步

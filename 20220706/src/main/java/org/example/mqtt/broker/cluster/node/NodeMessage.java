@@ -18,6 +18,7 @@ public class NodeMessage {
 
     public static final String ACTION_PUBLISH_FORWARD = "Publish.forward";
     public static final String ACTION_SESSION_CLOSE = "Session.Close";
+    public static final String ACTION_BROKER_CLOSE = "Broker.Close";
     public static final String INFO_CLUSTER_NODES = "Cluster.Nodes";
     public static final String INFO_CLIENT_CONNECT = "Client.Connect";
     private String nodeId;
@@ -83,6 +84,9 @@ public class NodeMessage {
         if (packet != null) {
             sb.append("\"packet\":\"").append(packet).append('\"').append(',');
         }
+        if (payload != null) {
+            sb.append("\"payload\":\"").append(payload).append('\"').append(',');
+        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
@@ -93,5 +97,18 @@ public class NodeMessage {
     public ByteBuf toByteBuf() {
         return Unpooled.copiedBuffer(JSON.toJSONString(this).getBytes(UTF_8));
     }
+
+    public String unwrapBrokerClose() {
+        return payload;
+    }
+
+    public static NodeMessage wrapBrokerClose(String nodeId, String protocol) {
+        NodeMessage nm = new NodeMessage();
+        nm.setNodeId(nodeId);
+        nm.setPacket(ACTION_BROKER_CLOSE);
+        nm.setPayload(protocol);
+        return nm;
+    }
+
 
 }

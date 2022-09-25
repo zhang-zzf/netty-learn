@@ -41,6 +41,10 @@ public class DefaultBrokerState {
         return sessionMap.get(clientIdentifier);
     }
 
+    public Map<String, ServerSession> session() {
+        return sessionMap;
+    }
+
     public List<Topic> match(String topicName) {
         List<Topic> match = fuzzyMatch(topicName);
         Topic topic = preciseTopicFilter.get(topicName);

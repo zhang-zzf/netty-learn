@@ -295,7 +295,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        client._transport().close();
     }
 
     Query buildTopicMatchQuery(String topicName) {

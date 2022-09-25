@@ -1,6 +1,8 @@
 package org.example.mqtt.broker.node.bootstrap;
 
 import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.handler.logging.LogLevel;
@@ -11,6 +13,7 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
+import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.codec.MqttServerInitializer;
 import org.example.mqtt.broker.codec.SecureMqttServerInitializer;
 import org.example.mqtt.broker.codec.websocket.MqttOverSecureWebsocketServerInitializer;
@@ -39,13 +42,13 @@ public class BrokerBootstrap {
         final DefaultBroker broker = new DefaultBroker();
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new DefaultServerSessionHandler(broker, authenticator, 3);
-        Map<String, String> protocolToUrl = startServer(handlerSupplier);
+        Map<String, Broker.ListenPort> protocolToUrl = startServer(handlerSupplier);
         broker.listenedServer(protocolToUrl);
     }
 
-    public static Map<String, String> startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
+    public static Map<String, Broker.ListenPort> startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
             SSLException {
-        Map<String, String> protocolToUrl = new HashMap<>(8);
+        Map<String, DefaultBroker.ListenPort> protocolToUrl = new HashMap<>(8);
         /**
          * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
          */
@@ -55,22 +58,23 @@ public class BrokerBootstrap {
         for (String address : addressList) {
             URI uri = new URI(address.trim());
             InetSocketAddress bindAddress = new InetSocketAddress(uri.getHost(), uri.getPort());
+            Channel channel;
             switch (uri.getScheme()) {
                 case "mqtt":
-                    mqttServer(bindAddress, handlerSupplier);
-                    protocolToUrl.put("mqtt", address);
+                    channel = mqttServer(bindAddress, handlerSupplier);
+                    protocolToUrl.put("mqtt", new Broker.ListenPort(address, channel));
                     break;
                 case "mqtts":
-                    secureMqttServer(bindAddress, handlerSupplier);
-                    protocolToUrl.put("mqtts", address);
+                    channel = secureMqttServer(bindAddress, handlerSupplier);
+                    protocolToUrl.put("mqtts", new Broker.ListenPort(address, channel));
                     break;
                 case "ws":
-                    mqttOverWebsocket(bindAddress, handlerSupplier);
-                    protocolToUrl.put("ws", address);
+                    channel = mqttOverWebsocket(bindAddress, handlerSupplier);
+                    protocolToUrl.put("ws", new Broker.ListenPort(address, channel));
                     break;
                 case "wss":
-                    mqttOverSecureWebSocket(bindAddress, handlerSupplier);
-                    protocolToUrl.put("wss", address);
+                    channel = mqttOverSecureWebSocket(bindAddress, handlerSupplier);
+                    protocolToUrl.put("wss", new Broker.ListenPort(address, channel));
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported Schema: " + uri.getScheme());
@@ -79,7 +83,8 @@ public class BrokerBootstrap {
         return protocolToUrl;
     }
 
-    private static void mqttOverSecureWebSocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+    private static Channel mqttOverSecureWebSocket(InetSocketAddress address,
+                                             Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         // 配置 websocket tls bootstrap
         int cpuNum = Runtime.getRuntime().availableProcessors();
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttOverSecureWebsocket");
@@ -93,7 +98,7 @@ public class BrokerBootstrap {
                         ClassLoader.getSystemResourceAsStream(keyPath))
                 .build();
         try {
-            new ServerBootstrap()
+            ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
@@ -105,8 +110,8 @@ public class BrokerBootstrap {
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();
                         log.info("MQTT over Websocket(TLS) server was shutdown.");
-                    })
-            ;
+                    });
+            return future.channel();
         } catch (Exception e) {
             log.info("MQTT over Websocket(TLS) server was shutdown.", e);
             bossGroup.shutdownGracefully();
@@ -115,14 +120,14 @@ public class BrokerBootstrap {
         }
     }
 
-    private static void mqttOverWebsocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
+    private static Channel mqttOverWebsocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
         int cpuNum = Runtime.getRuntime().availableProcessors();
         DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-mqttOverWebsocket");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttOverWebSocket");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
         try {
-            new ServerBootstrap()
+            ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
@@ -134,8 +139,8 @@ public class BrokerBootstrap {
                         log.info("MQTT over Websocket server was shutdown.");
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();
-                    })
-            ;
+                    });
+            return future.channel();
         } catch (Exception e) {
             log.info("MQTT over Websocket server was shutdown.", e);
             bossGroup.shutdownGracefully();
@@ -144,7 +149,7 @@ public class BrokerBootstrap {
         }
     }
 
-    private static void secureMqttServer(InetSocketAddress address,
+    private static Channel secureMqttServer(InetSocketAddress address,
                                          Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         int cpuNum = Runtime.getRuntime().availableProcessors();
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-secureMqtt");
@@ -158,7 +163,7 @@ public class BrokerBootstrap {
                         ClassLoader.getSystemResourceAsStream(keyPath))
                 .build();
         try {
-            new ServerBootstrap()
+            ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
@@ -170,8 +175,8 @@ public class BrokerBootstrap {
                         log.info("MQTT TLS server was shutdown.");
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();
-                    })
-            ;
+                    });
+            return future.channel();
         } catch (Exception e) {
             log.info("MQTT TLS server was shutdown.", e);
             bossGroup.shutdownGracefully();
@@ -180,14 +185,15 @@ public class BrokerBootstrap {
         }
     }
 
-    private static void mqttServer(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
+    private static Channel mqttServer(InetSocketAddress address,
+                                      Supplier<DefaultServerSessionHandler> handlerSupplier) {
         int cpuNum = Runtime.getRuntime().availableProcessors();
         DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-mqttServer");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttServer");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
         try {
-            new ServerBootstrap()
+            ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
@@ -195,11 +201,11 @@ public class BrokerBootstrap {
                     .childHandler(new MqttServerInitializer(handlerSupplier))
                     .bind(address).sync().addListener(f -> log.info("MQTT server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
-                        log.info("MQTT server was shutdown.");
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();
-                    })
-            ;
+                        log.info("MQTT server was shutdown.");
+                    });
+            return future.channel();
         } catch (Exception e) {
             log.info("MQTT server was shutdown.", e);
             bossGroup.shutdownGracefully();

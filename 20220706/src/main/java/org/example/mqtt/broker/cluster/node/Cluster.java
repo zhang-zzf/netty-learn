@@ -38,7 +38,7 @@ public class Cluster implements AutoCloseable {
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private ScheduledThreadPoolExecutor scheduledExecutorService;
-    private ScheduledFuture<?> syncJob;
+    private volatile ScheduledFuture<?> syncJob;
 
     private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 300);
 
@@ -63,16 +63,28 @@ public class Cluster implements AutoCloseable {
 
     @SneakyThrows
     public boolean addNode(String nodeId, String remoteAddress) {
+        // node.nodeId Check
         if (nodes.get(nodeId) != null) {
             if (!nodes.get(nodeId).address().equals(remoteAddress)) {
-                log.error("Cluster add Node failed, same nodeId with different remoteAddress", nodeId, remoteAddress);
+                log.error("Cluster add Node failed, same nodeId with different remoteAddress->{}, {}", nodeId, remoteAddress);
                 return false;
             }
             return true;
         }
+        // node.address Check
+        for (Map.Entry<String, Node> e : nodes.entrySet()) {
+            if (e.getValue().address().equals(remoteAddress)) {
+                if (!e.getKey().equals(nodeId)) {
+                    log.error("Cluster add Node failed, same remoteAddress with different nodeId->{}, {}", nodeId, remoteAddress);
+                    return false;
+                }
+                return true;
+            }
+        }
+
         Node nn = new Node(nodeId, remoteAddress);
         if (nodes.putIfAbsent(nodeId, nn) != null) {
-            log.warn("Cluster add Node failed, may be other Thread add it.", nodeId, remoteAddress);
+            log.warn("Cluster add Node failed, may be other Thread add it->{}, {}", nodeId, remoteAddress);
             return true;
         }
         log.info("Cluster now try to connect to new Node->{}", nn);
@@ -115,7 +127,7 @@ public class Cluster implements AutoCloseable {
             return;
         }
         this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, new DefaultThreadFactory("Cluster-Sync"));
-        syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> publishClusterNodes(),
+        this.syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> publishClusterNodes(),
                 16, publishClusterNodesPeriod, TimeUnit.SECONDS);
     }
 
@@ -136,9 +148,25 @@ public class Cluster implements AutoCloseable {
 
     @Override
     public void close() throws Exception {
-        syncJob.cancel(true);
-        syncJob = null;
-        scheduledExecutorService.shutdown();
+        cancelSyncJob();
+        closeAllClient();
+    }
+
+    private void cancelSyncJob() {
+        if (syncJob != null) {
+            syncJob.cancel(true);
+            syncJob = null;
+            scheduledExecutorService.shutdown();
+        }
+    }
+
+    private void closeAllClient() throws Exception {
+        for (Map.Entry<String, Node> e : nodes.entrySet()) {
+            if (e.getValue().getId().equals(nodeId())) {
+                continue;
+            }
+            e.getValue().nodeClient().close();
+        }
     }
 
     public Node node(String nodeId) {
@@ -184,7 +212,7 @@ public class Cluster implements AutoCloseable {
         if (started.get()) {
             return;
         }
-        String mqttUrl = localBroker.listenedServer().get("mqtt");
+        String mqttUrl = localBroker.listenedServer().get("mqtt").getUrl();
         if (mqttUrl == null) {
             throw new UnsupportedOperationException("Cluster mode need mqtt protocol enabled");
         }

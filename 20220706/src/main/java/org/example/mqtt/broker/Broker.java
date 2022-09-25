@@ -1,6 +1,9 @@
 package org.example.mqtt.broker;
 
 import io.netty.channel.Channel;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.example.mqtt.model.*;
 
 import java.util.List;
@@ -45,8 +48,13 @@ public interface Broker extends AutoCloseable {
      */
     List<Publish> retainMatch(String topicFilter);
 
-    Map<String, String> listenedServer();
+    Map<String, Broker.ListenPort> listenedServer();
 
+    /**
+     * 处理 Broker 接受到的 Publish
+     *
+     * @param packet ControlPacket
+     */
     void handlePublish(Publish packet);
 
     ServerSession createSession(Connect connect);
@@ -55,5 +63,19 @@ public interface Broker extends AutoCloseable {
 
     void destroySession(ServerSession session);
 
+    default boolean closed() {
+        return false;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    class ListenPort {
+
+        // mqtt://host:port
+        private String url;
+        private Channel channel;
+
+    }
 
 }

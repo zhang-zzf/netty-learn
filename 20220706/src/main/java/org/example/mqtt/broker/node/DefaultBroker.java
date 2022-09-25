@@ -23,7 +23,7 @@ import static org.example.mqtt.model.Publish.needAck;
 public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
-    private final Map<String, String> listenedServer = new HashMap<>(8);
+    private final Map<String, ListenPort> listenedServer = new HashMap<>(8);
 
     @Override
     public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {
@@ -58,6 +58,10 @@ public class DefaultBroker implements Broker {
     @Override
     public ServerSession session(String clientIdentifier) {
         return brokerState.session(clientIdentifier);
+    }
+
+    public Map<String, ServerSession> session() {
+        return brokerState.session();
     }
 
     @SneakyThrows
@@ -122,7 +126,7 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public Map<String, String> listenedServer() {
+    public Map<String, Broker.ListenPort> listenedServer() {
         return listenedServer;
     }
 
@@ -141,7 +145,7 @@ public class DefaultBroker implements Broker {
         return DefaultServerSession.from(connect);
     }
 
-    public DefaultBroker listenedServer(String protocol, String url) {
+    public DefaultBroker listenedServer(String protocol, Broker.ListenPort url) {
         listenedServer.put(protocol, url);
         return this;
     }
@@ -152,11 +156,13 @@ public class DefaultBroker implements Broker {
 
     @Override
     public void close() throws Exception {
-
+        for (Map.Entry<String, ListenPort> e : listenedServer.entrySet()) {
+            e.getValue().getChannel().close();
+        }
     }
 
-    public void listenedServer(Map<String, String> protocolToUrl) {
-        for (Map.Entry<String, String> entry : protocolToUrl.entrySet()) {
+    public void listenedServer(Map<String, Broker.ListenPort> protocolToUrl) {
+        for (Map.Entry<String, Broker.ListenPort> entry : protocolToUrl.entrySet()) {
             listenedServer(entry.getKey(), entry.getValue());
         }
     }

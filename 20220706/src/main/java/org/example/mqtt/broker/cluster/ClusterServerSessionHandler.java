@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.cluster;
 
+import io.netty.channel.ChannelHandlerContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
@@ -24,6 +25,16 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                                        Cluster cluster) {
         super(cluster.broker(), authenticator, activeIdleTimeoutSecond);
         this.cluster = cluster;
+    }
+
+    @Override
+    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+        if (cluster.broker().closed()) {
+            log.info("Broker was closed, reject new Channel->{}", ctx.channel());
+            ctx.close();
+            return;
+        }
+        super.channelActive(ctx);
     }
 
     /**

@@ -153,7 +153,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     protected void doReceiveDisconnect(Disconnect packet) {
-        log.info("Session({}) doReceiveDisconnect.", clientIdentifier());
+        log.debug("Session({}) doReceiveDisconnect.", clientIdentifier());
         // clean the Will message.
         if (willMessage != null) {
             log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);

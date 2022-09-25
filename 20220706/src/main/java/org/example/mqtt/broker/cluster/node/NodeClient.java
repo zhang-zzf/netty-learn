@@ -63,14 +63,16 @@ public class NodeClient implements MessageHandler, AutoCloseable {
                 break;
             case INFO_CLUSTER_NODES:
                 Map<String, String> state = m.unwrapClusterNodes();
+                log.debug("NodeClient receive Cluster.Nodes: {}", state);
                 cluster.updateNodes(state);
                 break;
             case ACTION_SESSION_CLOSE:
                 String clientIdentifier = m.unwrapSessionClose();
                 ServerSession session = broker().session(clientIdentifier);
+                log.info("NodeClient receive Session.Closed. cur Session->{}", session);
                 if (session != null) {
                     session.close();
-                    log.debug("NodeClient Session({}).Closed.", clientIdentifier);
+                    log.info("NodeClient Session.Closed->{}", clientIdentifier);
                 } else {
                     log.warn("NodeClient does not exist Session({})", clientIdentifier);
                 }
@@ -87,6 +89,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         String clientIdentifier = m.unwrapSessionClose();
         // just get Session from local Node(Broker)
         ServerSession session = broker().nodeBroker().session(clientIdentifier);
+        // session is null in normal case
         if (session != null) {
             if (session instanceof ClusterServerSession) {
                 // should not exist

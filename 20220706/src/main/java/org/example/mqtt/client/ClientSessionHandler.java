@@ -30,7 +30,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
             ControlPacket cp = (ControlPacket) msg;
             try {
                 if (cp instanceof PingResp) {
-                    log.debug("receive PingResp");
+                    log.debug("Client({}) receive PingResp", session.clientIdentifier());
                     return;
                 }
                 if (cp instanceof ConnAck && ((ConnAck) cp).connectionAccepted()) {
@@ -65,7 +65,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("client({}) exceptionCaught, now close the Session", session.clientIdentifier(), cause);
+        log.error("Client({}) exceptionCaught, now close the Session", session.clientIdentifier(), cause);
         session.close();
     }
 
@@ -77,7 +77,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
                 ctx.close();
             } else if (e.state() == IdleState.WRITER_IDLE) {
                 // send ping
-                // todo test
+                log.debug("Client({}) send PingReq", session.clientIdentifier());
                 ctx.writeAndFlush(PingReq.from());
             }
         }

@@ -102,9 +102,9 @@ public class BrokerBootstrap {
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
-                        log.info("MQTT over Websocket(TLS) server was shutdown.");
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();
+                        log.info("MQTT over Websocket(TLS) server was shutdown.");
                     })
             ;
         } catch (Exception e) {

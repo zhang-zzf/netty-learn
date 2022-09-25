@@ -49,6 +49,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
                 if (css != null) {
                     if (css.isOnline()) {
+                        log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node->{}", ccId, css);
                         // online Session on the Node, rare case
                         closeServerSessionOnOtherNode(css);
                     }
@@ -93,6 +94,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                     log.debug("Client({}) Node created a new Session: {}", ccId, session);
                 } else {
                     if (css.isOnline()) {
+                        log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node->{}", ccId, css);
                         // online Session on the Node, rare case
                         closeServerSessionOnOtherNode(css);
                         // get Session from Cluster again.
@@ -115,6 +117,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
         while (true) {
             // Session is bound to a Node of the Cluster
             if (cluster.node(sessionNodeId) == null) {
+                log.info("Client({}) Cluster closeServerSessionOnOtherNode, other Node offline ", css.clientIdentifier());
                 // Node was dead.
                 break;
             } else {
@@ -127,6 +130,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 Thread.sleep(100);
                 css = (ClusterServerSession) broker().session(css.clientIdentifier());
                 if (!css.isOnline()) {
+                    log.info("Client({}) Cluster closeServerSessionOnOtherNode, ClusterServerSession now is offline", css.clientIdentifier());
                     break;
                 }
             }

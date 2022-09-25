@@ -101,7 +101,7 @@
         <appender-ref ref="ASYNC-ERROR"/>
     </root>
 
-    <!--<logger name="org.example.mqtt" level="debug"/>-->
+    <logger name="org.example.mqtt" level="debug"/>
     <!--<logger name="tracer" level="trace"/>-->
 
 </configuration>

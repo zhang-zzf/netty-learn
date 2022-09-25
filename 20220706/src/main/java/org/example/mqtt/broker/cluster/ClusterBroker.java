@@ -66,7 +66,6 @@ public class ClusterBroker implements Broker {
         var localSession = nodeBroker.session(clientIdentifier);
         log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
         if (localSession != null) {
-            log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
             return localSession;
         }
         var session = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
@@ -82,7 +81,7 @@ public class ClusterBroker implements Broker {
             String cId = session.clientIdentifier();
             // 清除 cluster leven Session
             clusterDbRepo().deleteSession(css);
-            log.info("Session({}) was removed from the Cluster", nodeId(), cId);
+            log.info("Session({}) was removed from the Cluster", cId);
         } else if (session instanceof DefaultServerSession) {
             nodeBroker.destroySession(session);
         } else {

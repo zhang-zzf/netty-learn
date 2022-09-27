@@ -1,10 +1,15 @@
 package com.github.zzf;
 
 import com.github.zzf.micrometer.config.MicroMeterConfiguration;
+import com.github.zzf.service.SomeService;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 
 import java.time.Duration;
 import java.util.Random;
@@ -18,6 +23,10 @@ import java.util.concurrent.atomic.AtomicLong;
  * @date 2020-04-18
  */
 @Slf4j
+@Configuration
+@ComponentScan(basePackageClasses = {
+        Application.class
+})
 public class Application {
 
     public static void main(String[] args) {
@@ -51,6 +60,11 @@ public class Application {
         Runnable gaugeTask = () -> gauge.set(new Random().nextInt(100));
         // 10 s 更新一次
         executorService.scheduleAtFixedRate(gaugeTask, 1, 10, TimeUnit.SECONDS);
+        // 启动 springContext
+        ApplicationContext context = new AnnotationConfigApplicationContext(Application.class);
+        SomeService someService = context.getBean(SomeService.class);
+        executorService.scheduleWithFixedDelay(() -> someService.methodA(), 1, 10, TimeUnit.SECONDS);
+        executorService.scheduleWithFixedDelay(() -> someService.methodB(), 1, 10, TimeUnit.SECONDS);
     }
 
 }

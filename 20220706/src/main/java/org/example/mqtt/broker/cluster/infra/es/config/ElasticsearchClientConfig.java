@@ -11,12 +11,18 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
+@Configuration
 public class ElasticsearchClientConfig {
 
-    public ElasticsearchClient elasticsearchClient(String url,
-                                                   String username,
-                                                   String password) {
+    @Bean
+    public ElasticsearchClient elasticsearchClient(
+            @Value("${mqtt.server.cluster.db.impl.es.url:http://nudocker01:9120}") String url,
+            @Value("${mqtt.server.cluster.db.impl.es.username:elastic}") String username,
+            @Value("${mqtt.server.cluster.db.impl.es.password:8E78NY1mnfGvQJ6e7aHy}") String password) {
         // Create the low-level client
         RestClientBuilder builder = RestClient.builder(HttpHost.create(url));
         if (username != null) {

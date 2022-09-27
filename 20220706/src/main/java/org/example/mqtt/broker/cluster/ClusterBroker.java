@@ -16,6 +16,7 @@ import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 import org.example.mqtt.session.ControlPacketContext;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -30,6 +31,7 @@ import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
 @Slf4j
+@Component
 public class ClusterBroker implements Broker {
 
     private final ClusterDbRepo clusterDbRepo;

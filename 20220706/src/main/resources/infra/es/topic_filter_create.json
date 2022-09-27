@@ -1,0 +1,70 @@
+{
+  "settings": {
+    "index.number_of_shards": 3,
+    "index.number_of_replicas": 1
+  },
+  "mappings": {
+    "dynamic": "false",
+    "properties": {
+      "topicLevel": {
+        "properties": {
+          "0": {
+            "type": "keyword"
+          },
+          "1": {
+            "type": "keyword"
+          },
+          "2": {
+            "type": "keyword"
+          },
+          "3": {
+            "type": "keyword"
+          },
+          "4": {
+            "type": "keyword"
+          },
+          "5": {
+            "type": "keyword"
+          },
+          "6": {
+            "type": "keyword"
+          },
+          "7": {
+            "type": "keyword"
+          },
+          "8": {
+            "type": "keyword"
+          },
+          "9": {
+            "type": "keyword"
+          },
+          "10": {
+            "type": "keyword"
+          },
+          "11": {
+            "type": "keyword"
+          },
+          "12": {
+            "type": "keyword"
+          }
+        }
+      },
+      "value": {
+        "type": "keyword"
+      },
+      "nodes": {
+        "type": "keyword"
+      },
+      "offlineSubscriptions": {
+        "properties": {
+          "clientIdentifier": {
+            "type": "keyword"
+          },
+          "qos": {
+            "type": "byte"
+          }
+        }
+      }
+    }
+  }
+}

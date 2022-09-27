@@ -23,6 +23,7 @@ import org.example.mqtt.broker.cluster.infra.es.model.TopicFilterPO;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
+import org.springframework.stereotype.Repository;
 
 import java.io.IOException;
 import java.util.*;
@@ -40,6 +41,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
 @Slf4j
 @RequiredArgsConstructor
+@Repository
 public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     public static final String CLIENT_IDENTIFIER = "clientIdentifier";

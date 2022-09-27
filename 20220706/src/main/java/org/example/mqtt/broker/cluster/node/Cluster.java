@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.model.Publish;
+import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -16,6 +17,7 @@ import static java.util.stream.Collectors.toMap;
 import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
 
 @Slf4j
+@Component
 public class Cluster implements AutoCloseable {
 
     /**

@@ -13,6 +13,10 @@ import org.example.mqtt.broker.cluster.infra.es.ClusterDbRepoImpl;
 import org.example.mqtt.broker.cluster.infra.es.config.ElasticsearchClientConfig;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.node.DefaultServerSessionHandler;
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 
 import java.util.Map;
 import java.util.function.Supplier;
@@ -22,19 +26,17 @@ import java.util.function.Supplier;
  * @date 2022/07/01
  */
 @Slf4j
-public class BrokerBootstrap {
+@Configuration
+@ComponentScan({"org.example.mqtt.broker.cluster"})
+public class BrokerBootstrapInSpringContext {
 
     @SneakyThrows
     public static void main(String[] args) {
-        if (!Boolean.getBoolean("spring.enable")) {
-            Authenticator authenticator = packet -> 0x00;
-            final Cluster cluster = new Cluster();
-            final ClusterBroker clusterBroker = new ClusterBroker(elasticsearchDbRepoImpl());
-            startBroker(authenticator, cluster, clusterBroker);
-        } else {
-            log.info("start BrokerBootstrap with Spring Context");
-            BrokerBootstrapInSpringContext.main(args);
-        }
+        Authenticator authenticator = packet -> 0x00;
+        ApplicationContext context = new AnnotationConfigApplicationContext(BrokerBootstrapInSpringContext.class);
+        Cluster cluster = context.getBean(Cluster.class);
+        ClusterBroker clusterBroker = context.getBean(ClusterBroker.class);
+        startBroker(authenticator, cluster, clusterBroker);
     }
 
     @SneakyThrows

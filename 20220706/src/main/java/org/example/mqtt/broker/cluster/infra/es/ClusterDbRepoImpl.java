@@ -10,6 +10,7 @@ import co.elastic.clients.elasticsearch.core.*;
 import co.elastic.clients.elasticsearch.core.mget.MultiGetResponseItem;
 import co.elastic.clients.elasticsearch.core.search.Hit;
 import co.elastic.clients.util.ObjectBuilder;
+import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.base64.Base64;
 import lombok.RequiredArgsConstructor;
@@ -42,6 +43,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 @Slf4j
 @RequiredArgsConstructor
 @Repository
+@Timed
 public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     public static final String CLIENT_IDENTIFIER = "clientIdentifier";

@@ -165,11 +165,17 @@ class ClusterDbRepoImplTest {
 
     @Test
     void givenTopicName_whenMatchTopicFilter_then() {
-        Query query = dbRepo.buildTopicMatchQuery("topic/abc/de");
+        Query query = dbRepo.buildTopicMatchQuery("topic/abc/de".split("/"));
         String queryString = query.toString();
-        then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"terms\":{\"topicLevel.2\":[\"de\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"topicLevel.4\":{\"value\":\"#\"}}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.4\"}}]}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"term\":{\"topicLevel.3\":{\"value\":\"#\"}}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"term\":{\"topicLevel.2\":{\"value\":\"#\"}}}]}},{\"term\":{\"topicLevel.0\":{\"value\":\"#\"}}}]}}]}}");
+        then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"terms\":{\"topicLevel.2\":[\"de\",\"+\"]}},{\"bool\":{\"should\":[{\"term\":{\"topicLevel.3\":{\"value\":\"#\"}}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.3\"}}]}}]}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"terms\":{\"topicLevel.1\":[\"abc\",\"+\"]}},{\"term\":{\"topicLevel.2\":{\"value\":\"#\"}}}]}},{\"bool\":{\"filter\":[{\"terms\":{\"topicLevel.0\":[\"topic\",\"+\"]}},{\"term\":{\"topicLevel.1\":{\"value\":\"#\"}}}]}},{\"term\":{\"topicLevel.0\":{\"value\":\"#\"}}}]}}]}}");
     }
 
+    @Test
+    void givenTopicName_whenFuzzyMatchTopicFilter_then() {
+        Query query = dbRepo.buildTopicFuzzyMatchQuery("topic/abc/de".split("/"));
+        String queryString = query.toString();
+        then(queryString).isEqualTo("Query: {\"bool\":{\"filter\":[{\"bool\":{\"should\":[{\"terms\":{\"topicLevel.0\":[\"#\",\"+\",\"topic\"]}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.0\"}}]}}]}},{\"bool\":{\"should\":[{\"terms\":{\"topicLevel.1\":[\"#\",\"+\",\"abc\"]}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.1\"}}]}}]}},{\"bool\":{\"should\":[{\"terms\":{\"topicLevel.2\":[\"#\",\"+\",\"de\"]}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.2\"}}]}}]}},{\"bool\":{\"should\":[{\"terms\":{\"topicLevel.3\":[\"#\"]}},{\"bool\":{\"must_not\":[{\"exists\":{\"field\":\"topicLevel.3\"}}]}}]}}]}}");
+    }
 
     @Test
     void givenSessionQueue_whenUpdateCpx_then() {

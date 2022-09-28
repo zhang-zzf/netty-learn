@@ -16,6 +16,7 @@ import io.netty.handler.codec.base64.Base64;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import lombok.var;
 import org.elasticsearch.client.ResponseException;
 import org.example.mqtt.broker.cluster.*;
 import org.example.mqtt.broker.cluster.infra.es.model.ControlPacketContextPO;
@@ -51,6 +52,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public static final String SESSION_QUEUE_INDEX = "session_queue";
     private static final String SESSION_INDEX = "session";
     public static final String TOPIC_LEVEL_PATH = "topicLevel.";
+    public static final int TOPIC_FILTER_FETCH_SIZE = 1000;
 
     private final ElasticsearchClient client;
 
@@ -282,20 +284,36 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         if (topicName == null) {
             return emptyList();
         }
-        Query query = buildTopicMatchQuery(topicName);
+        String[] topicLevels = topicName.split("/");
+        Query query = buildTopicFuzzyMatchQuery(topicLevels);
         SearchResponse<TopicFilterPO> resp = client.search(r -> r
                         .index(TOPIC_FILTER)
                         .trackTotalHits(t -> t.enabled(true))
-                        .query(query),
+                        .query(query)
+                        .size(TOPIC_FILTER_FETCH_SIZE),
                 TopicFilterPO.class);
-        // todo match 10K topic?
-        log.debug("matchTopic num: {}", resp.hits().total().value());
+        long totalMatch = resp.hits().total().value();
+        log.debug("matchTopic num: {}", totalMatch);
+        if (totalMatch > TOPIC_FILTER_FETCH_SIZE) {
+            log.error("matchTopic fetch part TopicFilter from Db, total match: {}", totalMatch);
+        }
         List<ClusterTopic> ret = resp.hits().hits().stream()
                 .map(Hit::source)
+                .filter(po -> matchTopicPrecisely(po, topicLevels))
                 .map(this::pOToDomain)
                 .collect(toList());
         log.debug("matchTopic resp: {}", ret);
         return ret;
+    }
+
+    private boolean matchTopicPrecisely(TopicFilterPO po, String[] topicLevels) {
+        if (po.getValue().endsWith("#")) {
+            return true;
+        }
+        if (po.getTopicLevel().size() == topicLevels.length) {
+            return true;
+        }
+        return false;
     }
 
     @Override
@@ -303,8 +321,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         client._transport().close();
     }
 
-    Query buildTopicMatchQuery(String topicName) {
-        String[] levels = topicName.split("/");
+    Query buildTopicMatchQuery(String[] levels) {
         List<Query> queryList = new ArrayList<>();
         for (int i = 0; i < levels.length; i++) {
             final int lastLevel = levels.length - i;
@@ -319,14 +336,14 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
             }
             Query last;
             if (lastLevel == levels.length) {
-                String lastLevelField = TOPIC_LEVEL_PATH + (lastLevel + 1);
+                String lastLevelField = TOPIC_LEVEL_PATH + (lastLevel);
                 last = new Query.Builder().bool(b -> b
                         .should(r -> r.term(t -> t.field(lastLevelField).value(multiLevelWildcard)))
                         .should(r -> r.bool(b2 -> b2.mustNot(mn -> mn.exists(e -> e.field(lastLevelField)))))
                 ).build();
             } else {
                 last = new Query.Builder()
-                        .term(t -> t.field(TOPIC_LEVEL_PATH + lastLevel).value(multiLevelWildcard))
+                        .term(t -> t.field(TOPIC_LEVEL_PATH + (lastLevel)).value(multiLevelWildcard))
                         .build();
             }
             list.add(last);
@@ -335,6 +352,32 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         Query matchAll = new Query.Builder().term(t -> t.field(TOPIC_LEVEL_PATH + "0").value(multiLevelWildcard)).build();
         queryList.add(matchAll);
         Query query = new Query.Builder().bool(b -> b.filter(f -> f.bool(fb -> fb.should(queryList)))).build();
+        return query;
+    }
+
+    /**
+     * ES 性能太差
+     */
+    Query buildTopicFuzzyMatchQuery(String[] levels) {
+        List<Query> queryList = new ArrayList<>(levels.length + 2);
+        for (int i = 0; i < levels.length; i++) {
+            final int level = i;
+            String fieldName = TOPIC_LEVEL_PATH + i;
+            List<FieldValue> termsValue = asList(multiLevelWildcard, oneLevelWildcard, FieldValue.of(levels[level]));
+            Query levelQuery = new Query.Builder().bool(b -> b
+                    .should(r -> r.terms(t -> t.field(fieldName).terms(tv -> tv.value(termsValue))))
+                    .should(r -> r.bool(b2 -> b2.mustNot(mn -> mn.exists(e -> e.field(fieldName)))))
+            ).build();
+            queryList.add(levelQuery);
+        }
+        var lastLevel = TOPIC_LEVEL_PATH + levels.length;
+        Query lastLevelQuery = new Query.Builder().bool(b -> b
+                .should(r -> r.terms(t -> t.field(lastLevel)
+                        .terms(tv -> tv.value(multiLevelWildcardList))))
+                .should(r -> r.bool(b2 -> b2.mustNot(mn -> mn.exists(e -> e.field(lastLevel)))))
+        ).build();
+        queryList.add(lastLevelQuery);
+        Query query = new Query.Builder().bool(b -> b.filter(queryList)).build();
         return query;
     }
 
@@ -443,14 +486,14 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("updateCpxStatus req: {}", cpx);
         try {
             client.update(req -> req.index(SESSION_QUEUE_INDEX)
-                           // 以 clientIdentifier 作为路由策略
-                           .routing(cpx.clientIdentifier())
-                           .id(cpx.id())
-                           .doc(new ControlPacketContextPO()
-                                   .setStatus(cpx.status().name())
-                                   .setUpdatedAt(System.currentTimeMillis())),
-                   ClusterControlPacketContext.class
-           );
+                            // 以 clientIdentifier 作为路由策略
+                            .routing(cpx.clientIdentifier())
+                            .id(cpx.id())
+                            .doc(new ControlPacketContextPO()
+                                    .setStatus(cpx.status().name())
+                                    .setUpdatedAt(System.currentTimeMillis())),
+                    ClusterControlPacketContext.class
+            );
         } catch (ElasticsearchException e) {
             log.error("updateCpxStatus update a not existed cpx", e);
         }

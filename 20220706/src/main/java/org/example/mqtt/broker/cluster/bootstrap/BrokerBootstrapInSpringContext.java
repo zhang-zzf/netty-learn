@@ -20,8 +20,8 @@ import static org.example.mqtt.broker.cluster.bootstrap.BrokerBootstrap.startBro
 @Slf4j
 @Configuration
 @ComponentScan(basePackageClasses = {
-        BrokerBootstrapInSpringContext.class,
-        TimedAopConfiguration.class
+        ClusterBroker.class,
+        TimedAopConfiguration.class,
 })
 public class BrokerBootstrapInSpringContext {
 

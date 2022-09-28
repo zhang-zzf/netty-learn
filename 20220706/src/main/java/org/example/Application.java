@@ -3,6 +3,7 @@ package org.example;
 import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.example.config.micrometer.MicroMeterConfiguration;
+import org.example.mqtt.broker.cluster.infra.es.ClusterDbRepoImplPressure;
 import org.example.mqtt.broker.metrics.BrokerBootstrapWithMetrics;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.client.bootstrap.ClientBootstrap;
@@ -33,6 +34,10 @@ public class Application {
         }
         if (Boolean.getBoolean("mqtt.client.mode")) {
             new Thread(() -> ClientBootstrap.main(args), "bootstrap-thread").start();
+            return;
+        }
+        if (Boolean.getBoolean("db.pressure.mode")) {
+            ClusterDbRepoImplPressure.main(args);
             return;
         }
         // Server Node mode

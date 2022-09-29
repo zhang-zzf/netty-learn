@@ -50,15 +50,19 @@ if (redis.call('EXISTS', topicLevels[1]) == 1) then
     fuzzyMatch(topicLevels, 1, topicLevels[1], topics)
 end
 local resp = {}
+local existsKey = {}
 for i, v in ipairs(topics) do
     -- {topic}_/abc_/de_ -> {topic}/abc/de
     v = string.gsub(v, "_", "")
-    local subscriber = redis.call('SMEMBERS', v)
-    if (#subscriber > 0) then
-        local obj = {}
-        obj["value"] = v
-        obj["nodes"] = subscriber
-        resp[#resp+1] = obj
+    if (not existsKey[v]) then
+        existsKey[v] = true
+        local subscriber = redis.call('SMEMBERS', v)
+        if (#subscriber > 0) then
+            local obj = {}
+            obj["value"] = v
+            obj["nodes"] = subscriber
+            resp[#resp + 1] = obj
+        end
     end
 end
 -- should return an array

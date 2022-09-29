@@ -1,4 +1,4 @@
-package org.example.mqtt.broker.cluster.infra.es.model;
+package org.example.mqtt.broker.cluster.infra.redis.model;
 
 import lombok.Data;
 import lombok.experimental.Accessors;

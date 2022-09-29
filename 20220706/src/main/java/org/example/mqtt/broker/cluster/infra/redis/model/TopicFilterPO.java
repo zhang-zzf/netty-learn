@@ -1,8 +1,13 @@
-package org.example.mqtt.broker.cluster.infra.es.model;
+package org.example.mqtt.broker.cluster.infra.redis.model;
 
 import lombok.Data;
+import lombok.experimental.Accessors;
+import org.example.mqtt.broker.cluster.ClusterTopic;
 
 import java.util.*;
+
+import static java.util.Collections.emptyMap;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * 集群级别 TopicFilter 模型
@@ -62,6 +67,7 @@ import java.util.*;
 }
  */
 @Data
+@Accessors(chain = true)
 public class TopicFilterPO {
 
     /**
@@ -181,5 +187,18 @@ public class TopicFilterPO {
 
     }
 
+    public static ClusterTopic toDomain(TopicFilterPO po) {
+        ClusterTopic ret = new ClusterTopic(po.getValue());
+        ret.setNodes(po.getNodes());
+        if (po.getOfflineSessions() != null) {
+            Map<String, Byte> map = po.getOfflineSessions()
+                    .stream()
+                    .collect(toMap(s -> s.getClientIdentifier(), s -> s.getQos()));
+            ret.setOfflineSessions(map);
+        } else {
+            ret.setOfflineSessions(emptyMap());
+        }
+        return ret;
+    }
 
 }

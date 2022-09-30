@@ -5,7 +5,7 @@
 -- json of array of cpx.data
 
 local queueKey = KEYS[1]
-local fromTail = ARGV[1]
+local fromTail = (ARGV[1] == "true")
 
 local pId
 if (fromTail) then

@@ -1,16 +1,24 @@
 -- request
 -- unsubscribe topic/abc/de node1
--- KEYS: {{topic}/abc/de}
--- ARGV: node1
+-- KEYS: {"{topic}/abc/de"}
+-- ARGV: {"node1", "forceRemoveTopic"}
 -- resp
+local topicKey = KEYS[1]
+local force = (ARGV[2] == "true")
 
-if (redis.call('SREM', KEYS[1], ARGV[1]) == 0) then
-    return ;
+if (not force) then
+    if (redis.call('SREM', topicKey, ARGV[1]) == 0) then
+        return
+    end
+    if (redis.call("EXISTS", topicKey) == 1) then
+        -- 从 Topic 移除订阅成功，移除后依旧存在其他订阅者
+        return
+    end
+else
+    -- 强制删除 topic
+    redis.call('DEL', topicKey)
 end
-if (redis.call("EXISTS", KEYS[1]) == 1) then
-    -- 从 Topic 移除订阅成功，移除后依旧存在其他订阅者
-    return
-end
+
 
 -- Topic 删除成功，更新订阅树
 -- function
@@ -51,7 +59,7 @@ end
 -- function
 
 -- {{topic}/abc/de} -> {{topic}, abc, de}
-local topicLevels = split(KEYS[1], "/")
+local topicLevels = split(topicKey, "/")
 -- {{topic}, abc, de} -> {{topic}_, abc_, de_}
 for i, v in ipairs(topicLevels) do
     topicLevels[i] = v .. '_'

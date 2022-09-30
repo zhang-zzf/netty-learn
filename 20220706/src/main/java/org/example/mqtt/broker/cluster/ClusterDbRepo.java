@@ -42,6 +42,8 @@ public interface ClusterDbRepo {
 
     void removeNodeFromTopic(String nodeId, List<String> tfSet);
 
+    void removeTopic(List<String> tfSet);
+
     boolean offerToOutQueueOfTheOfflineSession(ClusterServerSession s, ClusterControlPacketContext ccpx);
 
     List<ClusterTopic> matchTopic(String topicName);

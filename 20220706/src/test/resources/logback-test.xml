@@ -20,7 +20,7 @@
     <root level="info">
         <appender-ref ref="ASYNC-STDOUT"/>
     </root>
-    <!--<logger name="org.example.mqtt" level="debug"/>-->
+    <logger name="org.example.mqtt" level="debug"/>
     <!--<logger name="org.elasticsearch.client.sniffer" level="debug"/>-->
     <!--<logger name="tracer" level="trace"/>-->
 

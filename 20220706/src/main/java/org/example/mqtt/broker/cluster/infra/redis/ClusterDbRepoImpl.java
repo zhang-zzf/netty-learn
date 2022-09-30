@@ -18,6 +18,7 @@ import org.redisson.api.RBucket;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.StringCodec;
+import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Nullable;
@@ -74,11 +75,12 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("offerCpx req.redis-> {}, {}, {}", queueRedisKey, po, tailPId);
         RScript script = redisson.getScript(StringCodec.INSTANCE);
         String sha1 = script.scriptLoad(LUA_SESSION_QUEUE_ENQUEUE);
+        Object[] argv = tailPId == null ?
+                new Object[]{cpx.pId(), po.jsonEncode()} :
+                new Object[]{cpx.pId(), po.jsonEncode(), tailPId};
         // the length of the list after the offer operations
-        Integer curQueueSize = script.evalSha(READ_WRITE, sha1, INTEGER,
-                asList(queueRedisKey),
-                cpx.pId(), po.jsonEncode(), tailPId);
-        log.debug("addNodeToTopic resp-> {}", curQueueSize);
+        long curQueueSize = script.evalSha(READ_WRITE, sha1, INTEGER, asList(queueRedisKey), argv);
+        log.debug("offerCpx resp-> {}", curQueueSize);
         return curQueueSize > 0;
     }
 
@@ -107,7 +109,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 clientIdentifier, type,
                 po.decodePublish(),
                 po.decodeStatus(),
-                po.decodePacketIdentifier());
+                po.decodeNextPacketIdentifier());
         return ccpx;
     }
 
@@ -131,10 +133,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         // the length of the list after the offer operations
         String json = script.evalSha(READ_ONLY, sha1, VALUE, asList(queueKey), tail);
         log.debug("searchCpx resp-> {}", json);
-        List<CpxPO> arr = CpxPO.jsonDecodeArray(json);
-        return arr.stream()
-                .map(po -> toDomain(po, clientIdentifier, type))
-                .collect(toList());
+        return asList(toDomain(CpxPO.jsonDecode(json), clientIdentifier, type));
     }
 
     @Override
@@ -146,7 +145,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("updateCpxStatus req.redis->key: {}, po: {}", cpxRedisKey, po);
         RScript script = redisson.getScript(StringCodec.INSTANCE);
         String sha1 = script.scriptLoad(LUA_CPX_UPDATE);
-        int num = script.evalSha(READ_WRITE, sha1, INTEGER,
+        long num = script.evalSha(READ_WRITE, sha1, INTEGER,
                 asList(cpxRedisKey),
                 po.jsonEncode());
         log.debug("updateCpxStatus resp.redis: {}", num);
@@ -159,7 +158,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("deleteCpx req.redis-> {}", queueKey);
         RScript script = redisson.getScript(StringCodec.INSTANCE);
         String sha1 = script.scriptLoad(LUA_CPX_DELETE);
-        int num = script.evalSha(READ_WRITE, sha1, INTEGER,
+        long num = script.evalSha(READ_WRITE, sha1, INTEGER,
                 asList(queueKey),
                 encodePacketIdentifier(cpx.packetIdentifier()));
         log.debug("deleteCpx resp-> {}", num);
@@ -170,7 +169,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public void saveSession(ClusterServerSession session) {
         SessionPO po = SessionPO.fromDomain(session);
         String redisKey = toSessionRedisKey(po.getCId());
-        RBucket<SessionPO> bucket = redisson.getBucket(redisKey);
+        RBucket<SessionPO> bucket = redisson.getBucket(redisKey, JsonJacksonCodec.INSTANCE);
         bucket.set(po);
     }
 
@@ -212,17 +211,26 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     @Override
     public void removeNodeFromTopic(String nodeId, List<String> tfSet) {
+        unsubscribeTopic(nodeId, tfSet, false);
+    }
+
+    private void unsubscribeTopic(String nodeId, List<String> tfSet, boolean force) {
         for (String tf : tfSet) {
             String redisKey = toTopicFilterRedisKey(tf);
             RScript script = redisson.getScript(StringCodec.INSTANCE);
             // load lua script into Redis cache to all redis master instances
             String sha1 = script.scriptLoad(LUA_UNSUBSCRIBE);
             // call lua script by sha digest
-            log.debug("removeNodeFromTopic req-> {}", redisKey, nodeId);
+            // log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
             script.evalSha(READ_WRITE, sha1,
                     INTEGER,
-                    asList(redisKey), nodeId);
+                    asList(redisKey), nodeId, force);
         }
+    }
+
+    @Override
+    public void removeTopic(List<String> tfSet) {
+        unsubscribeTopic("", tfSet, true);
     }
 
     @Override

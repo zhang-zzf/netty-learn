@@ -103,8 +103,8 @@ public class CpxPO {
         return ControlPacket.hexPId(packetIdentifier);
     }
 
-    public Short decodePacketIdentifier() {
-        return ControlPacket.hexPIdToShort(getNext());
+    public Short decodeNextPacketIdentifier() {
+        return ControlPacket.hexPIdToShort(next);
     }
 
 }

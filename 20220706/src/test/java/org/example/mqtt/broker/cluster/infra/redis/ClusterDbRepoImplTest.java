@@ -1,8 +1,14 @@
 package org.example.mqtt.broker.cluster.infra.redis;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
+import lombok.var;
+import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.ClusterServerSession;
 import org.example.mqtt.broker.cluster.ClusterTopic;
+import org.example.mqtt.model.Publish;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -15,8 +21,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.BDDAssertions.then;
+import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
+import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 
 @Slf4j
 class ClusterDbRepoImplTest {
@@ -28,7 +37,7 @@ class ClusterDbRepoImplTest {
         client = RedisConfiguration.newRedisson(addresses);
     }
 
-    final static ClusterDbRepoImpl dbRepo = new ClusterDbRepoImpl(client);
+    final static ClusterDbRepo dbRepo = new ClusterDbRepoImpl(client);
 
     @Test
     void givenTopicFilter_whenConvertToRedisKey_then() {
@@ -41,13 +50,7 @@ class ClusterDbRepoImplTest {
     @ParameterizedTest
     @CsvFileSource(resources = {"/topicFilter/topicFilter.csv"})
     void givenTopicFilter_whenAddNodeToTopic_then(String tf) {
-        ClusterDbRepoImpl impl = new ClusterDbRepoImpl(client);
-        impl.addNodeToTopic("node01", asList(tf));
-    }
-
-    @ParameterizedTest
-    @CsvFileSource(resources = {"/topicFilter/topicFilter.csv"})
-    void givenTopicFilter_whenRemoveNodeFromTopic_then(String tf) {
+        dbRepo.addNodeToTopic("node01", asList(tf));
         dbRepo.removeNodeFromTopic("node01", asList(tf));
     }
 
@@ -74,8 +77,9 @@ class ClusterDbRepoImplTest {
     @Test
     void given_whenAddAndRemove3_then() {
         String topic1 = "topic/abc/de/mn";
-        dbRepo.addNodeToTopic("nod3", asList(topic1));
         String topic2 = "topic/abc";
+        dbRepo.removeTopic(asList(topic1, topic2));
+        dbRepo.addNodeToTopic("nod3", asList(topic1));
         dbRepo.addNodeToTopic("nod3", asList(topic2));
         dbRepo.removeNodeFromTopic("nod3", asList(topic2));
         then(dbRepo.matchTopic(topic2)).isEmpty();
@@ -136,13 +140,29 @@ class ClusterDbRepoImplTest {
             threadPool.submit(task);
         }
     }
+
     private static void indexPressure(ClusterDbRepo dbRepo,
                                       List<String> nodes,
                                       Set<String> list,
                                       ThreadPoolExecutor threadPool) {
         final AtomicLong start = new AtomicLong(System.currentTimeMillis());
         AtomicLong count = new AtomicLong(0);
-        if (Boolean.getBoolean("db.pressure.mode.sub")) {
+        if (Boolean.getBoolean("db.pressure.mode.unsub")) {
+            for (String id : list) {
+                Runnable task = () -> {
+                    dbRepo.removeTopic(Arrays.asList(id));
+                    count.getAndIncrement();
+                    if ((count.get() % 10000) == 0) {
+                        long timeUsed = System.currentTimeMillis() - start.get();
+                        long qps = 10000 / (timeUsed / 1000);
+                        long timePerReq = timeUsed / 10000 * threadPool.getPoolSize();
+                        log.info("index 1W request-> avg: {}ms/doc, qps:{}", timePerReq, qps);
+                        start.set(System.currentTimeMillis());
+                        count.set(0);
+                    }
+                };
+                threadPool.submit(task);
+            }
         } else {
             for (String id : list) {
                 Runnable task = () -> {
@@ -184,6 +204,150 @@ class ClusterDbRepoImplTest {
 
     private static String randomNode(List<String> nodes) {
         return nodes.get(new Random().nextInt(32));
+    }
+
+    @Test
+    void given_whenOfferToSessionQueue_then() {
+        ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
+        Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) 1, byteBuf);
+        String clientIdentifier = UUID.randomUUID().toString();
+        ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
+                clientIdentifier, IN, packet, INIT, null);
+        // when
+        // first time success
+        boolean firstOffer = dbRepo.offerCpx(null, cpx);
+        // then
+        then(firstOffer).isTrue();
+    }
+
+    @Test
+    void given_whenOfferToSessionQueue10Times_then() throws InterruptedException {
+        String clientIdentifier = UUID.randomUUID().toString();
+        ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
+        for (int i = 0; i < 10; i++) {
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
+                    clientIdentifier, IN, packet, INIT, null);
+            // when
+            // first time success
+            boolean firstOffer = dbRepo.offerCpx(null, cpx);
+            // then
+            then(firstOffer).isTrue();
+            Thread.sleep(2);
+        }
+    }
+
+    @Test
+    void given_whenPeekFromSessionQueue_then() throws InterruptedException {
+        // given
+        // offer 10 cpx
+        String clientIdentifier = UUID.randomUUID().toString();
+        String payload = "Hello, World!\n你好，世界。";
+        ByteBuf byteBuf = Unpooled.copiedBuffer(payload, UTF_8);
+        ClusterControlPacketContext tail = null;
+        for (int i = 0; i < 10; i++) {
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
+                    clientIdentifier, IN, packet, INIT, null);
+            // when
+            // first time success
+            boolean offerCpx = dbRepo.offerCpx(tail, cpx);
+            // then
+            then(offerCpx).isTrue();
+            tail = cpx;
+            Thread.sleep(2);
+        }
+        // when
+        List<ClusterControlPacketContext> ccpxList = dbRepo.searchCpx(clientIdentifier, IN, false, 1);
+        // then
+        then(ccpxList.get(0)).isNotNull()
+                .returns((short) 0, x -> x.packet().packetIdentifier())
+                .returns((short) 1, x -> x.nextPacketIdentifier())
+                .returns(clientIdentifier, x -> x.clientIdentifier())
+                .returns(payload, x -> x.packet().payload().toString(UTF_8))
+                .returns(false, x -> x.packet().retain())
+                .returns(2, x -> x.packet().qos())
+                .returns(false, x -> x.packet().dup())
+                .returns("topic/abc/de", x -> x.packet().topicName())
+        ;
+        // clean
+        for (int i = 0; i < 10; i++) {
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
+                    clientIdentifier, IN, packet, INIT, null);
+            // when
+            // first time success
+            boolean offerCpx = dbRepo.pollCpx(cpx);
+            // then
+            then(offerCpx).isTrue();
+        }
+    }
+
+    /**
+     */
+    @Test
+    void given_whenCasUpdateOrCreateIfNotExist_then() {
+        String nodeId = UUID.randomUUID().toString();
+        // 第一次添加成功
+        dbRepo.addNodeToTopic(nodeId, Arrays.asList("topic/abc"));
+        // 第二次添加成功（无需更新DB）
+        dbRepo.addNodeToTopic(nodeId, Arrays.asList("topic/abc"));
+    }
+
+    /**
+     * outQueue is empty
+     * <p>空队列 追加消息</p>
+     */
+    @Test
+    // todo
+    @Disabled
+    void givenEmptyOutQueue_whenOfferToOfflineSession_then() {
+        // given
+        String clientIdentifier = UUID.randomUUID().toString();
+        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
+        dbRepo.saveSession(session);
+        // use a shadow copy of the origin Publish
+        String payload = "Hello, World!\n你好，世界。";
+        ByteBuf byteBuf = Unpooled.copiedBuffer(payload, UTF_8);
+        short packetIdentifier = session.nextPacketIdentifier();
+        Publish outgoing = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", packetIdentifier, byteBuf);
+        ClusterControlPacketContext ccpx = new ClusterControlPacketContext(dbRepo, clientIdentifier, IN, outgoing, INIT, null);
+        dbRepo.offerToOutQueueOfTheOfflineSession(session, ccpx);
+    }
+
+    /**
+     * outQueue is empty
+     * <p>非空队列 追加消息</p>
+     */
+    @Test
+    // todo
+    @Disabled
+    void givenNotEmptyOutQueue_whenOfferToOfflineSession_then() {
+        // given
+        String clientIdentifier = UUID.randomUUID().toString();
+        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
+        dbRepo.saveSession(session);
+        // 空队列追加
+        ClusterControlPacketContext ccpx = newCcpx(clientIdentifier, session.nextPacketIdentifier());
+        dbRepo.offerToOutQueueOfTheOfflineSession(session, ccpx);
+        // 非空队列追加
+        ClusterServerSession dbSession = dbRepo.getSession(clientIdentifier);
+        var ccpx2 = newCcpx(clientIdentifier, dbSession.nextPacketIdentifier());
+        dbRepo.offerToOutQueueOfTheOfflineSession(dbSession, ccpx2);
+    }
+
+    private ClusterControlPacketContext newCcpx(String clientIdentifier, short packetIdentifier) {
+        ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
+        Publish outgoing = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", packetIdentifier, byteBuf);
+        ClusterControlPacketContext ccpx = new ClusterControlPacketContext(dbRepo, clientIdentifier, IN, outgoing, INIT, null);
+        return ccpx;
+    }
+
+    @Test
+    void givenSessionQueue_whenUpdateCpx_then() {
+        String notExistClientIdentifier = UUID.randomUUID().toString();
+        ClusterControlPacketContext ccpx = newCcpx(notExistClientIdentifier, (short) 1);
+        dbRepo.updateCpxStatus(ccpx);
     }
 
 }

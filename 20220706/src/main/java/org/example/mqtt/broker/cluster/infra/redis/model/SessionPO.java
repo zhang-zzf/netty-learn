@@ -7,6 +7,7 @@ import lombok.experimental.Accessors;
 import org.example.mqtt.broker.cluster.ClusterServerSession;
 import org.example.mqtt.model.Subscribe;
 
+import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Objects;
 import java.util.Set;
@@ -15,7 +16,7 @@ import static java.util.stream.Collectors.toSet;
 
 @Data
 @Accessors(chain = true)
-public class SessionPO {
+public class SessionPO implements Serializable {
 
     /**
      * clientIdentifier

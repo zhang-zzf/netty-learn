@@ -16,20 +16,24 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
 
     private final ClusterDbRepo clusterDbRepo;
     private final String clientIdentifier;
-    private final Type type;
+    private final ControlPacketContext.Type type;
     private ClusterControlPacketContext head;
     private ClusterControlPacketContext tail;
 
-    public ClusterDbQueue(ClusterDbRepo clusterDbRepo, String clientIdentifier, Type type) {
+    public ClusterDbQueue(ClusterDbRepo clusterDbRepo, String clientIdentifier, ControlPacketContext.Type type) {
         this.clusterDbRepo = clusterDbRepo;
         this.clientIdentifier = clientIdentifier;
         this.type = type;
         List<ClusterControlPacketContext> fetchFromHead =
-                clusterDbRepo.searchSessionQueue(clientIdentifier, type, false, 1);
+                clusterDbRepo.searchCpx(clientIdentifier, type, false, 1);
         this.head = fetchFromHead.isEmpty() ? null : fetchFromHead.get(0);
         List<ClusterControlPacketContext> fetchFromTail =
-                clusterDbRepo.searchSessionQueue(clientIdentifier, type, true, 1);
+                clusterDbRepo.searchCpx(clientIdentifier, type, true, 1);
         this.tail = fetchFromTail.isEmpty() ? null : fetchFromTail.get(0);
+        // 若 Queue 中仅有一个元素, head 和 tail 指针必须执行同一个对象
+        if (head != null && head.packetIdentifier() == tail.packetIdentifier()) {
+            this.tail = head;
+        }
     }
 
     @Override
@@ -45,7 +49,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
     @Override
     public boolean offer(ControlPacketContext cpx) {
         ClusterControlPacketContext ccpx = (ClusterControlPacketContext) cpx;
-        boolean added = clusterDbRepo.offerToSessionQueue(tail, ccpx);
+        boolean added = clusterDbRepo.offerCpx(tail, ccpx);
         // 更新 tail 指针
         if (added) {
             if (this.tail != null) {
@@ -53,8 +57,10 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
             }
             this.tail = ccpx;
             this.head = (this.head == null ? ccpx : this.head);
+        } else {
+            log.error("offer failed-> {}", cpx);
         }
-        return added;
+        return true;
     }
 
     @Override
@@ -67,10 +73,10 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
         Short nPId = first.nextPacketIdentifier();
         if (nPId != null) {
             log.debug("Queue({}/{}) fetch next from db", cId(), type);
-            ClusterControlPacketContext next = clusterDbRepo.getCpxFromSessionQueue(clientIdentifier, type, nPId);
+            ClusterControlPacketContext next = clusterDbRepo.getCpx(clientIdentifier, type, nPId);
             if (next == null) {
                 // should exist
-                log.warn("poll [should have next Item, but does not]");
+                log.error("poll [should have next Item, but does not]");
                 this.head = null;
                 this.tail = null;
             } else {
@@ -81,7 +87,11 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
             this.tail = null;
         }
         // delete
-        clusterDbRepo.deleteFromSessionQueue(first);
+        boolean deleted = clusterDbRepo.pollCpx(first);
+        if (!deleted) {
+            log.error("deleteCpx failed-> {}", first);
+            throw new IllegalStateException();
+        }
         log.debug("Queue({}/{}) delete from db->{}", cId(), type, first);
         return first;
     }
@@ -95,10 +105,8 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
         return head;
     }
 
-    public enum Type {
-        IN_QUEUE,
-        OUT_QUEUE,
-        ;
+    public Short tailPacketIdentifier() {
+        return tail == null ? null : tail.packetIdentifier();
     }
 
 }

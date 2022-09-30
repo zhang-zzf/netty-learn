@@ -53,7 +53,7 @@ public class ClusterServerSession extends DefaultServerSession {
     @Override
     protected Queue<ControlPacketContext> newInQueue() {
         log.debug("Session({}) now build inQueue", cId());
-        return new ClusterDbQueue(clusterDbRepo(), cId(), ClusterDbQueue.Type.IN_QUEUE);
+        return new ClusterDbQueue(clusterDbRepo(), cId(), IN);
     }
 
     private ClusterDbRepo clusterDbRepo() {
@@ -63,7 +63,7 @@ public class ClusterServerSession extends DefaultServerSession {
     @Override
     protected Queue<ControlPacketContext> newOutQueue() {
         log.debug("Session({}) now build outQueue.", cId());
-        return new ClusterDbQueue(clusterDbRepo(), cId(), ClusterDbQueue.Type.OUT_QUEUE);
+        return new ClusterDbQueue(clusterDbRepo(), cId(), OUT);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class ClusterServerSession extends DefaultServerSession {
         if (head != null && packetIdentifier == head.packetIdentifier()) {
             return head;
         }
-        return clusterDbRepo().getCpxFromSessionQueue(cId(), ClusterDbQueue.Type.OUT_QUEUE, packetIdentifier);
+        return clusterDbRepo().getCpx(cId(), OUT, packetIdentifier);
     }
 
     @Override
@@ -83,7 +83,7 @@ public class ClusterServerSession extends DefaultServerSession {
         if (head != null && packetIdentifier == head.packetIdentifier()) {
             return head;
         }
-        return clusterDbRepo().getCpxFromSessionQueue(cId(), ClusterDbQueue.Type.IN_QUEUE, packetIdentifier);
+        return clusterDbRepo().getCpx(cId(), IN, packetIdentifier);
     }
 
     @Override
@@ -149,9 +149,7 @@ public class ClusterServerSession extends DefaultServerSession {
         if (isOnline()) {
             this.nodeId = null;
             // 保存 tail
-            List<ClusterControlPacketContext> tail =
-                    clusterDbRepo().searchSessionQueue(clientIdentifier(), ClusterDbQueue.Type.OUT_QUEUE, true, 1);
-            this.outQueuePacketIdentifier = tail.isEmpty() ? null : tail.get(0).packetIdentifier();
+            this.outQueuePacketIdentifier = ((ClusterDbQueue) outQueue()).tailPacketIdentifier();
             // 清除本 broker 中的 Session (even if CleanSession=0)
             log.debug("Cluster now try to disconnect the cleanSession=0 Session from this Node->{}", this);
             clusterDbRepo().saveSession(this);

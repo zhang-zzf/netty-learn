@@ -90,7 +90,7 @@ public class ClusterBroker implements Broker {
         if (localSession != null) {
             return localSession;
         }
-        var session = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
+        var session = clusterDbRepo.getSession(clientIdentifier);
         log.debug("Client({}) find session in Cluster: {}", clientIdentifier, session);
         return session;
     }
@@ -211,7 +211,7 @@ public class ClusterBroker implements Broker {
     // todo
     private void forwardToOfflineSession(Publish packet, ClusterTopic ct, Map.Entry<String, Byte> e) {
         String clientIdentifier = e.getKey();
-        ClusterServerSession s = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
+        ClusterServerSession s = clusterDbRepo.getSession(clientIdentifier);
         if (s == null) {
             log.warn("Publish forward to offline Client[Session 不存在]: {}", clientIdentifier);
             return;
@@ -222,7 +222,7 @@ public class ClusterBroker implements Broker {
         boolean added = clusterDbRepo.offerToOutQueueOfTheOfflineSession(s, (ClusterControlPacketContext) cpx);
         if (!added) {
             log.warn("Publish forward to offline Client[添加失败]: {}", clientIdentifier);
-            ClusterServerSession curS = clusterDbRepo.getSessionByClientIdentifier(clientIdentifier);
+            ClusterServerSession curS = clusterDbRepo.getSession(clientIdentifier);
             if (curS.isOnline()) {
                 log.warn("Pubish forward to offline Client[添加失败，Client online], now forward it: {}", clientIdentifier);
                 // todo online forward

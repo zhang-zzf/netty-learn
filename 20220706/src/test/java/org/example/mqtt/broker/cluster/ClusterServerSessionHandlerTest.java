@@ -154,7 +154,7 @@ class ClusterServerSessionHandlerTest {
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
         ClusterServerSession offlineSession = ClusterServerSession.from(Connect.from(strReceiver01, false, (short) 64));
-        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(offlineSession);
+        given(dbRepo.getSession(any())).willReturn(offlineSession);
         cc1.writeInbound(Connect.from(strReceiver01, true, (short) 64).toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
@@ -237,7 +237,7 @@ class ClusterServerSessionHandlerTest {
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
@@ -255,7 +255,7 @@ class ClusterServerSessionHandlerTest {
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)
@@ -275,7 +275,7 @@ class ClusterServerSessionHandlerTest {
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSessionByClientIdentifier(any())).willReturn(ClusterServerSession.from(connect));
+        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
                 .returns((int) ACCEPTED, ConnAck::returnCode)

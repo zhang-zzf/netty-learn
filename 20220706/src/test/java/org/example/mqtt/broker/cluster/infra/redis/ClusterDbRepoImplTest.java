@@ -33,8 +33,8 @@ class ClusterDbRepoImplTest {
     @Test
     void givenTopicFilter_whenConvertToRedisKey_then() {
         ClusterDbRepoImpl impl = new ClusterDbRepoImpl(null);
-        then(impl.convertToRedisKey("topic")).isEqualTo("{topic}");
-        then(impl.convertToRedisKey("topic/ab")).isEqualTo("{topic}/ab");
+        then(impl.toTopicFilterRedisKey("topic")).isEqualTo("{topic}");
+        then(impl.toTopicFilterRedisKey("topic/ab")).isEqualTo("{topic}/ab");
         // then(impl.convertToRedisKey("topic/ab/")).isEqualTo("{topic}/ab/");
     }
 
@@ -142,7 +142,6 @@ class ClusterDbRepoImplTest {
                                       ThreadPoolExecutor threadPool) {
         final AtomicLong start = new AtomicLong(System.currentTimeMillis());
         AtomicLong count = new AtomicLong(0);
-
         if (Boolean.getBoolean("db.pressure.mode.sub")) {
         } else {
             for (String id : list) {
@@ -177,11 +176,9 @@ class ClusterDbRepoImplTest {
         }
     }
 
-
     @Test
     void givenTopicFilter_whenMatchTopic_then() {
-        ClusterDbRepoImpl impl = new ClusterDbRepoImpl(client);
-        List<ClusterTopic> resp = impl.matchTopic("0211/2/3/4/5/6");
+        List<ClusterTopic> resp = dbRepo.matchTopic("0211/2/3/4/5/6");
         then(resp).isNotNull();
     }
 

@@ -13,59 +13,6 @@ import static java.util.stream.Collectors.toMap;
  * 集群级别 TopicFilter 模型
  * <p> "topic_abc_de" use as ID </p>
  */
-/*
- {
-  "settings": {
-    "index.number_of_shards": 3,
-    "index.number_of_replicas": 1
-  },
-  "mappings": {
-    "dynamic": "false",
-    "properties": {
-      "1": {
-        "type": "keyword"
-      },
-      "2": {
-        "type": "keyword"
-      },
-      "3": {
-        "type": "keyword"
-      },
-      "4": {
-        "type": "keyword"
-      },
-      "5": {
-        "type": "keyword"
-      },
-      "6": {
-        "type": "keyword"
-      },
-      "7": {
-        "type": "keyword"
-      },
-      "8": {
-        "type": "keyword"
-      },
-      "id": {
-        "type": "keyword"
-      },
-      "nodes": {
-        "type": "keyword"
-      },
-      "offlineSubscriptions": {
-        "properties": {
-          "clientId": {
-            "type": "keyword"
-          },
-          "qos": {
-            "type": "byte"
-          }
-        }
-      }
-    }
-  }
-}
- */
 @Data
 @Accessors(chain = true)
 public class TopicFilterPO {
@@ -74,12 +21,6 @@ public class TopicFilterPO {
      * topic/abc/de
      */
     private String value;
-    /**
-     * "0" -> "topic"
-     * "1" -> "abc"
-     * "2" -> "de"
-     */
-    private Map<String, String> topicLevel;
     /**
      * 订阅此 TopicFilter 的 node 节点
      */
@@ -90,17 +31,11 @@ public class TopicFilterPO {
     private Set<SubscriptionPO> offlineSessions;
 
     public TopicFilterPO() {
-
     }
 
     public TopicFilterPO(String tf, String... nodes) {
         this.value = tf;
-        this.topicLevel = new HashMap<>(8);
-        String[] level = tf.split("/");
-        for (int i = 0; i < level.length; i++) {
-            topicLevel.put(String.valueOf(i), level[i]);
-        }
-        this.nodes = new HashSet<>();
+        this.nodes = new HashSet<>(nodes.length * 2);
         for (String node : nodes) {
             this.nodes.add(node);
         }
@@ -111,21 +46,6 @@ public class TopicFilterPO {
         final StringBuilder sb = new StringBuilder("{");
         if (value != null) {
             sb.append("\"id\":\"").append(value).append('\"').append(',');
-        }
-        if (topicLevel != null) {
-            sb.append("\"topicLevel\":");
-            if (!(topicLevel).isEmpty()) {
-                sb.append("{");
-                final Set<?> mapKeySet = (topicLevel).keySet();
-                for (Object mapKey : mapKeySet) {
-                    final Object mapValue = (topicLevel).get(mapKey);
-                    sb.append("\"").append(mapKey).append("\":\"").append(Objects.toString(mapValue, "")).append("\",");
-                }
-                sb.replace(sb.length() - 1, sb.length(), "}");
-            } else {
-                sb.append("{}");
-            }
-            sb.append(',');
         }
         if (nodes != null) {
             sb.append("\"subscribeNodes\":");

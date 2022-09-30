@@ -224,5 +224,9 @@ public abstract class ControlPacket {
         return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
     }
 
+    public static Short hexPIdToShort(String hexPId) {
+        return Integer.valueOf(hexPId.substring(2), 16).shortValue();
+    }
+
 }
 

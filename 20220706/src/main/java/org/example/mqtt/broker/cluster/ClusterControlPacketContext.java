@@ -15,7 +15,9 @@ public class ClusterControlPacketContext extends ControlPacketContext {
     public ClusterControlPacketContext(ClusterDbRepo clusterDbRepo,
                                        String clientIdentifier,
                                        Type type,
-                                       Publish packet, Status status, Short nextPacketIdentifier) {
+                                       Publish packet,
+                                       Status status,
+                                       Short nextPacketIdentifier) {
         super(packet, status, type);
         this.clusterDbRepo = clusterDbRepo;
         this.clientIdentifier = clientIdentifier;

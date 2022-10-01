@@ -84,7 +84,9 @@ for i, v in ipairs(topics) do
         if (#subscriber > 0 or offlineSessions) then
             local obj = {}
             obj["value"] = v
-            obj["nodes"] = subscriber
+            if (#subscriber >0) then
+                obj["nodes"] = subscriber
+            end
             obj["offlineSessions"] = offlineSessions
             resp[#resp + 1] = obj
         end

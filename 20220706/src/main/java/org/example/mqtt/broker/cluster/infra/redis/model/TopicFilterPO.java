@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Collections.emptySet;
 
 /**
  * 集群级别 TopicFilter 模型
@@ -50,7 +51,11 @@ public class TopicFilterPO {
 
     public static ClusterTopic toDomain(TopicFilterPO po) {
         ClusterTopic ret = new ClusterTopic(po.getValue());
-        ret.setNodes(po.getNodes());
+        if (po.getNodes() != null) {
+            ret.setNodes(po.getNodes());
+        } else {
+            ret.setNodes(emptySet());
+        }
         if (po.getOfflineSessions() != null) {
             ret.setOfflineSessions(po.offlineSessions);
         } else {

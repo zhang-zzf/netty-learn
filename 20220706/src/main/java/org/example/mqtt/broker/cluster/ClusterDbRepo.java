@@ -1,10 +1,12 @@
 package org.example.mqtt.broker.cluster;
 
+import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 public interface ClusterDbRepo {
 
@@ -49,8 +51,10 @@ public interface ClusterDbRepo {
 
     void close() throws IOException;
 
-    void removeOfflineSessionFromTopic(ClusterServerSession css);
+    void removeOfflineSessionFromTopic(String clientIdentifier,
+                                       Set<Subscribe.Subscription> subscriptions);
 
-    void addOfflineSessionToTopic(ClusterServerSession css);
+    void addOfflineSessionToTopic(String clientIdentifier,
+                                  Set<Subscribe.Subscription> subscriptions);
 
 }

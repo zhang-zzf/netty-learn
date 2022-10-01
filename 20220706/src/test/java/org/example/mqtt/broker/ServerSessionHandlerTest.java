@@ -798,6 +798,7 @@ class ServerSessionHandlerTest {
         then(publishMessage1)
                 .returns(1, Publish::qos)
                 .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+        receiver1.writeInbound(PubAck.from(publishMessage1.packetIdentifier()).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage2 = new Publish(receiver1.readOutbound());
         then(publishMessage2)
@@ -805,7 +806,6 @@ class ServerSessionHandlerTest {
                 .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
         //
-        receiver1.writeInbound(PubAck.from(publishMessage1.packetIdentifier()).toByteBuf());
         receiver1.writeInbound(PubAck.from(publishMessage2.packetIdentifier()).toByteBuf());
         then(new PubAck(publish1.readOutbound())).isNotNull();
     }
@@ -835,27 +835,28 @@ class ServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", sPublish1.nextPacketIdentifier(),
                 Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
+        // publish1 收到 PubRec 消息
+        then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
+        publish1.writeInbound(PubRel.from(publish.packetIdentifier()).toByteBuf());
+        then(new PubComp(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
+        //
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = new Publish(receiver1.readOutbound());
         then(publishMessage1)
                 .returns(2, Publish::qos)
                 .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+        receiver1.writeInbound(PubRec.from(publishMessage1.packetIdentifier()).toByteBuf());
+        then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage1.packetIdentifier());
+        receiver1.writeInbound(PubComp.from(publishMessage1.packetIdentifier()).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage2 = new Publish(receiver1.readOutbound());
         then(publishMessage2)
                 .returns(2, Publish::qos)
                 .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
-        // publish1 收到 PubRec 消息
-        then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
-        publish1.writeInbound(PubRel.from(publish.packetIdentifier()).toByteBuf());
-        then(new PubComp(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
         // receiver1
-        receiver1.writeInbound(PubRec.from(publishMessage1.packetIdentifier()).toByteBuf());
         receiver1.writeInbound(PubRec.from(publishMessage2.packetIdentifier()).toByteBuf());
-        then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage1.packetIdentifier());
         then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage2.packetIdentifier());
-        receiver1.writeInbound(PubComp.from(publishMessage1.packetIdentifier()).toByteBuf());
         receiver1.writeInbound(PubComp.from(publishMessage2.packetIdentifier()).toByteBuf());
     }
 

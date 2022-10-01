@@ -31,6 +31,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -68,9 +69,12 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         if (po == null) {
             return null;
         }
+        // LPUSH -> enqueue; RPOP -> dequeue
+        // redis 视角：List 的队头是 Queue 的队尾。
+        // 我们取 Queue 队尾数组
         String pId = redisson
                 .<String>getDeque(toCpxQueueRedisKey(clientIdentifier, OUT), StringCodec.INSTANCE)
-                .peekLast();
+                .peek();
         po.setOQPId(decodePacketIdentifier(pId));
         return po.toDomain();
     }
@@ -235,10 +239,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         for (String tf : tfSet) {
             String redisKey = toTopicFilterRedisKey(tf);
             RScript script = redisson.getScript(StringCodec.INSTANCE);
-            // load lua script into Redis cache to all redis master instances
             String sha1 = script.scriptLoad(LUA_UNSUBSCRIBE);
-            // call lua script by sha digest
-            // log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
+            log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
             script.evalSha(READ_WRITE, sha1,
                     INTEGER,
                     asList(redisKey), nodeId, force);
@@ -292,13 +294,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
-    public void removeOfflineSessionFromTopic(ClusterServerSession css) {
-        log.debug("removeOfflineSessionFromTopic req-> {}", css);
-        if (css == null || css.subscriptions().isEmpty()) {
-            return;
-        }
-        String cId = css.clientIdentifier();
-        for (Subscribe.Subscription sub : css.subscriptions()) {
+    public void removeOfflineSessionFromTopic(String cId, Set<Subscribe.Subscription> subscriptions) {
+        log.debug("removeOfflineSessionFromTopic req-> {}, {}", cId, subscriptions);
+        for (Subscribe.Subscription sub : subscriptions) {
             String topicFilterRedisKey = toTopicFilterRedisKey(sub.topicFilter());
             String key = toTopicFilterOffRedisKey(topicFilterRedisKey);
             log.debug("removeOfflineSessionFromTopic req.redis-> {}, {}", key, cId);
@@ -307,13 +305,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
-    public void addOfflineSessionToTopic(ClusterServerSession css) {
-        log.debug("addOfflineSessionToTopic req-> {}", css);
-        if (css == null || css.subscriptions().isEmpty()) {
-            return;
-        }
-        String cId = css.clientIdentifier();
-        for (Subscribe.Subscription sub : css.subscriptions()) {
+    public void addOfflineSessionToTopic(String cId, Set<Subscribe.Subscription> subscriptions) {
+        log.debug("addOfflineSessionToTopic req-> {}, {}", cId, subscriptions);
+        for (Subscribe.Subscription sub : subscriptions) {
             String topicFilterRedisKey = toTopicFilterRedisKey(sub.topicFilter());
             String key = toTopicFilterOffRedisKey(topicFilterRedisKey);
             log.debug("addOfflineSessionToTopic req.redis-> {}, {}, {}", key, cId, sub.qos());

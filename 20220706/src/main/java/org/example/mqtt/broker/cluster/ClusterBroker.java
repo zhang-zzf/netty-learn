@@ -122,7 +122,7 @@ public class ClusterBroker implements Broker {
             // 1. 注册成功,绑定信息保存到 DB
             clusterDbRepo.saveSession(css.nodeId(nodeId()));
             // 2.从集群的订阅树中移除 Session 的离线订阅
-            clusterDbRepo.removeOfflineSessionFromTopic(css);
+            clusterDbRepo.removeOfflineSessionFromTopic(css.clientIdentifier(), css.subscriptions());
         }
         // publish Connect to Cluster
         publishConnectToCluster(session.clientIdentifier());
@@ -150,12 +150,19 @@ public class ClusterBroker implements Broker {
     public void unsubscribe(ServerSession session, Unsubscribe packet) {
         log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
         nodeBroker.unsubscribe(session, packet);
-        List<String> topicToRemove = packet.subscriptions().stream()
+        removeNodeFromTopic(new HashSet<>(packet.subscriptions()));
+        log.debug("Node({}) Session({}) unsubscribe done", nodeId(), session.clientIdentifier());
+    }
+
+    /**
+     * 清理路由表
+     */
+    private void removeNodeFromTopic(Set<Subscribe.Subscription> subscriptions) {
+        List<String> topicToRemove = subscriptions.stream()
                 .map(Subscribe.Subscription::topicFilter)
                 .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
                 .collect(toList());
         clusterDbRepo.removeNodeFromTopic(nodeId(), topicToRemove);
-        log.debug("Node({}) Session({}) unsubscribe done", nodeId(), session.clientIdentifier());
     }
 
     @Override
@@ -357,10 +364,14 @@ public class ClusterBroker implements Broker {
     public void disconnectFromNodeBroker(ClusterServerSession session) {
         session.nodeId(null);
         clusterDbRepo.saveSession(session);
-        // 离线继续订阅主题
-        clusterDbRepo.addOfflineSessionToTopic(session);
-        // 清除本 broker 中的 Session (even if CleanSession=0)
+        // important: 1 must be executed before 2
+        // alter solution: 改变 addOfflineSessionToTopic 的实现，使其可以操作 订阅树
+        // 1. Session离线，继续订阅主题
+        clusterDbRepo.addOfflineSessionToTopic(session.clientIdentifier(), session.subscriptions());
+        // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
         nodeBroker().destroySession(session);
+        // 2.1 清理路由表
+        removeNodeFromTopic(session.subscriptions());
     }
 
 }

@@ -134,16 +134,23 @@ public abstract class AbstractSession implements Session {
         ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
         log.debug("sender({}/{}) Publish .->INIT: {}", cId(), cpx.pId(), cpx);
         if (isBound()) {
-            // online
+            // online. send immediately
             // Only enqueue Qos1 and QoS2
             if (enqueueOutQueue(cpx.packet())) {
                 outQueueEnqueue(cpx);
+                if (cpx.packetIdentifier() == outQueue().peek().packetIdentifier()) {
+                    // cpx is the head of the outQueue
+                    doWritePublishPacket(cpx);
+                } else {
+                    log.debug("sender({}/{}) Publish wait for it's turn: {}", cId(), cpx.pId(), cpx);
+                }
+            } else {
+                // no need to enqueue, just send it.
+                doWritePublishPacket(cpx);
             }
-            // online. send immediately
-            doWritePublishPacket(cpx);
         } else {
             // offline
-            if (outgoing.atMostOnce() && !sendQoS0PublishOffline()) {
+            if (!enqueueOutQueue(cpx.packet())) {
                 // QoS0 Publish will be discarded by default config.
                 log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
                 publishPacketSentComplete(cpx);
@@ -160,15 +167,6 @@ public abstract class AbstractSession implements Session {
     private void outQueueEnqueue(ControlPacketContext cpx) {
         outQueue().offer(cpx);
         log.debug("sender({}/{}) [outQueue enqueue]", cId(), cpx.pId());
-    }
-
-    /**
-     * 以下情况下是否需要发送 QoS0 消息
-     * <p>Client 与 Broker 不存在连接</p>
-     * <p>Broker 与 Client(非 CleanSession ）不存在连接</p>
-     */
-    protected boolean sendQoS0PublishOffline() {
-        return false;
     }
 
     protected String cId() {
@@ -235,6 +233,13 @@ public abstract class AbstractSession implements Session {
      */
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
         log.debug("sender({}/{}) Publish Packet sent completed", cId(), cpx.pId());
+        // send the next if exist
+        if (enqueueOutQueue(cpx.packet())) {
+            ControlPacketContext head = outQueue().peek();
+            log.debug("sender({}) now try to send the next cpx-> {}", cId(), head);
+            // outQueue 队列中 head 发送完成，继续发送下一个
+            doWritePublishPacket(head);
+        }
     }
 
     @Override
@@ -273,6 +278,7 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubComp failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
+        // cpx != null means outQueue is not empty
         if (outQueue().peek().packetIdentifier() == pId) {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
             log.debug("sender({}/{}) [PubComp the Header of the outQueue]", cId(), cpx.pId());
@@ -280,7 +286,7 @@ public abstract class AbstractSession implements Session {
             outQueue.poll();
             log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
             publishPacketSentComplete(cpx);
-            // try clean the queue
+            // try clean the queue (the cpx that behinds head may already complete)
             tryCleanOutQueue();
         } else {
             cpx.markStatus(PUB_REC, PUB_COMP);
@@ -515,13 +521,14 @@ public abstract class AbstractSession implements Session {
 
     protected void resendOutQueue() {
         tryCleanOutQueue();
-        Queue<ControlPacketContext> outQueue = outQueue();
-        for (ControlPacketContext cpx : outQueue) {
-            resendCpxInOutQueue(cpx);
-        }
+        // resend cpx
+        resendCpxInOutQueue(outQueue().peek());
     }
 
     protected void resendCpxInOutQueue(ControlPacketContext cpx) {
+        if (cpx == null) {
+            return;
+        }
         Publish packet = cpx.packet();
         if (packet.atMostOnce() || packet.atLeastOnce()) {
             cpx.markStatus(INIT);
@@ -529,7 +536,6 @@ public abstract class AbstractSession implements Session {
         } else if (packet.exactlyOnce()) {
             switch (cpx.status()) {
                 case INIT:
-                    cpx.markStatus(INIT);
                     doWritePublishPacket(cpx);
                     break;
                 case PUB_REC:
@@ -543,6 +549,9 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doWritePublishPacket(ControlPacketContext cpx) {
+        if (cpx == null) {
+            return;
+        }
         doWrite(cpx.packet()).addListener(f -> {
             if (f.isSuccess()) {
                 publishPacketSent(cpx);
@@ -550,10 +559,6 @@ public abstract class AbstractSession implements Session {
             // must release the retained Publish
             if (!enqueueOutQueue(cpx.packet())) {
                 publishPacketSentComplete(cpx);
-            }
-        }).addListener(f -> {
-            if (!f.isSuccess()) {
-                // todo send packet failed -> memory leak
             }
         });
     }

@@ -7,6 +7,7 @@ import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscribe;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -21,6 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
+import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
@@ -54,7 +56,8 @@ class ClusterDbRepoImplTest {
 
     @Test
     void given_whenAddAndRemove1_then() {
-        String topic = "topic/abc/de/mn";
+        String prefix = UUID.randomUUID().toString();
+        String topic = prefix + "/topic/abc/de/mn";
         dbRepo.addNodeToTopic("nod3", asList(topic));
         dbRepo.removeNodeFromTopic("nod3", asList(topic));
         then(dbRepo.matchTopic(topic)).isEmpty();
@@ -62,9 +65,10 @@ class ClusterDbRepoImplTest {
 
     @Test
     void given_whenAddAndRemove2_then() {
-        String topic1 = "topic/abc/de/mn";
+        String prefix = UUID.randomUUID().toString();
+        String topic1 = prefix + "/topic/abc/de/mn";
         dbRepo.addNodeToTopic("nod3", asList(topic1));
-        String topic2 = "topic/abc";
+        String topic2 = prefix + "topic/abc";
         dbRepo.addNodeToTopic("nod3", asList(topic2));
         dbRepo.removeNodeFromTopic("nod3", asList(topic1));
         then(dbRepo.matchTopic(topic1)).isEmpty();
@@ -74,8 +78,9 @@ class ClusterDbRepoImplTest {
 
     @Test
     void given_whenAddAndRemove3_then() {
-        String topic1 = "topic/abc/de/mn";
-        String topic2 = "topic/abc";
+        String prefix = UUID.randomUUID().toString();
+        String topic1 = prefix + "/topic/abc/de/mn";
+        String topic2 = prefix + "/topic/abc";
         dbRepo.removeTopic(asList(topic1, topic2));
         dbRepo.addNodeToTopic("nod3", asList(topic1));
         dbRepo.addNodeToTopic("nod3", asList(topic2));
@@ -282,6 +287,7 @@ class ClusterDbRepoImplTest {
     }
 
     /**
+     *
      */
     @Test
     void given_whenCasUpdateOrCreateIfNotExist_then() {
@@ -304,6 +310,49 @@ class ClusterDbRepoImplTest {
         String notExistClientIdentifier = UUID.randomUUID().toString();
         ClusterControlPacketContext ccpx = newCcpx(notExistClientIdentifier, (short) 1);
         dbRepo.updateCpxStatus(ccpx);
+    }
+
+    @Test
+    void givenCleanSession0_whenSessionOfflineAndOnline_then() {
+        String cId = UUID.randomUUID().toString();
+        String topicName = cId + "/topic/abc/0";
+        List<Subscribe.Subscription> subscriptions = asList(
+                new Subscribe.Subscription(topicName, 0),
+                new Subscribe.Subscription(cId + "/topic/abc/1", 1),
+                new Subscribe.Subscription(cId + "/topic/abc/2", 2),
+                new Subscribe.Subscription(cId + "/topic/+/#", 2)
+        );
+        List<String> tfSet = subscriptions.stream().map(Subscribe.Subscription::topicFilter).collect(toList());
+        // subscribe
+        dbRepo.addNodeToTopic("node1", tfSet);
+        // 模拟下线
+        // 1. 离线订阅
+        dbRepo.addOfflineSessionToTopic(cId, new HashSet<>(subscriptions));
+        // 2. 移除 node 订阅
+        dbRepo.removeNodeFromTopic("node1", tfSet);
+        // 离线匹配
+        List<ClusterTopic> offlineSessions = dbRepo.matchTopic(topicName);
+        then(offlineSessions).hasSize(2);
+        for (ClusterTopic ct : offlineSessions) {
+            // 只有 离线订阅
+            then(ct.getNodes()).hasSize(0);
+            then(ct.getOfflineSessions()).hasSize(1);
+        }
+        // 模拟上线
+        // 上线
+        dbRepo.addNodeToTopic("node1", tfSet);
+        dbRepo.removeOfflineSessionFromTopic(cId, new HashSet<>(subscriptions));
+        // 路由表
+        List<ClusterTopic> routeTable = dbRepo.matchTopic(topicName);
+        then(routeTable).hasSize(2);
+        for (ClusterTopic ct : routeTable) {
+            // 只有 路由表
+            then(ct.getNodes()).hasSize(1);
+            then(ct.getOfflineSessions()).hasSize(0);
+        }
+        // unsubscribe
+        dbRepo.removeNodeFromTopic("node1", tfSet);
+        then(dbRepo.matchTopic(topicName)).hasSize(0);
     }
 
 }

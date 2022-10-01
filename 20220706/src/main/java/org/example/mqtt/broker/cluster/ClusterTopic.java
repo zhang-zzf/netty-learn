@@ -21,7 +21,7 @@ public class ClusterTopic extends DefaultTopic implements Topic {
      * 订阅此 Topic 的离线 Session
      * <p>ClientIdentifier <-> QoS</p>
      */
-    private Map<String, Byte> offlineSessions;
+    private Map<String, Integer> offlineSessions;
 
     public ClusterTopic(String topicFilter) {
         super(topicFilter);

@@ -3,10 +3,8 @@ package org.example.mqtt.broker.cluster.infra.redis;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
-import lombok.var;
 import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
-import org.example.mqtt.broker.cluster.ClusterServerSession;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.example.mqtt.model.Publish;
 import org.junit.jupiter.api.Disabled;
@@ -292,48 +290,6 @@ class ClusterDbRepoImplTest {
         dbRepo.addNodeToTopic(nodeId, Arrays.asList("topic/abc"));
         // 第二次添加成功（无需更新DB）
         dbRepo.addNodeToTopic(nodeId, Arrays.asList("topic/abc"));
-    }
-
-    /**
-     * outQueue is empty
-     * <p>空队列 追加消息</p>
-     */
-    @Test
-    // todo
-    @Disabled
-    void givenEmptyOutQueue_whenOfferToOfflineSession_then() {
-        // given
-        String clientIdentifier = UUID.randomUUID().toString();
-        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
-        dbRepo.saveSession(session);
-        // use a shadow copy of the origin Publish
-        String payload = "Hello, World!\n你好，世界。";
-        ByteBuf byteBuf = Unpooled.copiedBuffer(payload, UTF_8);
-        short packetIdentifier = session.nextPacketIdentifier();
-        Publish outgoing = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", packetIdentifier, byteBuf);
-        ClusterControlPacketContext ccpx = new ClusterControlPacketContext(dbRepo, clientIdentifier, IN, outgoing, INIT, null);
-        dbRepo.offerToOutQueueOfTheOfflineSession(session, ccpx);
-    }
-
-    /**
-     * outQueue is empty
-     * <p>非空队列 追加消息</p>
-     */
-    @Test
-    // todo
-    @Disabled
-    void givenNotEmptyOutQueue_whenOfferToOfflineSession_then() {
-        // given
-        String clientIdentifier = UUID.randomUUID().toString();
-        ClusterServerSession session = ClusterServerSession.from(clientIdentifier, null, null, null);
-        dbRepo.saveSession(session);
-        // 空队列追加
-        ClusterControlPacketContext ccpx = newCcpx(clientIdentifier, session.nextPacketIdentifier());
-        dbRepo.offerToOutQueueOfTheOfflineSession(session, ccpx);
-        // 非空队列追加
-        ClusterServerSession dbSession = dbRepo.getSession(clientIdentifier);
-        var ccpx2 = newCcpx(clientIdentifier, dbSession.nextPacketIdentifier());
-        dbRepo.offerToOutQueueOfTheOfflineSession(dbSession, ccpx2);
     }
 
     private ClusterControlPacketContext newCcpx(String clientIdentifier, short packetIdentifier) {

@@ -1,6 +1,5 @@
 package org.example.mqtt.broker.cluster.infra.redis;
 
-import com.alibaba.fastjson.JSON;
 import com.google.common.io.CharStreams;
 import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
@@ -14,6 +13,7 @@ import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.example.mqtt.broker.cluster.infra.redis.model.CpxPO;
 import org.example.mqtt.broker.cluster.infra.redis.model.SessionPO;
 import org.example.mqtt.broker.cluster.infra.redis.model.TopicFilterPO;
+import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
 import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RBucket;
@@ -251,11 +251,6 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
-    public boolean offerToOutQueueOfTheOfflineSession(ClusterServerSession s, ClusterControlPacketContext ccpx) {
-        return false;
-    }
-
-    @Override
     public List<ClusterTopic> matchTopic(String topicName) {
         List<ClusterTopic> ret = matchTopicBy(topicName);
         List<ClusterTopic> singleLevelWildCardMatch = matchTopicBy(singleLevelWildCardTopic(topicName));
@@ -279,9 +274,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         String redisKey = toTopicFilterRedisKey(topicName);
         String resp = script.evalSha(RScript.Mode.READ_ONLY, sha1,
                 RScript.ReturnType.VALUE, asList(redisKey));
-        List<TopicFilterPO> pos = JSON.parseArray(resp, TopicFilterPO.class);
+        List<TopicFilterPO> pOList = TopicFilterPO.jsonDecodeArray(resp);
         log.debug("matchTopic resp-> {}", resp);
-        return pos.stream()
+        return pOList.stream()
                 .map(po -> po.setValue(fromTopicFilterRedisKey(po.getValue())))
                 .map(TopicFilterPO::toDomain)
                 .collect(toList());
@@ -294,6 +289,40 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @Override
     public void close() throws IOException {
         redisson.shutdown();
+    }
+
+    @Override
+    public void removeOfflineSessionFromTopic(ClusterServerSession css) {
+        log.debug("removeOfflineSessionFromTopic req-> {}", css);
+        if (css == null || css.subscriptions().isEmpty()) {
+            return;
+        }
+        String cId = css.clientIdentifier();
+        for (Subscribe.Subscription sub : css.subscriptions()) {
+            String topicFilterRedisKey = toTopicFilterRedisKey(sub.topicFilter());
+            String key = toTopicFilterOffRedisKey(topicFilterRedisKey);
+            log.debug("removeOfflineSessionFromTopic req.redis-> {}, {}", key, cId);
+            redisson.<String, Object>getMap(key, StringCodec.INSTANCE).remove(cId);
+        }
+    }
+
+    @Override
+    public void addOfflineSessionToTopic(ClusterServerSession css) {
+        log.debug("addOfflineSessionToTopic req-> {}", css);
+        if (css == null || css.subscriptions().isEmpty()) {
+            return;
+        }
+        String cId = css.clientIdentifier();
+        for (Subscribe.Subscription sub : css.subscriptions()) {
+            String topicFilterRedisKey = toTopicFilterRedisKey(sub.topicFilter());
+            String key = toTopicFilterOffRedisKey(topicFilterRedisKey);
+            log.debug("addOfflineSessionToTopic req.redis-> {}, {}, {}", key, cId, sub.qos());
+            redisson.<String, Object>getMap(key, StringCodec.INSTANCE).put(cId, sub.qos());
+        }
+    }
+
+    private String toTopicFilterOffRedisKey(String tf) {
+        return tf + ":off";
     }
 
     @SneakyThrows

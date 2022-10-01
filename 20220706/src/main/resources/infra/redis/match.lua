@@ -34,6 +34,27 @@ local function fuzzyMatch(topicLevels, curLevel, parent, topics)
         topics[#topics + 1] = parent .. '/#_'
     end
 end
+
+-- @return table(hash) or nil, example: {"pId": "0x006", "status":"INIT"}
+local hgetall = function(key)
+    local resp = {}
+    -- @return table(list) even when key is not exist
+    --1) "pId"
+    --2) "0x006"
+    --3) "status"
+    --4) "INIT"
+    local data = redis.call('HGETALL', key)
+    if (#data == 0) then
+        return nil
+    end
+    for i, v in ipairs(data) do
+        if (i % 2 == 1) then
+            resp[v] = data[i + 1]
+        end
+    end
+    return resp
+end
+
 -- function
 
 -- {{topic}/abc/de} -> {{topic}, abc, de}
@@ -56,11 +77,15 @@ for i, v in ipairs(topics) do
     v = string.gsub(v, "_", "")
     if (not existsKey[v]) then
         existsKey[v] = true
+        -- @return table(list), example: {"node1", "node2"}
         local subscriber = redis.call('SMEMBERS', v)
-        if (#subscriber > 0) then
+        --@return table(hash) or nil, example: {"c1": "1", "c2": "2"}
+        local offlineSessions = hgetall(v .. ":off")
+        if (#subscriber > 0 or offlineSessions) then
             local obj = {}
             obj["value"] = v
             obj["nodes"] = subscriber
+            obj["offlineSessions"] = offlineSessions
             resp[#resp + 1] = obj
         end
     end

@@ -45,10 +45,12 @@ public interface ClusterDbRepo {
 
     void removeTopic(List<String> tfSet);
 
-    boolean offerToOutQueueOfTheOfflineSession(ClusterServerSession s, ClusterControlPacketContext ccpx);
-
     List<ClusterTopic> matchTopic(String topicName);
 
     void close() throws IOException;
+
+    void removeOfflineSessionFromTopic(ClusterServerSession css);
+
+    void addOfflineSessionToTopic(ClusterServerSession css);
 
 }

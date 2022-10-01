@@ -15,7 +15,6 @@ import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
-import org.example.mqtt.session.ControlPacketContext;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
@@ -28,6 +27,8 @@ import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
 import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
+import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
+import static org.example.mqtt.broker.node.DefaultBroker.qoS;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -117,10 +118,11 @@ public class ClusterBroker implements Broker {
         // Session 连接到 LocalBroker
         nodeBroker.connect(session);
         if (session instanceof ClusterServerSession) {
-            // 注册成功,绑定信息保存到 DB
             ClusterServerSession css = (ClusterServerSession) session;
-            css.nodeId(nodeId());
-            clusterDbRepo.saveSession(css);
+            // 1. 注册成功,绑定信息保存到 DB
+            clusterDbRepo.saveSession(css.nodeId(nodeId()));
+            // 2.从集群的订阅树中移除 Session 的离线订阅
+            clusterDbRepo.removeOfflineSessionFromTopic(css);
         }
         // publish Connect to Cluster
         publishConnectToCluster(session.clientIdentifier());
@@ -203,9 +205,9 @@ public class ClusterBroker implements Broker {
                 forwardToOtherNode(nodeMessagePacket, targetNodeId);
             }
             // forward the PublishPacket to offline client's Session.
-            // for (Map.Entry<String, Byte> e : ct.getOfflineSessions().entrySet()) {
-            //     forwardToOfflineSession(packet, ct, e);
-            // }
+            for (Map.Entry<String, Integer> e : ct.getOfflineSessions().entrySet()) {
+                forwardToOfflineSession(packet, ct.topicFilter(), e.getKey(), e.getValue());
+            }
         }
     }
 
@@ -221,27 +223,27 @@ public class ClusterBroker implements Broker {
         nodeBroker.forward(packet);
     }
 
-    // todo
-    private void forwardToOfflineSession(Publish packet, ClusterTopic ct, Map.Entry<String, Byte> e) {
-        String clientIdentifier = e.getKey();
-        ClusterServerSession s = clusterDbRepo.getSession(clientIdentifier);
+    private void forwardToOfflineSession(Publish packet, String tf, String cId, int qos) {
+        // decide QoS
+        qos = qoS(packet.qos(), qos);
+        if (qos == Publish.AT_MOST_ONCE) {
+            log.warn("forwardToOfflineSession do nothing, Publish.atMostOne-> {}", cId);
+            return;
+        }
+        ClusterServerSession s = clusterDbRepo.getSession(cId);
         if (s == null) {
-            log.warn("Publish forward to offline Client[Session 不存在]: {}", clientIdentifier);
+            log.warn("forwardToOfflineSession failed, Session not exist -> {}", cId);
+            return;
+        }
+        if (s.isOnline()) {
+            log.warn("forwardToOfflineSession failed, Session is online -> {}", cId);
             return;
         }
         // use a shadow copy of the origin Publish
-        Publish outgoing = Publish.outgoing(packet, ct.topicFilter(), e.getValue(), s.nextPacketIdentifier());
-        ControlPacketContext cpx = s.createNewCpx(outgoing, INIT, OUT);
-        boolean added = clusterDbRepo.offerToOutQueueOfTheOfflineSession(s, (ClusterControlPacketContext) cpx);
-        if (!added) {
-            log.warn("Publish forward to offline Client[添加失败]: {}", clientIdentifier);
-            ClusterServerSession curS = clusterDbRepo.getSession(clientIdentifier);
-            if (curS.isOnline()) {
-                log.warn("Pubish forward to offline Client[添加失败，Client online], now forward it: {}", clientIdentifier);
-                // todo online forward
-                String nodeId = curS.nodeId();
-            }
-        }
+        Publish outgoing = Publish.outgoing(packet, tf, (byte) qos, packetIdentifier(s, qos));
+        ClusterControlPacketContext cpx =
+                new ClusterControlPacketContext(clusterDbRepo, cId, OUT, outgoing, INIT, null);
+        clusterDbRepo.offerCpx(null, cpx);
     }
 
     public String nodeId() {
@@ -355,6 +357,8 @@ public class ClusterBroker implements Broker {
     public void disconnectFromNodeBroker(ClusterServerSession session) {
         session.nodeId(null);
         clusterDbRepo.saveSession(session);
+        // 离线继续订阅主题
+        clusterDbRepo.addOfflineSessionToTopic(session);
         // 清除本 broker 中的 Session (even if CleanSession=0)
         nodeBroker().destroySession(session);
     }

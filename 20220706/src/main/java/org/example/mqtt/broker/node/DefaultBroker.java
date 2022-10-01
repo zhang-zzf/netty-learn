@@ -53,14 +53,22 @@ public class DefaultBroker implements Broker {
             for (Map.Entry<ServerSession, Integer> e : topic.subscribers().entrySet()) {
                 ServerSession session = e.getKey();
                 String topicFilter = topic.topicFilter();
-                int qos = Math.min(packet.qos(), e.getValue());
+                int qos = qoS(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                short packetIdentifier = needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
+                short packetIdentifier = packetIdentifier(session, qos);
                 Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier);
                 log.debug("Publish({}) forward: {}->{}, {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 session.send(outgoing);
             }
         }
+    }
+
+    public static short packetIdentifier(ServerSession session, int qos) {
+        return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
+    }
+
+    public static int qoS(int packetQos, int tfQos) {
+        return Math.min(packetQos, tfQos);
     }
 
     @Override

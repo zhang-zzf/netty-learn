@@ -35,6 +35,9 @@ public class SessionPO implements Serializable {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        if (cId != null) {
+            sb.append("\"cId\":\"").append(cId).append('\"').append(',');
+        }
         if (sub != null) {
             sb.append("\"sub\":");
             if (!(sub).isEmpty()) {

@@ -1,6 +1,8 @@
 package org.example.mqtt.broker.cluster.infra.redis;
 
 import com.alibaba.fastjson.JSON;
+import com.google.common.io.CharStreams;
+import io.micrometer.core.annotation.Timed;
 import lombok.RequiredArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -17,19 +19,22 @@ import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RBucket;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.Codec;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.codec.JsonJacksonCodec;
 import org.springframework.stereotype.Repository;
 
 import javax.annotation.Nullable;
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
+import java.util.Collections;
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.decodePacketIdentifier;
 import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.encodePacketIdentifier;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import static org.redisson.api.RScript.Mode.READ_ONLY;
@@ -40,6 +45,7 @@ import static org.redisson.api.RScript.ReturnType.VALUE;
 @Slf4j
 @Repository
 @RequiredArgsConstructor
+@Timed
 public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     public static final String LUA_SUBSCRIBE = getStringFromClasspathFile("infra/redis/subscribe.lua");
@@ -57,12 +63,15 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @Override
     public ClusterServerSession getSession(String clientIdentifier) {
         SessionPO po = redisson
-                .<SessionPO>getBucket(toSessionRedisKey(clientIdentifier))
+                .<SessionPO>getBucket(toSessionRedisKey(clientIdentifier), SESSION_CODEC)
                 .get();
-        Short outQueuePacketIdentifier = redisson
-                .<Short>getDeque(toCpxQueueRedisKey(clientIdentifier, OUT), StringCodec.INSTANCE)
+        if (po == null) {
+            return null;
+        }
+        String pId = redisson
+                .<String>getDeque(toCpxQueueRedisKey(clientIdentifier, OUT), StringCodec.INSTANCE)
                 .peekLast();
-        po.setOQPId(outQueuePacketIdentifier);
+        po.setOQPId(decodePacketIdentifier(pId));
         return po.toDomain();
     }
 
@@ -85,6 +94,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
+    @Nullable
     public ClusterControlPacketContext getCpx(String clientIdentifier,
                                               ControlPacketContext.Type type,
                                               short packetIdentifier) {
@@ -97,8 +107,10 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         // the length of the list after the offer operations
         String json = script.evalSha(READ_ONLY, sha1, VALUE, asList(cpxRedisKey));
         log.debug("getCpx resp-> {}", json);
-        ClusterControlPacketContext ccpx = toDomain(CpxPO.jsonDecode(json), clientIdentifier, type);
-        return ccpx;
+        if (json == null) {
+            return null;
+        }
+        return toDomain(CpxPO.jsonDecode(json), clientIdentifier, type);
     }
 
     private ClusterControlPacketContext toDomain(CpxPO po, String clientIdentifier, ControlPacketContext.Type type) {
@@ -133,6 +145,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         // the length of the list after the offer operations
         String json = script.evalSha(READ_ONLY, sha1, VALUE, asList(queueKey), tail);
         log.debug("searchCpx resp-> {}", json);
+        if (json == null) {
+            return Collections.emptyList();
+        }
         return asList(toDomain(CpxPO.jsonDecode(json), clientIdentifier, type));
     }
 
@@ -140,7 +155,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public void updateCpxStatus(ClusterControlPacketContext cpx) {
         // 无需并发控制
         log.debug("updateCpxStatus req: {}", cpx);
-        CpxPO po = CpxPO.fromDomain(cpx);
+        CpxPO po = CpxPO.from(cpx.packetIdentifier(), cpx.status());
         String cpxRedisKey = toCpxRedisKey(toCpxQueueRedisKey(cpx.clientIdentifier(), cpx.type()), po.getPId());
         log.debug("updateCpxStatus req.redis->key: {}, po: {}", cpxRedisKey, po);
         RScript script = redisson.getScript(StringCodec.INSTANCE);
@@ -152,7 +167,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     @Override
-    public boolean pollCpx(ClusterControlPacketContext cpx) {
+    public boolean deleteCpx(ClusterControlPacketContext cpx) {
         log.debug("deleteCpx req-> {}", cpx);
         String queueKey = toCpxQueueRedisKey(cpx.clientIdentifier(), cpx.type());
         log.debug("deleteCpx req.redis-> {}", queueKey);
@@ -169,7 +184,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public void saveSession(ClusterServerSession session) {
         SessionPO po = SessionPO.fromDomain(session);
         String redisKey = toSessionRedisKey(po.getCId());
-        RBucket<SessionPO> bucket = redisson.getBucket(redisKey, JsonJacksonCodec.INSTANCE);
+        RBucket<SessionPO> bucket = redisson.getBucket(redisKey, SESSION_CODEC);
         bucket.set(po);
     }
 
@@ -181,10 +196,12 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         return String.format("C:{%s}:S", clientIdentifier);
     }
 
+    private static final Codec SESSION_CODEC = JsonJacksonCodec.INSTANCE;
+
     @Override
     public void deleteSession(ClusterServerSession session) {
         String redisKey = toSessionRedisKey(session.clientIdentifier());
-        redisson.getBucket(redisKey).delete();
+        redisson.getBucket(redisKey, SESSION_CODEC).delete();
     }
 
     @Override
@@ -281,8 +298,8 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     @SneakyThrows
     private static String getStringFromClasspathFile(String classpathFileName) {
-        final String file = ClassLoader.getSystemResource(classpathFileName).getFile();
-        return new String(Files.readAllBytes(new File(file).toPath()), StandardCharsets.UTF_8);
+        InputStream input = ClassLoader.getSystemResourceAsStream(classpathFileName);
+        return CharStreams.toString(new InputStreamReader(input, StandardCharsets.UTF_8));
     }
 
 }

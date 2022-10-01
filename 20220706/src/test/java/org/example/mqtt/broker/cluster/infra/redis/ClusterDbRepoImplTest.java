@@ -33,7 +33,7 @@ class ClusterDbRepoImplTest {
     final static RedissonClient client;
 
     static {
-        String addresses = "redis://10.255.4.15:7000, redis://10.255.4.15:7001,redis://10.255.4.15:7002";
+        String addresses = "redis://10.255.4.15:7000";
         client = RedisConfiguration.newRedisson(addresses);
     }
 
@@ -277,7 +277,7 @@ class ClusterDbRepoImplTest {
                     clientIdentifier, IN, packet, INIT, null);
             // when
             // first time success
-            boolean offerCpx = dbRepo.pollCpx(cpx);
+            boolean offerCpx = dbRepo.deleteCpx(cpx);
             // then
             then(offerCpx).isTrue();
         }

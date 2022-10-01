@@ -29,4 +29,9 @@ local removedNum = redis.call('DEL', cpxKey)
 if (removedNum == 0) then
     -- toto warn.log
 end
-return cjson.encode(resp)
+local json = cjson.encode(resp)
+if (json == "{}") then
+    return nil
+else
+    return json
+end

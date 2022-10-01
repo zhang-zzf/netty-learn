@@ -10,6 +10,7 @@ import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 
+import javax.annotation.Nullable;
 import java.util.*;
 
 import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
@@ -56,6 +57,7 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
+    @Nullable
     public ServerSession session(String clientIdentifier) {
         return brokerState.session(clientIdentifier);
     }

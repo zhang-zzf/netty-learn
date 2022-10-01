@@ -2,7 +2,7 @@
 -- KEYS: {"C:{cId}:S:IN"}
 -- ARGV: {false}
 -- resp
--- json of array of cpx.data
+-- json of array of cpx.data or nil
 
 local queueKey = KEYS[1]
 local fromTail = (ARGV[1] == "true")
@@ -36,4 +36,9 @@ if (pId) then
         end
     end
 end
-return cjson.encode(resp)
+local json = cjson.encode(resp)
+if (json == "{}") then
+    return nil
+else
+    return json
+end

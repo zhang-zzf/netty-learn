@@ -87,7 +87,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
             this.tail = null;
         }
         // delete
-        boolean deleted = clusterDbRepo.pollCpx(first);
+        boolean deleted = clusterDbRepo.deleteCpx(first);
         if (!deleted) {
             log.error("deleteCpx failed-> {}", first);
             throw new IllegalStateException();

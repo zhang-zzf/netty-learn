@@ -18,4 +18,9 @@ for i, v in ipairs(data) do
         resp[v] = data[i + 1]
     end
 end
-return cjson.encode(resp)
+local json = cjson.encode(resp)
+if (json == "{}") then
+    return nil
+else
+    return json
+end

@@ -18,6 +18,7 @@ import org.example.mqtt.model.Unsubscribe;
 import org.example.mqtt.session.ControlPacketContext;
 import org.springframework.stereotype.Component;
 
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -84,6 +85,7 @@ public class ClusterBroker implements Broker {
     }
 
     @Override
+    @Nullable
     public ServerSession session(String clientIdentifier) {
         var localSession = nodeBroker.session(clientIdentifier);
         log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
@@ -181,12 +183,17 @@ public class ClusterBroker implements Broker {
             return;
         }
         Publish nodeMessagePacket = createNodeMessagePacket(packet);
+        Set<String> sendNodes = new HashSet<>();
         for (ClusterTopic ct : clusterTopics) {
             // forward to another Node in the cluster
             for (String targetNodeId : ct.getNodes()) {
                 if (nodeId().equals(targetNodeId)) {
                     continue;
                 }
+                if (!sendNodes.add(targetNodeId)) {
+                    continue;
+                }
+                // 一个 Node 只转发一次
                 forwardToOtherNode(nodeMessagePacket, targetNodeId);
             }
             // forward the PublishPacket to offline client's Session.

@@ -16,7 +16,7 @@ public class RedisConfiguration {
      */
     @Bean
     public static RedissonClient newRedisson(
-            @Value("${mqtt.server.cluster.db.redis.url}") String addresses) {
+            @Value("${mqtt.server.cluster.db.redis.url:redis://10.255.4.15:7000}") String addresses) {
         Config config = new Config();
         config.useClusterServers().addNodeAddress(addresses.split(","));
         return Redisson.create(config);

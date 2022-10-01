@@ -17,6 +17,7 @@ public interface ClusterDbRepo {
     boolean offerCpx(@Nullable ClusterControlPacketContext tail,
                      ClusterControlPacketContext cpx);
 
+    @Nullable
     ClusterControlPacketContext getCpx(String clientIdentifier,
                                        ControlPacketContext.Type inQueue,
                                        short packetIdentifier);
@@ -36,7 +37,7 @@ public interface ClusterDbRepo {
      * @return true / false
      * @throws IllegalStateException if cpx is not the head of the Queue
      */
-    boolean pollCpx(ClusterControlPacketContext cpx);
+    boolean deleteCpx(ClusterControlPacketContext cpx);
 
     void addNodeToTopic(String nodeId, List<String> tfSet);
 

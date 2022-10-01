@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import org.example.mqtt.model.*;
 
+import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -59,6 +60,7 @@ public interface Broker extends AutoCloseable {
 
     ServerSession createSession(Connect connect);
 
+    @Nullable
     ServerSession session(String clientIdentifier);
 
     void destroySession(ServerSession session);

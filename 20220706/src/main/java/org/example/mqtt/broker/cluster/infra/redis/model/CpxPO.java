@@ -10,6 +10,7 @@ import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.session.ControlPacketContext;
 
+import javax.annotation.Nullable;
 import java.util.List;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -36,6 +37,12 @@ public class CpxPO {
      * point to the next pId
      */
     private String next;
+
+    public static CpxPO from(short packetIdentifier, ControlPacketContext.Status status) {
+        return new CpxPO()
+                .setPId(encodePacketIdentifier(packetIdentifier))
+                .setStatus(encodeStatus(status));
+    }
 
     public static CpxPO fromDomain(ClusterControlPacketContext cpx) {
         CpxPO po = new CpxPO()
@@ -103,8 +110,17 @@ public class CpxPO {
         return ControlPacket.hexPId(packetIdentifier);
     }
 
+    @Nullable
+    public static Short decodePacketIdentifier(String pId) {
+        if (pId == null) {
+            return null;
+        }
+        return ControlPacket.hexPIdToShort(pId);
+    }
+
+    @Nullable
     public Short decodeNextPacketIdentifier() {
-        return ControlPacket.hexPIdToShort(next);
+        return decodePacketIdentifier(next);
     }
 
 }

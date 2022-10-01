@@ -39,6 +39,13 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
+    public void unsubscribe(ServerSession session, Unsubscribe packet) {
+        for (Subscribe.Subscription subscription : packet.subscriptions()) {
+            brokerState.unsubscribe(session, subscription);
+        }
+    }
+
+    @Override
     public void forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
@@ -69,9 +76,6 @@ public class DefaultBroker implements Broker {
     @SneakyThrows
     @Override
     public void destroySession(ServerSession session) {
-        if (brokerState.session(session.clientIdentifier()) == null) {
-            return;
-        }
         log.debug("Broker try to destroySession->{}", session);
         brokerState.disconnect(session).get();
         log.debug("Broker destroyed Session");
@@ -81,13 +85,6 @@ public class DefaultBroker implements Broker {
         // todo decide qos
         int qos = sub.qos();
         return new Subscribe.Subscription(sub.topicFilter(), qos);
-    }
-
-    @Override
-    public void unsubscribe(ServerSession session, Unsubscribe packet) {
-        for (Subscribe.Subscription subscription : packet.subscriptions()) {
-            brokerState.unsubscribe(session, subscription);
-        }
     }
 
     @Override

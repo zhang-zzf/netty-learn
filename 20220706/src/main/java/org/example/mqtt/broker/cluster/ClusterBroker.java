@@ -102,10 +102,9 @@ public class ClusterBroker implements Broker {
         log.debug("ClusterBroker try to destroySession->{}", session);
         if (session instanceof ClusterServerSession) {
             ClusterServerSession css = (ClusterServerSession) session;
-            String cId = session.clientIdentifier();
             // 清除 cluster leven Session
-            clusterDbRepo().deleteSession(css);
-            log.info("Session({}) was removed from the Cluster", cId);
+            clusterDbRepo.deleteSession(css);
+            log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
         } else if (session instanceof DefaultServerSession) {
             nodeBroker.destroySession(session);
         } else {
@@ -115,7 +114,14 @@ public class ClusterBroker implements Broker {
 
     @Override
     public void connect(ServerSession session) {
+        // Session 连接到 LocalBroker
         nodeBroker.connect(session);
+        if (session instanceof ClusterServerSession) {
+            // 注册成功,绑定信息保存到 DB
+            ClusterServerSession css = (ClusterServerSession) session;
+            css.nodeId(nodeId());
+            clusterDbRepo.saveSession(css);
+        }
         // publish Connect to Cluster
         publishConnectToCluster(session.clientIdentifier());
     }
@@ -344,6 +350,13 @@ public class ClusterBroker implements Broker {
     @Override
     public boolean closed() {
         return closeStatus.get() != 0;
+    }
+
+    public void disconnectFromNodeBroker(ClusterServerSession session) {
+        session.nodeId(null);
+        clusterDbRepo.saveSession(session);
+        // 清除本 broker 中的 Session (even if CleanSession=0)
+        nodeBroker().destroySession(session);
     }
 
 }

@@ -42,7 +42,7 @@ public class DefaultBrokerState {
     }
 
     public Map<String, ServerSession> session() {
-        return sessionMap;
+        return Collections.unmodifiableMap(sessionMap);
     }
 
     public List<Topic> match(String topicName) {

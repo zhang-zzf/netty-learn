@@ -35,7 +35,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      *     2. lost the Channel with the Client, and forward the message to relative Topic.
      * </pre>
      */
-    private Publish willMessage;
+    private volatile Publish willMessage;
 
     public DefaultServerSession(String clientIdentifier) {
         super(clientIdentifier);
@@ -188,12 +188,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public void channelClosed() {
         super.channelClosed();
-        // send will message
-        if (willMessage != null) {
-            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
-            onPublish(willMessage);
-            willMessage = null;
-        }
         // 取消与 Broker 的关联
         if (registered) {
             if (cleanSession()) {
@@ -203,6 +197,12 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 registered = false;
                 log.debug("Session({}) disconnected from Broker", cId());
             }
+        }
+        // send will message
+        if (willMessage != null) {
+            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
+            onPublish(willMessage);
+            willMessage = null;
         }
     }
 

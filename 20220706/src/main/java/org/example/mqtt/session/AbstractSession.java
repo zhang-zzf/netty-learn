@@ -67,7 +67,7 @@ public abstract class AbstractSession implements Session {
             if (channel.isOpen()) {
                 channel.close();
             }
-            channel = null;
+            channelClosed();
             log.debug("Session({}) unbound from Channel", cId());
         } else {
             log.debug("Session({}) was not bound with a Channel", cId());
@@ -76,8 +76,9 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void channelClosed() {
-        channel = null;
-        log.debug("Session({}).Channel was closed.", cId());
+        if (channel != null) {
+            channel = null;
+        }
     }
 
     @Override

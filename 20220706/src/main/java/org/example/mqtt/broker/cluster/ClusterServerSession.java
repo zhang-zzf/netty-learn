@@ -27,7 +27,7 @@ public class ClusterServerSession extends DefaultServerSession {
     /**
      * Session 离线时 OutQueue 的 tail
      */
-    private Short outQueuePacketIdentifier;
+    private volatile Short outQueuePacketIdentifier;
 
     public ClusterServerSession(String clientIdentifier) {
         super(clientIdentifier);
@@ -123,45 +123,24 @@ public class ClusterServerSession extends DefaultServerSession {
     @Override
     public void open(Channel ch, Broker broker) {
         log.debug("Cluster Session({}) Channel<->Session<->Broker", cId());
-        super.open(ch, broker);
-        if (this.nodeId != null) {
-            log.debug("Session({}) nodeId is Not Null: {}", cId(), nodeId());
-        }
-        ClusterBroker cb = (ClusterBroker) broker;
-        this.nodeId = cb.nodeId();
-        this.outQueuePacketIdentifier = null;
-        // 注册成功,绑定信息保存到 DB
-        cb.clusterDbRepo().saveSession(this);
-    }
-
-    @Override
-    public void close() {
-        log.debug("Cluster now try close Session->{}", this);
-        if (!isOnline()) {
-            log.warn("ClusterServerSession is not bound to the Node(Broker)");
-            return;
-        }
-        disconnectSessionFromThisNode();
-        super.close();
-    }
-
-    private void disconnectSessionFromThisNode() {
         if (isOnline()) {
-            this.nodeId = null;
-            // 保存 tail
-            this.outQueuePacketIdentifier = ((ClusterDbQueue) outQueue()).tailPacketIdentifier();
-            // 清除本 broker 中的 Session (even if CleanSession=0)
-            log.debug("Cluster now try to disconnect the cleanSession=0 Session from this Node->{}", this);
-            clusterDbRepo().saveSession(this);
-            log.debug("the cleanSession=0 Session was disconnected from this Node");
-            broker().nodeBroker().destroySession(this);
+            log.debug("Session({}) nodeId is Not Null: {}", cId(), nodeId);
         }
+        this.outQueuePacketIdentifier = null;
+        super.open(ch, broker);
     }
 
     @Override
     public void channelClosed() {
         super.channelClosed();
-        disconnectSessionFromThisNode();
+        if (isOnline()) {
+            this.nodeId = null;
+            log.debug("Cluster now try to disconnect this Session from Node->{}", this);
+            // 保存 tail
+            this.outQueuePacketIdentifier = ((ClusterDbQueue) outQueue()).tailPacketIdentifier();
+            broker().disconnectFromNodeBroker(this);
+            log.debug("the cleanSession=0 Session was disconnected from this Node");
+        }
     }
 
     @Override
@@ -209,7 +188,12 @@ public class ClusterServerSession extends DefaultServerSession {
     }
 
     public boolean isOnline() {
-        return nodeId() != null;
+        return nodeId != null;
+    }
+
+    public ClusterServerSession nodeId(String nodeId) {
+        this.nodeId = nodeId;
+        return this;
     }
 
 }

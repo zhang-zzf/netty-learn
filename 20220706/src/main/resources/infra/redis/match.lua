@@ -65,31 +65,28 @@ for i, v in ipairs(topicLevels) do
 end
 
 -- 不存在 {topic}_ 为根节点的订阅数
-local topics = { KEYS[1] }
+-- local topics = { KEYS[1] }
+local topics = {}
 -- 在订阅树中匹配
 if (redis.call('EXISTS', topicLevels[1]) == 1) then
     fuzzyMatch(topicLevels, 1, topicLevels[1], topics)
 end
 local resp = {}
-local existsKey = {}
 for i, v in ipairs(topics) do
     -- {topic}_/abc_/de_ -> {topic}/abc/de
     v = string.gsub(v, "_", "")
-    if (not existsKey[v]) then
-        existsKey[v] = true
-        -- @return table(list), example: {"node1", "node2"}
-        local subscriber = redis.call('SMEMBERS', v)
-        --@return table(hash) or nil, example: {"c1": "1", "c2": "2"}
-        local offlineSessions = hgetall(v .. ":off")
-        if (#subscriber > 0 or offlineSessions) then
-            local obj = {}
-            obj["value"] = v
-            if (#subscriber >0) then
-                obj["nodes"] = subscriber
-            end
-            obj["offlineSessions"] = offlineSessions
-            resp[#resp + 1] = obj
+    -- @return table(list), example: {"node1", "node2"}
+    local subscriber = redis.call('SMEMBERS', v)
+    --@return table(hash) or nil, example: {"c1": "1", "c2": "2"}
+    local offlineSessions = hgetall(v .. ":off")
+    if (#subscriber > 0 or offlineSessions) then
+        local obj = {}
+        obj["value"] = v
+        if (#subscriber > 0) then
+            obj["nodes"] = subscriber
         end
+        obj["offlineSessions"] = offlineSessions
+        resp[#resp + 1] = obj
     end
 end
 -- should return an array

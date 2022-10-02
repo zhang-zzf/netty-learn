@@ -27,11 +27,16 @@ public class BrokerBootstrapInSpringContext {
 
     @SneakyThrows
     public static void main(String[] args) {
+        startSpringContext();
+    }
+
+    public static ApplicationContext startSpringContext() {
         Authenticator authenticator = packet -> 0x00;
         ApplicationContext context = new AnnotationConfigApplicationContext(BrokerBootstrapInSpringContext.class);
         Cluster cluster = context.getBean(Cluster.class);
         ClusterBroker clusterBroker = context.getBean(ClusterBroker.class);
         startBroker(authenticator, cluster, clusterBroker);
+        return context;
     }
 
 }

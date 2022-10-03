@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterServerSession;
@@ -53,29 +54,30 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     public void handle(String topic, byte[] payload) {
         NodeMessage m = NodeMessage.fromBytes(payload);
         log.debug("NodeClient receive message->{}", m);
+        doHandleNodeMessageWithMetric(m);
+    }
+
+    private void doHandleNodeMessageWithMetric(NodeMessage m) {
+        long start = System.currentTimeMillis();
+        try {
+            doHandleNodeMessage(m);
+        } finally {
+            long time = System.currentTimeMillis() - start;
+            MetricUtil.time("cluster.node.NodeMessage", time,
+                    "packet", m.getPacket(), "fromNode", m.getNodeId());
+        }
+    }
+
+    private void doHandleNodeMessage(NodeMessage m) {
         switch (m.getPacket()) {
             case ACTION_PUBLISH_FORWARD:
-                // forward Publish
-                Publish packet = m.unwrapPublish();
-                log.debug("NodeClient receive Publish: {}", packet);
-                // just use LocalBroker to forward the PublishPacket
-                broker().nodeBroker().forward(packet);
+                doHandleActionPublishForward(m);
                 break;
             case INFO_CLUSTER_NODES:
-                Map<String, String> state = m.unwrapClusterNodes();
-                log.debug("NodeClient receive Cluster.Nodes: {}", state);
-                cluster.updateNodes(state);
+                doHandleInfoClusterNodes(m);
                 break;
             case ACTION_SESSION_CLOSE:
-                String clientIdentifier = m.unwrapSessionClose();
-                ServerSession session = broker().session(clientIdentifier);
-                log.info("NodeClient receive Session.Closed. cur Session->{}", session);
-                if (session != null) {
-                    session.close();
-                    log.info("NodeClient Session.Closed->{}", clientIdentifier);
-                } else {
-                    log.warn("NodeClient does not exist Session({})", clientIdentifier);
-                }
+                doHandleActionSessionClose(m);
                 break;
             case INFO_CLIENT_CONNECT:
                 doHandleClientConnect(m);
@@ -83,6 +85,32 @@ public class NodeClient implements MessageHandler, AutoCloseable {
             default:
                 throw new IllegalArgumentException();
         }
+    }
+
+    private void doHandleActionSessionClose(NodeMessage m) {
+        String clientIdentifier = m.unwrapSessionClose();
+        ServerSession session = broker().session(clientIdentifier);
+        log.info("NodeClient receive Session.Closed. cur Session->{}", session);
+        if (session != null) {
+            session.close();
+            log.info("NodeClient Session.Closed->{}", clientIdentifier);
+        } else {
+            log.warn("NodeClient does not exist Session({})", clientIdentifier);
+        }
+    }
+
+    private void doHandleInfoClusterNodes(NodeMessage m) {
+        Map<String, String> state = m.unwrapClusterNodes();
+        log.debug("NodeClient receive Cluster.Nodes: {}", state);
+        cluster.updateNodes(state);
+    }
+
+    private void doHandleActionPublishForward(NodeMessage m) {
+        // forward Publish
+        Publish packet = m.unwrapPublish();
+        log.debug("NodeClient receive Publish: {}", packet);
+        // just use LocalBroker to forward the PublishPacket
+        broker().nodeBroker().forward(packet);
     }
 
     private void doHandleClientConnect(NodeMessage m) {

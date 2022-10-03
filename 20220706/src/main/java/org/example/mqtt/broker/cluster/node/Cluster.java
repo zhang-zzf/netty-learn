@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.model.Publish;
 import org.springframework.stereotype.Component;
@@ -45,6 +46,12 @@ public class Cluster implements AutoCloseable {
     private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 300);
 
     public Cluster() {
+        // init metric for nodes
+        initMetricsForNodes();
+    }
+
+    private void initMetricsForNodes() {
+        MetricUtil.gauge("broker.cluster.node.nodes", nodes);
     }
 
     public Map<String, Node> nodes() {

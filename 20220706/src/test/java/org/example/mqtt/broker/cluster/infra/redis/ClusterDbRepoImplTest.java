@@ -41,9 +41,8 @@ class ClusterDbRepoImplTest {
 
     @Test
     void givenTopicFilter_whenConvertToRedisKey_then() {
-        ClusterDbRepoImpl impl = new ClusterDbRepoImpl(null);
-        then(impl.toTopicFilterRedisKey("topic")).isEqualTo("{topic}");
-        then(impl.toTopicFilterRedisKey("topic/ab")).isEqualTo("{topic}/ab");
+        then(ClusterDbRepoImpl.toTopicFilterRedisKey("topic")).isEqualTo("{topic}");
+        then(ClusterDbRepoImpl.toTopicFilterRedisKey("topic/ab")).isEqualTo("{topic}/ab");
         // then(impl.convertToRedisKey("topic/ab/")).isEqualTo("{topic}/ab/");
     }
 

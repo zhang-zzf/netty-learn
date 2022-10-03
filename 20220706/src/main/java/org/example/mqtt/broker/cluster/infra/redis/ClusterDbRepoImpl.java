@@ -217,7 +217,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         }
     }
 
-    String toTopicFilterRedisKey(String tf) {
+    static String toTopicFilterRedisKey(String tf) {
         String[] split = tf.split("/");
         split[0] = "{" + split[0] + "}";
         return StringUtils.join(split, "/");

@@ -1,4 +1,4 @@
-package org.example.config.micrometer;
+package org.example.micrometer.config;
 
 import com.orbitz.consul.AgentClient;
 import com.orbitz.consul.Consul;

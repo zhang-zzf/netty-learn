@@ -1,4 +1,4 @@
-package org.example.config.micrometer;
+package org.example.micrometer.config;
 
 import com.sun.net.httpserver.HttpServer;
 import io.micrometer.core.instrument.Metrics;

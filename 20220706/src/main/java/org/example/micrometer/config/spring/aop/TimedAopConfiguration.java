@@ -1,4 +1,4 @@
-package org.example.config.micrometer.spring.aop;
+package org.example.micrometer.config.spring.aop;
 
 import io.micrometer.core.aop.TimedAspect;
 import org.springframework.context.annotation.Bean;

@@ -1,4 +1,4 @@
-package org.example.config.micrometer;
+package org.example.micrometer.config;
 
 import io.github.mweirauch.micrometer.jvm.extras.ProcessMemoryMetrics;
 import io.github.mweirauch.micrometer.jvm.extras.ProcessThreadMetrics;

@@ -2,7 +2,7 @@ package org.example.mqtt.broker.cluster.bootstrap;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.example.config.micrometer.spring.aop.TimedAopConfiguration;
+import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.node.Cluster;

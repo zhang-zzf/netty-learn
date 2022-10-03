@@ -21,6 +21,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
@@ -124,8 +125,16 @@ public class ClusterBroker implements Broker {
             // 2.从集群的订阅树中移除 Session 的离线订阅
             clusterDbRepo.removeOfflineSessionFromTopic(css.clientIdentifier(), css.subscriptions());
         }
+        // auto subscribe for clients (use clientIdentifier as the topicFilter)
+        autoSubscribeClientIdentifier(session);
         // publish Connect to Cluster
         publishConnectToCluster(session.clientIdentifier());
+    }
+
+    private void autoSubscribeClientIdentifier(ServerSession s) {
+        int qos = Integer.getInteger("mqtt.server.cluster.client.auto.sub.qos", 1);
+        List<Subscribe.Subscription> subs = asList(new Subscribe.Subscription(s.clientIdentifier(), qos));
+        subscribe(s, Subscribe.from(subs));
     }
 
     private void publishConnectToCluster(String clientIdentifier) {

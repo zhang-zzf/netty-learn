@@ -116,7 +116,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 encodePacketIdentifier(packetIdentifier));
         log.debug("getCpx req.redis-> {}", cpxRedisKey);
         // the length of the list after the offer operations
-        String json = rScript.evalSha(READ_ONLY, LUA_CPX_GET, VALUE, asList(cpxRedisKey));
+        String json = rScript.evalSha(READ_WRITE, LUA_CPX_GET, VALUE, asList(cpxRedisKey));
         log.debug("getCpx resp-> {}", json);
         if (json == null) {
             return null;
@@ -152,7 +152,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         String queueKey = toCpxQueueRedisKey(clientIdentifier, type);
         log.debug("searchCpx req.redis-> {}", queueKey);
         // the length of the list after the offer operations
-        String json = rScript.evalSha(READ_ONLY, LUA_CPX_SEARCH, VALUE, asList(queueKey), tail);
+        String json = rScript.evalSha(READ_WRITE, LUA_CPX_SEARCH, VALUE, asList(queueKey), tail);
         log.debug("searchCpx resp-> {}", json);
         if (json == null) {
             return Collections.emptyList();
@@ -244,6 +244,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @Override
     public List<ClusterTopic> matchTopic(String topicName) {
         List<ClusterTopic> ret = matchTopicBy(topicName);
+        // todo
         // List<ClusterTopic> singleLevelWildCardMatch = matchTopicBy(singleLevelWildCardTopic(topicName));
         // ret.addAll(singleLevelWildCardMatch);
         return ret;
@@ -260,8 +261,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         // call lua script by sha digest
         log.debug("matchTopic req-> {}", topicName);
         String redisKey = toTopicFilterRedisKey(topicName);
-        String resp = rScript.evalSha(RScript.Mode.READ_ONLY, LUA_MATCH_SHA,
-                RScript.ReturnType.VALUE, asList(redisKey));
+        String resp = rScript.evalSha(redisKey, READ_ONLY, LUA_MATCH_SHA, RScript.ReturnType.VALUE, asList(redisKey));
         List<TopicFilterPO> pOList = TopicFilterPO.jsonDecodeArray(resp);
         log.debug("matchTopic resp-> {}", resp);
         return pOList.stream()

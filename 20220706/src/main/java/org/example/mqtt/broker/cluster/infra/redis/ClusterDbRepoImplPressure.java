@@ -62,26 +62,43 @@ public class ClusterDbRepoImplPressure {
             }
         } else if (Boolean.getBoolean("db.pressure.mode.search")) {
             for (String id : list) {
-                Runnable task = () -> {
-                    List<ClusterTopic> clusterTopics = dbRepo.matchTopic(id);
-                    if (clusterTopics.size() != 1) {
-                        log.info("matchTopic failed-> req:{}, resp: {}", id, clusterTopics);
-                    }
-                    String id2 = id + "/publish";
-                    List<ClusterTopic> topics = dbRepo.matchTopic(id2);
-                    if (topics.size() != 1) {
-                        log.info("matchTopic failed-> req:{}, resp: {}", id, clusterTopics);
-                    }
-                };
-                threadPool.submit(task);
+                // id = 1/2/3/4/5
+                for (int i = 0; i < 100; i++) {
+                    // prefixId = 00/1/2/3/4/5
+                    // prefixId = 01/1/2/3/4/5
+                    // prefixId = 011/1/2/3/4/5
+                    // prefixId = 099/1/2/3/4/5
+                    String prefixId = new StringBuilder(cIdPrefix).append(i).append("/").append(id).toString();
+                    Runnable task = () -> {
+                        List<ClusterTopic> clusterTopics = dbRepo.matchTopic(prefixId);
+                        if (clusterTopics.size() != 1) {
+                            log.info("matchTopic failed-> req:{}, resp: {}", prefixId, clusterTopics);
+                        }
+                        String id2 = prefixId + "/publish";
+                        List<ClusterTopic> topics = dbRepo.matchTopic(id2);
+                        if (topics.size() != 1) {
+                            log.info("matchTopic failed-> req:{}, resp: {}", id2, clusterTopics);
+                        }
+                    };
+                    threadPool.submit(task);
+                }
             }
         } else {
             for (String id : list) {
-                Runnable task = () -> {
-                    String id2 = id.substring(0, id.lastIndexOf("/") + 1) + "+/+";
-                    dbRepo.addNodeToTopic(randomNode(nodes), asList(id, id2));
-                };
-                threadPool.submit(task);
+                // id = 1/2/3/4/5
+                for (int i = 0; i < 100; i++) {
+                    // prefixId = 00/1/2/3/4/5
+                    // prefixId = 01/1/2/3/4/5
+                    // prefixId = 011/1/2/3/4/5
+                    // prefixId = 099/1/2/3/4/5
+                    String prefixId = new StringBuilder(cIdPrefix).append(i).append("/").append(id).toString();
+                    Runnable task = () -> {
+                        // id2 = 00/1/2/3/4/5/+/+
+                        String id2 = prefixId.substring(0, prefixId.lastIndexOf("/") + 1) + "+/+";
+                        dbRepo.addNodeToTopic(randomNode(nodes), asList(prefixId, id2));
+                    };
+                    threadPool.submit(task);
+                }
             }
         }
     }

@@ -14,6 +14,7 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.ScheduledFuture;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.*;
@@ -22,11 +23,12 @@ import org.example.mqtt.session.ControlPacketContext;
 import org.example.mqtt.session.Session;
 
 import java.net.InetSocketAddress;
+import java.net.URI;
 import java.time.Duration;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 
@@ -39,9 +41,10 @@ public class ClientBootstrap {
 
     public static void main(String[] args) {
         // require args
-        String[] remoteAddr = args[0].split(":");
+        // mqtt://10.255.5.1:1883,mqtts://10.255.5.2:1884
+        String[] remote = args[0].split(",");
+        List<InetSocketAddress> remoteAddress = parseRemoteAddress(remote);
         String[] localAddr = args[1].split(":");
-        InetSocketAddress remote = new InetSocketAddress(remoteAddr[0], Integer.parseInt(remoteAddr[1]));
         InetSocketAddress local = new InetSocketAddress(localAddr[0], Integer.parseInt(localAddr[1]));
         int connections = Integer.parseInt(args[2]);
         int payloadLength = Integer.parseInt(args[3]);
@@ -80,7 +83,7 @@ public class ClientBootstrap {
                 // 同步检测是否有 connections 个 client
                 while (clientCnt.get() < connections) {
                     try {
-                        ChannelFuture sync = bootstrap.connect(remote, local).sync();
+                        ChannelFuture sync = bootstrap.connect(pickOneBroker(remoteAddress), local).sync();
                         if (sync.isSuccess()) {
                             clientCnt.getAndIncrement();
                             sync.channel().closeFuture().addListener((ChannelFuture f) -> {
@@ -104,6 +107,22 @@ public class ClientBootstrap {
         } finally {
             nioEventLoopGroup.shutdownGracefully();
         }
+    }
+
+    private static InetSocketAddress pickOneBroker(List<InetSocketAddress> remoteAddress) {
+        return remoteAddress.get(new Random().nextInt(remoteAddress.size()));
+    }
+
+    private static List<InetSocketAddress> parseRemoteAddress(String[] remote) {
+        return Arrays.stream(remote)
+                .map(ClientBootstrap::toSocketAddress).filter(Objects::nonNull)
+                .collect(Collectors.toList());
+    }
+
+    @SneakyThrows
+    private static InetSocketAddress toSocketAddress(String str) {
+        URI uri = new URI(str.trim());
+        return new InetSocketAddress(uri.getHost(), uri.getPort());
     }
 
     public static class ClientTestSession extends AbstractSession {
@@ -173,7 +192,7 @@ public class ClientBootstrap {
         final byte topicQos;
 
         Session session;
-        String topic;
+        String listenedTopicFilter;
 
         ScheduledFuture<?> publishSendTask;
 
@@ -186,10 +205,11 @@ public class ClientBootstrap {
 
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
-            String clientIdentifier = ctx.channel().localAddress().toString();
-            String[] ipAndPort = clientIdentifier.substring(1).split(":");
+            String[] ipAndPort = ctx.channel().localAddress().toString().substring(1).split(":");
             // client_127.0.0.1/51324
-            topic = "client_" + ipAndPort[0] + "/" + ipAndPort[1];
+            String clientIdentifier = "client_" + ipAndPort[0] + "/" + ipAndPort[1];
+            // 监听的 topic 是下一个client
+            listenedTopicFilter = "client_" + ipAndPort[0] + "/" + (Integer.valueOf(ipAndPort[1]) + 1) + "/#";
             session = new ClientTestSession(clientIdentifier);
             // bind the channel
             session.bind(ctx.channel());
@@ -222,10 +242,10 @@ public class ClientBootstrap {
         private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
             if (cp instanceof ConnAck) {
                 // send subscribe
-                // client_127.0.0.1/51324/#
-                String topicFilter = topic + "/#";
+                // clientIdentifier -> client_127.0.0.1/51324
+                // topicFilters -> client_127.0.0.1/51325
                 ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
-                        singletonList(new Subscribe.Subscription(topicFilter, topicQos))));
+                        singletonList(new Subscribe.Subscription(listenedTopicFilter, topicQos))));
             } else if (cp instanceof SubAck) {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleAtFixedRate(() -> {
@@ -234,6 +254,8 @@ public class ClientBootstrap {
                             .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);
+                    // topic -> client_127.0.0.1/51322/publish
+                    String topic = session.clientIdentifier() + "/publish";
                     session.send(Publish.outgoing(false, sendQos, false, topic,
                             session.nextPacketIdentifier(), packet));
                 }, 1, period, TimeUnit.SECONDS);

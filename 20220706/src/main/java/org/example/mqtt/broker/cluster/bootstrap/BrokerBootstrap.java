@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.cluster.ClusterBroker;
+import org.example.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.example.mqtt.broker.cluster.ClusterServerSessionHandler;
 import org.example.mqtt.broker.cluster.infra.redis.ClusterDbRepoImpl;
@@ -28,7 +29,7 @@ public class BrokerBootstrap {
         if (!Boolean.getBoolean("spring.enable")) {
             Authenticator authenticator = packet -> 0x00;
             final Cluster cluster = new Cluster();
-            final ClusterBroker clusterBroker = new ClusterBroker(redisClusterDbRepo());
+            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo());
             startBroker(authenticator, cluster, clusterBroker);
         } else {
             log.info("start BrokerBootstrap with Spring Context");
@@ -44,7 +45,7 @@ public class BrokerBootstrap {
                 new ClusterServerSessionHandler(authenticator, 3, cluster);
         Map<String, Broker.ListenPort> protocolToUrl =
                 org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
-        clusterBroker.listenedServer(protocolToUrl);
+        clusterBroker.nodeBroker().listenedServer(protocolToUrl);
         // 开启集群节点信息同步
         // broker join the Cluster
         cluster.join(clusterBroker).start();

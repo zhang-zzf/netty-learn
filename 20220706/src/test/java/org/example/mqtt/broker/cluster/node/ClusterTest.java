@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
 import org.example.mqtt.broker.cluster.ClusterBroker;
+import org.example.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.junit.jupiter.api.Test;
 
@@ -13,7 +14,7 @@ import static org.mockito.Mockito.mock;
 class ClusterTest {
 
     ClusterDbRepo dbRepo = mock(ClusterDbRepo.class);
-    ClusterBroker clusterBroker = new ClusterBroker(dbRepo);
+    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo);
     Cluster cluster = new Cluster();
 
     @Test

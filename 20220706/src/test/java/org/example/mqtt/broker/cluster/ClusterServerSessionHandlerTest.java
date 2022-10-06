@@ -41,7 +41,7 @@ class ClusterServerSessionHandlerTest {
 
     @BeforeEach
     public void beforeEach() {
-        ClusterBroker broker = new ClusterBroker(dbRepo);
+        ClusterBroker broker = new ClusterBrokerImpl(dbRepo);
         cluster = new Cluster().join(broker);
         mqttClientA = new Session0(MQTT_CLIENT_A);
         clientA = createChannel(cluster);
@@ -63,7 +63,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession1_whenConnectAndDisconnect_thenSuccess() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
@@ -83,7 +83,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -100,7 +100,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession1_then() {
         String clientIdentifier = "strReceiver01";
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
@@ -126,7 +126,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -149,7 +149,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         String strReceiver01 = "strReceiver01";
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
@@ -169,7 +169,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -187,7 +187,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession0_whenConnectAndDisConnect_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
@@ -206,7 +206,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
@@ -227,7 +227,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         EmbeddedChannel c1 = createChannel(cluster);
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         c1.writeInbound(connect.toByteBuf());
@@ -251,7 +251,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenConnectedSession_whenConnectAgain_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
@@ -271,7 +271,7 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().join(new ClusterBroker(dbRepo));
+        Cluster cluster = new Cluster().join(new ClusterBrokerImpl(dbRepo));
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock

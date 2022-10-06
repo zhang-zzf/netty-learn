@@ -179,6 +179,10 @@ public abstract class ControlPacket {
         int rl = 0;
         int multiplier = 1;
         while (true) {
+            if (buf.readableBytes() == 0) {
+                // remainLength is 4 bytes, but now just received 2 bytes
+                return Integer.MAX_VALUE;
+            }
             byte encodeByte = buf.readByte();
             rl += (encodeByte & 0x7F) * multiplier;
             if ((encodeByte & 0x80) == 0) {

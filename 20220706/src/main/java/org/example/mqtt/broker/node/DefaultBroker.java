@@ -2,6 +2,7 @@ package org.example.mqtt.broker.node;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
@@ -25,6 +26,14 @@ public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
     private final Map<String, ListenPort> listenedServer = new HashMap<>(8);
+
+    public DefaultBroker() {
+        initMetrics();
+    }
+
+    private void initMetrics() {
+        MetricUtil.gauge("broker.cluster.node.broker.clients", session());
+    }
 
     @Override
     public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {

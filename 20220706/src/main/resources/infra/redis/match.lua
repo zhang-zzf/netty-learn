@@ -6,6 +6,7 @@
 -- {"{topic}/abc/de": ["node1", "node2"], "{topic}/#": ["node3"]}
 
 -- function
+-- {topic}/abc/de -> {{topic}, abc, de}
 local split = function(str, reps)
     local r = {}
     string.gsub(str, '[^' .. reps .. ']+', function(w)
@@ -57,7 +58,7 @@ end
 
 -- function
 
--- {{topic}/abc/de} -> {{topic}, abc, de}
+-- {topic}/abc/de -> {{topic}, abc, de}
 local topicLevels = split(KEYS[1], "/")
 -- {{topic}, abc, de} -> {{topic}_, abc_, de_}
 for i, v in ipairs(topicLevels) do
@@ -74,7 +75,9 @@ end
 local resp = {}
 for i, v in ipairs(topics) do
     -- {topic}_/abc_/de_ -> {topic}/abc/de
-    v = string.gsub(v, "_", "")
+    -- {to_pic}_/abc_/de_ -> {to_pic}/abc/de
+    -- {to_pic}_/_ab_c__/de__ -> {to_pic}/_ab_c_/de_
+    v = string.sub(string.gsub(v, "_/", "/"), 0, -2)
     -- @return table(list), example: {"node1", "node2"}
     local subscriber = redis.call('SMEMBERS', v)
     --@return table(hash) or nil, example: {"c1": "1", "c2": "2"}

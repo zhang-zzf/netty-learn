@@ -218,6 +218,9 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     }
 
     static String toTopicFilterRedisKey(String tf) {
+        if (tf.startsWith("/") || tf.endsWith("/")) {
+            throw new IllegalArgumentException("TopicFilter(starts with '/' or ends with '/') is not supported.");
+        }
         String[] split = tf.split("/");
         split[0] = "{" + split[0] + "}";
         return StringUtils.join(split, "/");

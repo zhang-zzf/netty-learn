@@ -107,7 +107,7 @@ public class Cluster implements AutoCloseable {
         } else {
             nn.nodeClient(nc);
             log.info("Cluster connected to new Node->{}", nn);
-            log.info("Cluster.Nodes->{}", JSON.toJSONString(nodes));
+            log.info("Cluster.Nodes-> num: {}, nodes: {}", nodes.size(), JSON.toJSONString(nodes.values()));
             // sync Cluster.Nodes immediately.
             publishClusterNodes();
             return true;

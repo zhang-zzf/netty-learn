@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.node;
 
+import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
@@ -77,6 +78,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
+    @Timed
     public void send(ControlPacket packet) {
         if (packet == null) {
             throw new IllegalArgumentException();

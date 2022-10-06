@@ -477,4 +477,19 @@ class ByteBufTest {
         then(actual).isEqualTo(str);
     }
 
+
+    @Test
+    void given_whenResetReaderIndex2Times_then() {
+        ByteBuf buf = Unpooled.copiedBuffer("Hello,World", UTF_8);
+        then(buf.readByte()).isEqualTo((byte) 'H');
+        int readIndex = buf.readerIndex();
+        buf.markReaderIndex();
+        then(buf.readByte()).isEqualTo((byte) 'e');
+        // reset 1 time
+        buf.resetReaderIndex();
+        // reset 2 time
+        buf.resetReaderIndex();
+        then(buf.readerIndex()).isEqualTo(readIndex);
+    }
+
 }

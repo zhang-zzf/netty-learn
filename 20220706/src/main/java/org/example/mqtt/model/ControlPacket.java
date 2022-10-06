@@ -142,6 +142,7 @@ public abstract class ControlPacket {
             // fixed header length + remainingLength
             packetLength = (_0_BYTE_LENGTH + remainingLengthByteCnt(remainingLength)) + remainingLength;
         } catch (Exception e) {
+            in.resetReaderIndex();
             log.error("tryPickupPacket failed: {}", ByteBufUtil.hexDump(in));
             throw e;
         } finally {

@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.cluster;
 
+import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBufUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -306,6 +307,7 @@ public class ClusterBroker implements Broker {
         nodeBroker().listenedServer(protocolToUrl);
     }
 
+    @Timed(histogram = true)
     public void handlePublish(Publish packet) {
         // $SYS/# 特殊处理. 发送给 Broker 的 $SYS/# 消息，不做转发
         if (packet.topicName().startsWith("$SYS")) {

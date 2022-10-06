@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.node;
 
+import io.micrometer.core.annotation.Timed;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
@@ -10,6 +11,7 @@ import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
+import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 import java.util.*;
@@ -22,10 +24,10 @@ import static org.example.mqtt.model.Publish.needAck;
  * @date 2022/06/28
  */
 @Slf4j
+@Component
 public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
-    private final Map<String, ListenPort> listenedServer = new HashMap<>(8);
 
     public DefaultBroker() {
         initMetrics();
@@ -142,11 +144,7 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public Map<String, Broker.ListenPort> listenedServer() {
-        return listenedServer;
-    }
-
-    @Override
+    @Timed
     public void handlePublish(Publish packet) {
         // retain message
         if (packet.retain()) {
@@ -161,26 +159,14 @@ public class DefaultBroker implements Broker {
         return DefaultServerSession.from(connect);
     }
 
-    public DefaultBroker listenedServer(String protocol, Broker.ListenPort url) {
-        listenedServer.put(protocol, url);
-        return this;
-    }
-
     private boolean zeroBytesPayload(Publish publish) {
         return !publish.payload().isReadable();
     }
 
     @Override
     public void close() throws Exception {
-        for (Map.Entry<String, ListenPort> e : listenedServer.entrySet()) {
-            e.getValue().getChannel().close();
-        }
-    }
-
-    public void listenedServer(Map<String, Broker.ListenPort> protocolToUrl) {
-        for (Map.Entry<String, Broker.ListenPort> entry : protocolToUrl.entrySet()) {
-            listenedServer(entry.getKey(), entry.getValue());
-        }
+        // Server was started by the Broker
+        // So it should not be closed by the Broker
     }
 
 }

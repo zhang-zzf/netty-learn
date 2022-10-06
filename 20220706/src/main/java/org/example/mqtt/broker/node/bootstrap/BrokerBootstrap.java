@@ -10,6 +10,9 @@ import io.netty.handler.logging.LoggingHandler;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
@@ -25,6 +28,7 @@ import javax.net.ssl.SSLException;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -36,19 +40,33 @@ import java.util.function.Supplier;
 @Slf4j
 public class BrokerBootstrap {
 
+    private static final Map<String, ListenPort> LISTENED_SERVER = new HashMap<>(8);
+    public static final Map<String, ListenPort> LISTENED_SERVERS = Collections.unmodifiableMap(LISTENED_SERVER);
+
     @SneakyThrows
     public static void main(String[] args) {
-        Authenticator authenticator = packet -> 0x00;
-        final DefaultBroker broker = new DefaultBroker();
-        Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
-                new DefaultServerSessionHandler(broker, authenticator, 3);
-        Map<String, Broker.ListenPort> protocolToUrl = startServer(handlerSupplier);
-        broker.listenedServer(protocolToUrl);
+        if (!Boolean.getBoolean("spring.enable")) {
+            startServer(packet -> 0x00, new DefaultBroker());
+        } else {
+            // start with spring context
+            BrokerBootstrapInSpringContext.main(args);
+        }
     }
 
-    public static Map<String, Broker.ListenPort> startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
+    public static void startServer(Authenticator authenticator, Broker broker) throws URISyntaxException, SSLException {
+        Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
+                new DefaultServerSessionHandler(broker, authenticator, 3);
+        startServer(handlerSupplier);
+    }
+
+    public static void shutdownServer() {
+        for (Map.Entry<String, ListenPort> e : LISTENED_SERVERS.entrySet()) {
+            e.getValue().getChannel().close();
+        }
+    }
+
+    public static void startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
             SSLException {
-        Map<String, DefaultBroker.ListenPort> protocolToUrl = new HashMap<>(8);
         /**
          * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
          */
@@ -62,29 +80,28 @@ public class BrokerBootstrap {
             switch (uri.getScheme()) {
                 case "mqtt":
                     channel = mqttServer(bindAddress, handlerSupplier);
-                    protocolToUrl.put("mqtt", new Broker.ListenPort(address, channel));
+                    LISTENED_SERVER.put("mqtt", new ListenPort(address, channel));
                     break;
                 case "mqtts":
                     channel = secureMqttServer(bindAddress, handlerSupplier);
-                    protocolToUrl.put("mqtts", new Broker.ListenPort(address, channel));
+                    LISTENED_SERVER.put("mqtts", new ListenPort(address, channel));
                     break;
                 case "ws":
                     channel = mqttOverWebsocket(bindAddress, handlerSupplier);
-                    protocolToUrl.put("ws", new Broker.ListenPort(address, channel));
+                    LISTENED_SERVER.put("ws", new ListenPort(address, channel));
                     break;
                 case "wss":
                     channel = mqttOverSecureWebSocket(bindAddress, handlerSupplier);
-                    protocolToUrl.put("wss", new Broker.ListenPort(address, channel));
+                    LISTENED_SERVER.put("wss", new ListenPort(address, channel));
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported Schema: " + uri.getScheme());
             }
         }
-        return protocolToUrl;
     }
 
     private static Channel mqttOverSecureWebSocket(InetSocketAddress address,
-                                             Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+                                                   Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         // 配置 websocket tls bootstrap
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttOverSecureWebsocket");
@@ -150,7 +167,7 @@ public class BrokerBootstrap {
     }
 
     private static Channel secureMqttServer(InetSocketAddress address,
-                                         Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+                                            Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-secureMqtt");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
@@ -212,6 +229,17 @@ public class BrokerBootstrap {
             workerGroup.shutdownGracefully();
             throw new RuntimeException(e);
         }
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ListenPort {
+
+        // mqtt://host:port
+        private String url;
+        private Channel channel;
+
     }
 
 }

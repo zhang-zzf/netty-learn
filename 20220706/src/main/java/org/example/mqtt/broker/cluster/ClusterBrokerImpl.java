@@ -11,6 +11,7 @@ import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
 import org.example.mqtt.broker.node.DefaultBroker;
 import org.example.mqtt.broker.node.DefaultServerSession;
+import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
@@ -182,11 +183,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public Map<String, ListenPort> listenedServer() {
-        return nodeBroker().listenedServer();
-    }
-
-    @Override
     public void forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
@@ -262,6 +258,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     @Override
     public void close() throws Exception {
         log.info("Broker now close itself.");
+        // no more new connections
+        // org.example.mqtt.broker.cluster.ClusterServerSessionHandler.channelActive will read this flag
         if (!closeStatus.compareAndSet(0, 1)) {
             log.info("Broker is closing.");
             return;
@@ -272,8 +270,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.info("Broker now try to shutdown Cluster");
         cluster.close();
         // shutdown Broker
-        log.info("Broker now try to shutdown NodeBroker");
-        nodeBroker.close();
+        log.info("Broker now try to shutdown Broker");
+        BrokerBootstrap.shutdownServer();
         log.info("Broker now try to shutdown ClusterDbRepo");
         clusterDbRepo.close();
         closeStatus.compareAndSet(1, 2);
@@ -304,10 +302,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
-    public void listenedServer(Map<String, ListenPort> protocolToUrl) {
-        nodeBroker().listenedServer(protocolToUrl);
     }
 
     @Timed(histogram = true)

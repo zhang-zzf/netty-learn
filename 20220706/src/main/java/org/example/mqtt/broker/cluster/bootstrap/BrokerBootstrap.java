@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
-import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
@@ -14,7 +13,6 @@ import org.example.mqtt.broker.cluster.infra.redis.RedisConfiguration;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.node.DefaultServerSessionHandler;
 
-import java.util.Map;
 import java.util.function.Supplier;
 
 /**
@@ -43,9 +41,7 @@ public class BrokerBootstrap {
                                    ClusterBroker clusterBroker) {
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new ClusterServerSessionHandler(authenticator, 3, cluster);
-        Map<String, Broker.ListenPort> protocolToUrl =
-                org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
-        clusterBroker.nodeBroker().listenedServer(protocolToUrl);
+        org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
         // 开启集群节点信息同步
         // broker join the Cluster
         cluster.join(clusterBroker).start();

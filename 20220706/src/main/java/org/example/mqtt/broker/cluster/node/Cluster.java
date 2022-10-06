@@ -6,6 +6,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.cluster.ClusterBroker;
+import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Publish;
 import org.springframework.stereotype.Component;
 
@@ -221,7 +222,7 @@ public class Cluster implements AutoCloseable {
         if (started.get()) {
             return;
         }
-        String mqttUrl = localBroker.listenedServer().get("mqtt").getUrl();
+        String mqttUrl = BrokerBootstrap.LISTENED_SERVERS.get("mqtt").getUrl();
         if (mqttUrl == null) {
             throw new UnsupportedOperationException("Cluster mode need mqtt protocol enabled");
         }

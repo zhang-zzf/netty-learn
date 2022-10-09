@@ -51,7 +51,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     @Override
-    public void handle(String topic, byte[] payload) {
+    public void handle(String topic, byte[] payload, Publish packet) {
         NodeMessage m = NodeMessage.fromBytes(payload);
         log.debug("NodeClient receive message->{}", m);
         doHandleNodeMessageWithMetric(m);
@@ -64,7 +64,10 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         } finally {
             long time = System.currentTimeMillis() - start;
             MetricUtil.time("cluster.node.NodeMessage", time,
-                    "packet", m.getPacket(), "fromNode", m.getNodeId());
+                    "packet", m.getPacket(),
+                    "from", m.getNodeId(),
+                    "target", broker().nodeId()
+            );
         }
     }
 

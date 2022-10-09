@@ -2,6 +2,8 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.session.AbstractSession;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.BDDAssertions.then;
@@ -10,6 +12,7 @@ import static org.assertj.core.api.BDDAssertions.then;
  * @author zhanfeng.zhang
  * @date 2022/07/01
  */
+@Slf4j
 class PublishTest {
 
     /**
@@ -77,4 +80,16 @@ class PublishTest {
         then(publish.retain(true).retain()).isTrue();
         then(publish.retain(false).retain()).isFalse();
     }
+
+
+    @Test
+    void given_whenGetClassName_then() {
+        String name = AbstractSession.class.getName();
+        String simpleName = AbstractSession.class.getSimpleName();
+        String canonicalName = AbstractSession.class.getCanonicalName();
+        String typeName = AbstractSession.class.getTypeName();
+        log.info("name: {}\nsimpleName: {}\ncanonicalName: {}\ntypeName: {}",
+                name, simpleName, canonicalName, typeName);
+    }
+
 }

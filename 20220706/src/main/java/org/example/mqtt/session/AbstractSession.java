@@ -563,7 +563,9 @@ public abstract class AbstractSession implements Session {
         });
     }
 
-    private void publishPacketSent(ControlPacketContext cpx) {
+    public static final String METRIC_NAME = AbstractSession.class.getName();
+
+    protected void publishPacketSent(ControlPacketContext cpx) {
         log.debug("sender({}/{}) [Publish sent]", cId(), cpx.pId());
     }
 

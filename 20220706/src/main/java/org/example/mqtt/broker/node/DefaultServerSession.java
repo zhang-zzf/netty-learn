@@ -3,6 +3,7 @@ package org.example.mqtt.broker.node;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.model.*;
@@ -11,9 +12,11 @@ import org.example.mqtt.session.ControlPacketContext;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static org.example.mqtt.model.ControlPacket.*;
+import static org.example.mqtt.model.Publish.*;
 
 /**
  * Session 的生命周期由 Broker 控制
@@ -222,6 +225,42 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         ByteBuf byteBuf = connect.willMessage();
         boolean retain = connect.willRetainFlag();
         return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
+    }
+
+    @Override
+    protected void publishPacketSent(ControlPacketContext cpx) {
+        try {
+            metricPublish(cpx);
+        } catch (Exception e) {
+            // just log an error
+            log.error("unExpected exception", e);
+        }
+        super.publishPacketSent(cpx);
+    }
+
+    public static final String METRIC_NAME = DefaultServerSession.class.getName();
+
+    private void metricPublish(ControlPacketContext cpx) {
+        Publish packet = cpx.packet();
+        Map<String, Object> meta = packet.meta();
+        if (meta == null) {
+            return;
+        }
+        long now = System.currentTimeMillis();
+        Long pReceive = (Long) meta.get(META_P_RECEIVE);
+        if (META_P_SOURCE_BROKER.equals(meta.get(META_P_SOURCE))) {
+            // Publish may come from another Broker
+            Long nmWrap = (Long) meta.get(META_NM_WRAP);
+            Long nmReceive = (Long) meta.get(META_NM_RECEIVE);
+            MetricUtil.time(METRIC_NAME, nmWrap - pReceive, "phase", "packetReceive->nmWrap");
+            MetricUtil.time(METRIC_NAME, nmReceive - nmWrap, "phase", "nmWrap->nmReceive");
+            MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
+        }
+        // Public come from Client directly or through another Broker
+        // the whole time between Publish.Receive from Client and forward to another Client.
+        if (pReceive != null) {
+            MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->packetSent");
+        }
     }
 
 }

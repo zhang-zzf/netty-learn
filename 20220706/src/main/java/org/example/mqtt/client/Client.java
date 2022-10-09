@@ -205,7 +205,7 @@ public class Client implements AutoCloseable {
      */
     public void receivePublish(Publish packet) {
         log.debug("receivePublish: {}", packet);
-        handler.handle(packet.topicName(), ByteBufUtil.getBytes(packet.payload()));
+        handler.handle(packet.topicName(), ByteBufUtil.getBytes(packet.payload()), packet);
     }
 
     /**

@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBufUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
@@ -30,6 +31,7 @@ import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLO
 import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
 import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
 import static org.example.mqtt.broker.node.DefaultBroker.qoS;
+import static org.example.mqtt.model.Publish.META_P_RECEIVE;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -194,7 +196,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
         if (clusterTopics.isEmpty()) {
             return;
         }
-        Publish nodeMessagePacket = createNodeMessagePacket(packet);
         Set<String> sendNodes = new HashSet<>();
         for (ClusterTopic ct : clusterTopics) {
             // forward to another Node in the cluster
@@ -206,7 +207,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
                     continue;
                 }
                 // 一个 Node 只转发一次
-                forwardToOtherNode(nodeMessagePacket, targetNodeId);
+                forwardToOtherNode(packet, targetNodeId);
             }
             // forward the PublishPacket to offline client's Session.
             for (Map.Entry<String, Integer> e : ct.getOfflineSessions().entrySet()) {
@@ -215,16 +216,36 @@ public class ClusterBrokerImpl implements ClusterBroker {
         }
     }
 
-    private Publish createNodeMessagePacket(Publish packet) {
-        NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
-        return Publish.outgoing(packet.qos(), packet.topicName(), nm.toByteBuf());
-    }
-
     private void forwardToOtherNode(Publish packet, String targetNodeId) {
         String topicName = nodeListenTopic(targetNodeId);
-        packet.topicName(topicName);
+        NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
+        Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
-        nodeBroker.forward(packet);
+        nodeBroker.forward(nodeMessagePacket);
+        logMetrics(nm, targetNodeId);
+    }
+
+    public static final String METRIC_NAME = ClusterBrokerImpl.class.getName();
+
+    private void logMetrics(NodeMessage nm, String targetNodeId) {
+        try {
+            Map<String, Object> meta = nm.getMeta();
+            if (meta == null) {
+                return;
+            }
+            // Publish.Receive <-> forward to another Broker
+            Long time;
+            if ((time = (Long) meta.get(META_P_RECEIVE)) != null) {
+                time = System.currentTimeMillis() - time;
+                MetricUtil.time(METRIC_NAME, time,
+                        "phase", "packetReceive->forwardToBroker",
+                        "source", nodeId(),
+                        "target", targetNodeId
+                );
+            }
+        } catch (Exception e) {
+            log.error("unExpected Exception", e);
+        }
     }
 
     private void forwardToOfflineSession(Publish packet, String tf, String cId, int qos) {

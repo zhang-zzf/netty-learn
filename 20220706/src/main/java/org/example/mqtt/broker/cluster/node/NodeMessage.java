@@ -8,10 +8,12 @@ import lombok.Data;
 import org.example.mqtt.model.Publish;
 
 import java.util.Base64;
+import java.util.HashMap;
 import java.util.Map;
 
 import static io.netty.buffer.ByteBufUtil.getBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.example.mqtt.model.Publish.*;
 
 @Data
 public class NodeMessage {
@@ -25,12 +27,23 @@ public class NodeMessage {
     private String packet;
     private String payload;
 
+    public Map<String, Object> meta;
+
     public static NodeMessage wrapPublish(String nodeId, Publish packet) {
         NodeMessage nm = new NodeMessage();
         nm.setNodeId(nodeId);
         nm.setPacket(ACTION_PUBLISH_FORWARD);
         nm.setPayload(Base64.getEncoder().encodeToString(getBytes(packet.toByteBuf())));
+        initWrapMetricMeta(nm, packet);
         return nm;
+    }
+
+    private static void initWrapMetricMeta(NodeMessage nm, Publish packet) {
+        nm.meta = new HashMap<>(4);
+        if (packet.meta() != null) {
+            nm.meta.putAll(packet.meta());
+        }
+        nm.setMetricMeta(META_NM_WRAP, System.currentTimeMillis());
     }
 
     public static NodeMessage fromBytes(ByteBuf payload) {
@@ -46,7 +59,17 @@ public class NodeMessage {
     }
 
     public Publish unwrapPublish() {
-        return new Publish(Unpooled.copiedBuffer(Base64.getDecoder().decode(getPayload())));
+        Publish publish = new Publish(Unpooled.copiedBuffer(Base64.getDecoder().decode(getPayload())));
+        // just for metric usage
+        // transfer to Publish packet
+        metricMeta(publish);
+        return publish;
+    }
+
+    private void metricMeta(Publish publish) {
+        publish.addMeta(meta);
+        // mark source
+        publish.addMeta(META_P_SOURCE, META_P_SOURCE_BROKER);
     }
 
     public static NodeMessage wrapSessionClose(String nodeId, String clientIdentifier) {
@@ -91,7 +114,16 @@ public class NodeMessage {
     }
 
     public static NodeMessage fromBytes(byte[] payload) {
-        return JSON.parseObject(new String(payload, UTF_8), NodeMessage.class);
+        NodeMessage nm = JSON.parseObject(new String(payload, UTF_8), NodeMessage.class);
+        nm.setMetricMeta(META_NM_RECEIVE, System.currentTimeMillis());
+        return nm;
+    }
+
+    private void setMetricMeta(String name, Object value) {
+        if (meta == null) {
+            meta = new HashMap<>();
+        }
+        meta.put(name, value);
     }
 
     public ByteBuf toByteBuf() {

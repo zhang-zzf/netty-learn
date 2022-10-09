@@ -3,6 +3,9 @@ package org.example.mqtt.model;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
+import javax.annotation.Nullable;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -29,6 +32,11 @@ public class Publish extends ControlPacket {
      */
     public Publish(ByteBuf receivedPacket) {
         super(receivedPacket);
+        initMetricMetaData();
+    }
+
+    private void initMetricMetaData() {
+        addMeta(META_P_RECEIVE, System.currentTimeMillis());
     }
 
     /**
@@ -39,7 +47,14 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
-        return outgoing(origin.retain(), qos, false, topicName, packetIdentifier, origin.payload);
+        Publish ret = outgoing(origin.retain(), qos, false, topicName, packetIdentifier, origin.payload);
+        // metric meta
+        ret.copyMeta(origin);
+        return ret;
+    }
+
+    private void copyMeta(Publish origin) {
+        meta = origin.meta;
     }
 
     /**
@@ -266,6 +281,46 @@ public class Publish extends ControlPacket {
             byte0 &= 0xFE;
         }
         return this;
+    }
+
+    /**
+     * not protocol field
+     * <p>just for metric usage</p>
+     * <p>Client or Broker 接受到 Publish 的时间</p>
+     * <p>default to 0</p>
+     */
+    private Map<String, Object> meta;
+
+    /**
+     * Publish Receive time
+     * <p>just from client</p>
+     */
+    public static final String META_P_RECEIVE = "p_receive";
+    public static final String META_P_SOURCE = "p_source";
+    public static final String META_P_SOURCE_BROKER = "broker";
+    public static final String META_NM_WRAP = "nm_wrap";
+    public static final String META_NM_RECEIVE = "nm_receive";
+
+    @Nullable
+    public Map<String, Object> meta() {
+        return meta;
+    }
+
+    public void addMeta(Map<String, Object> meta) {
+        if (meta == null) {
+            return;
+        }
+        if (this.meta == null) {
+            this.meta = new HashMap<>();
+        }
+        this.meta.putAll(meta);
+    }
+
+    public void addMeta(String n, Object v) {
+        if (meta == null) {
+            meta = new HashMap<>();
+        }
+        meta.put(n, v);
     }
 
 }

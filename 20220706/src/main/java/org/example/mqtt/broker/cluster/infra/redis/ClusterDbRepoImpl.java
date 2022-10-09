@@ -50,10 +50,10 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     private final RedissonClient redisson;
     private final RScript rScript;
-    private final String LUA_MATCH_SHA;
-    private final String LUA_UNSUBSCRIBE_SHA;
-    private final String LUA_SUBSCRIBE_SHA;
-    private final String LUA_CPX_ENQUEUE_SHA;
+    private final String LUA_MATCH;
+    private final String LUA_UNSUBSCRIBE;
+    private final String LUA_SUBSCRIBE;
+    private final String LUA_CPX_ENQUEUE;
     private final String LUA_CPX_UPDATE;
     private final String LUA_CPX_GET;
     private final String LUA_CPX_SEARCH;
@@ -62,14 +62,14 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     public ClusterDbRepoImpl(RedissonClient redisson) {
         this.redisson = redisson;
         this.rScript = redisson.getScript(StringCodec.INSTANCE);
-        this.LUA_MATCH_SHA = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/match.lua"));
-        this.LUA_UNSUBSCRIBE_SHA = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/unsubscribe.lua"));
-        this.LUA_SUBSCRIBE_SHA = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/subscribe.lua"));
-        this.LUA_CPX_ENQUEUE_SHA = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/cpx_enqueue.lua"));
-        this.LUA_CPX_UPDATE = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/cpx_update.lua"));
-        this.LUA_CPX_GET = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/cpx_get.lua"));
-        this.LUA_CPX_SEARCH = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/cpx_search.lua"));
-        this.LUA_CPX_DELETE = rScript.scriptLoad(getStringFromClasspathFile("infra/redis/cpx_delete.lua"));
+        this.LUA_MATCH = getStringFromClasspathFile("infra/redis/match.lua");
+        this.LUA_UNSUBSCRIBE = getStringFromClasspathFile("infra/redis/unsubscribe.lua");
+        this.LUA_SUBSCRIBE = getStringFromClasspathFile("infra/redis/subscribe.lua");
+        this.LUA_CPX_ENQUEUE = getStringFromClasspathFile("infra/redis/cpx_enqueue.lua");
+        this.LUA_CPX_UPDATE = getStringFromClasspathFile("infra/redis/cpx_update.lua");
+        this.LUA_CPX_GET = getStringFromClasspathFile("infra/redis/cpx_get.lua");
+        this.LUA_CPX_SEARCH = getStringFromClasspathFile("infra/redis/cpx_search.lua");
+        this.LUA_CPX_DELETE = getStringFromClasspathFile("infra/redis/cpx_delete.lua");
     }
 
     @Override
@@ -101,7 +101,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 new Object[]{cpx.pId(), po.jsonEncode()} :
                 new Object[]{cpx.pId(), po.jsonEncode(), tailPId};
         // the length of the list after the offer operations
-        long curQueueSize = rScript.evalSha(READ_WRITE, LUA_CPX_ENQUEUE_SHA, INTEGER, asList(queueRedisKey), argv);
+        long curQueueSize = rScript.eval(READ_WRITE, LUA_CPX_ENQUEUE, INTEGER, asList(queueRedisKey), argv);
         log.debug("offerCpx resp-> {}", curQueueSize);
         return curQueueSize > 0;
     }
@@ -116,7 +116,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
                 encodePacketIdentifier(packetIdentifier));
         log.debug("getCpx req.redis-> {}", cpxRedisKey);
         // the length of the list after the offer operations
-        String json = rScript.evalSha(READ_WRITE, LUA_CPX_GET, VALUE, asList(cpxRedisKey));
+        String json = rScript.eval(READ_WRITE, LUA_CPX_GET, VALUE, asList(cpxRedisKey));
         log.debug("getCpx resp-> {}", json);
         if (json == null) {
             return null;
@@ -152,7 +152,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         String queueKey = toCpxQueueRedisKey(clientIdentifier, type);
         log.debug("searchCpx req.redis-> {}", queueKey);
         // the length of the list after the offer operations
-        String json = rScript.evalSha(READ_WRITE, LUA_CPX_SEARCH, VALUE, asList(queueKey), tail);
+        String json = rScript.eval(READ_WRITE, LUA_CPX_SEARCH, VALUE, asList(queueKey), tail);
         log.debug("searchCpx resp-> {}", json);
         if (json == null) {
             return Collections.emptyList();
@@ -167,7 +167,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         CpxPO po = CpxPO.from(cpx.packetIdentifier(), cpx.status());
         String cpxRedisKey = toCpxRedisKey(toCpxQueueRedisKey(cpx.clientIdentifier(), cpx.type()), po.getPId());
         log.debug("updateCpxStatus req.redis->key: {}, po: {}", cpxRedisKey, po);
-        long num = rScript.evalSha(READ_WRITE, LUA_CPX_UPDATE, INTEGER, asList(cpxRedisKey), po.jsonEncode());
+        long num = rScript.eval(READ_WRITE, LUA_CPX_UPDATE, INTEGER, asList(cpxRedisKey), po.jsonEncode());
         log.debug("updateCpxStatus resp.redis: {}", num);
     }
 
@@ -176,7 +176,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("deleteCpx req-> {}", cpx);
         String queueKey = toCpxQueueRedisKey(cpx.clientIdentifier(), cpx.type());
         log.debug("deleteCpx req.redis-> {}", queueKey);
-        long num = rScript.evalSha(READ_WRITE, LUA_CPX_DELETE, INTEGER,
+        long num = rScript.eval(READ_WRITE, LUA_CPX_DELETE, INTEGER,
                 asList(queueKey),
                 encodePacketIdentifier(cpx.packetIdentifier()));
         log.debug("deleteCpx resp-> {}", num);
@@ -212,7 +212,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         for (String tf : tfSet) {
             String redisKey = toTopicFilterRedisKey(tf);
             log.debug("addNodeToTopic req-> {}", redisKey, nodeId);
-            List<Integer> resp = rScript.evalSha(READ_WRITE, LUA_SUBSCRIBE_SHA, MULTI, asList(redisKey), nodeId);
+            List<Integer> resp = rScript.eval(READ_WRITE, LUA_SUBSCRIBE, MULTI, asList(redisKey), nodeId);
             log.debug("addNodeToTopic resp-> {}", resp);
         }
     }
@@ -235,7 +235,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         for (String tf : tfSet) {
             String redisKey = toTopicFilterRedisKey(tf);
             log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
-            rScript.evalSha(READ_WRITE, LUA_UNSUBSCRIBE_SHA, INTEGER, asList(redisKey), nodeId, force);
+            rScript.eval(READ_WRITE, LUA_UNSUBSCRIBE, INTEGER, asList(redisKey), nodeId, force);
         }
     }
 
@@ -264,7 +264,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         // call lua script by sha digest
         log.debug("matchTopic req-> {}", topicName);
         String redisKey = toTopicFilterRedisKey(topicName);
-        String resp = rScript.evalSha(redisKey, READ_ONLY, LUA_MATCH_SHA, RScript.ReturnType.VALUE, asList(redisKey));
+        String resp = rScript.eval(redisKey, READ_ONLY, LUA_MATCH, RScript.ReturnType.VALUE, asList(redisKey));
         List<TopicFilterPO> pOList = TopicFilterPO.jsonDecodeArray(resp);
         log.debug("matchTopic resp-> {}", resp);
         return pOList.stream()

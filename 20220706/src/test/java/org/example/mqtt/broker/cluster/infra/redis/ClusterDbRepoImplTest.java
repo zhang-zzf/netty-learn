@@ -28,6 +28,7 @@ import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 
 @Slf4j
+@Disabled
 class ClusterDbRepoImplTest {
 
     final static RedissonClient client;

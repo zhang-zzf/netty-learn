@@ -6,6 +6,7 @@ import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.example.mqtt.broker.cluster.ClusterTopic;
+import org.redisson.connection.CRC16;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
@@ -17,6 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Arrays.asList;
+import static org.redisson.connection.MasterSlaveConnectionManager.MAX_SLOT;
 
 @Configuration
 @ComponentScan(basePackageClasses = {
@@ -47,7 +49,7 @@ public class ClusterDbRepoImplPressure {
         // 线程池
         int maxThread = Runtime.getRuntime().availableProcessors() * 4;
         maxThread = Integer.getInteger("db.pressure.thread.num", maxThread);
-        ThreadPoolExecutor threadPool = new ThreadPoolExecutor(4, maxThread,
+        ThreadPoolExecutor threadPool = new ThreadPoolExecutor(maxThread, maxThread,
                 60, TimeUnit.SECONDS,
                 new LinkedBlockingDeque<>(maxThread),
                 // 提交线程自己跑
@@ -58,7 +60,12 @@ public class ClusterDbRepoImplPressure {
                     String id2 = id.substring(0, id.lastIndexOf("/") + 1) + "+/+";
                     dbRepo.removeTopic(asList(id, id2));
                 };
-                threadPool.submit(task);
+                if (maxThread == 1) {
+                    // 单线程压测，自己跑呗
+                    task.run();
+                } else {
+                    threadPool.submit(task);
+                }
             }
         } else if (Boolean.getBoolean("db.pressure.mode.search")) {
             for (String id : list) {
@@ -80,7 +87,12 @@ public class ClusterDbRepoImplPressure {
                             log.info("matchTopic failed-> req:{}, resp: {}", id2, clusterTopics);
                         }
                     };
-                    threadPool.submit(task);
+                    if (maxThread == 1) {
+                        // 单线程压测，自己跑呗
+                        task.run();
+                    } else {
+                        threadPool.submit(task);
+                    }
                 }
             }
         } else {
@@ -97,7 +109,12 @@ public class ClusterDbRepoImplPressure {
                         String id2 = prefixId.substring(0, prefixId.lastIndexOf("/") + 1) + "+/+";
                         dbRepo.addNodeToTopic(randomNode(nodes), asList(prefixId, id2));
                     };
-                    threadPool.submit(task);
+                    if (maxThread == 1) {
+                        // 单线程压测，自己跑呗
+                        task.run();
+                    } else {
+                        threadPool.submit(task);
+                    }
                 }
             }
         }
@@ -119,6 +136,22 @@ public class ClusterDbRepoImplPressure {
 
     private static String randomNode(List<String> nodes) {
         return nodes.get(new Random().nextInt(nodes.size()));
+    }
+
+    public static int calcSlot(String key) {
+        if (key == null) {
+            return 0;
+        }
+        int start = key.indexOf('{');
+        if (start != -1) {
+            int end = key.indexOf('}');
+            if (end != -1 && start + 1 < end) {
+                key = key.substring(start + 1, end);
+            }
+        }
+        int result = CRC16.crc16(key.getBytes()) % MAX_SLOT;
+        log.debug("slot {} for {}", result, key);
+        return result;
     }
 
 }

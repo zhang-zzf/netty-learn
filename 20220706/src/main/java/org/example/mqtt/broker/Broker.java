@@ -7,6 +7,7 @@ import org.example.mqtt.model.Unsubscribe;
 
 import javax.annotation.Nullable;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -58,6 +59,8 @@ public interface Broker extends AutoCloseable {
 
     @Nullable
     ServerSession session(String clientIdentifier);
+
+    Map<String, ServerSession> sessionMap();
 
     void destroySession(ServerSession session);
 

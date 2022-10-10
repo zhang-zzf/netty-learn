@@ -6,11 +6,11 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
 import org.example.micrometer.utils.MetricUtil;
+import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
-import org.example.mqtt.broker.node.DefaultBroker;
 import org.example.mqtt.broker.node.DefaultServerSession;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Connect;
@@ -40,7 +40,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 public class ClusterBrokerImpl implements ClusterBroker {
 
     private final ClusterDbRepo clusterDbRepo;
-    private final DefaultBroker nodeBroker = new DefaultBroker();
+    private final Broker nodeBroker;
     private Cluster cluster;
 
     /**
@@ -63,8 +63,9 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.info("Broker.nodeId->{}", nodeId);
     }
 
-    public ClusterBrokerImpl(ClusterDbRepo clusterDbRepo) {
+    public ClusterBrokerImpl(ClusterDbRepo clusterDbRepo, Broker nodeBroker) {
         this.clusterDbRepo = clusterDbRepo;
+        this.nodeBroker = nodeBroker;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 close();
@@ -100,6 +101,11 @@ public class ClusterBrokerImpl implements ClusterBroker {
         var session = clusterDbRepo.getSession(clientIdentifier);
         log.debug("Client({}) find session in Cluster: {}", clientIdentifier, session);
         return session;
+    }
+
+    @Override
+    public Map<String, ServerSession> sessionMap() {
+        return nodeBroker.sessionMap();
     }
 
     @Override
@@ -300,7 +306,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     private void closeAllSession0() {
-        for (Map.Entry<String, ServerSession> e : nodeBroker.session().entrySet()) {
+        for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
             ServerSession s = e.getValue();
             if (!s.cleanSession()) {
                 s.close();
@@ -309,7 +315,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public DefaultBroker nodeBroker() {
+    public Broker nodeBroker() {
         return nodeBroker;
     }
 

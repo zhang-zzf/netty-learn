@@ -11,6 +11,7 @@ import org.example.mqtt.broker.cluster.ClusterServerSessionHandler;
 import org.example.mqtt.broker.cluster.infra.redis.ClusterDbRepoImpl;
 import org.example.mqtt.broker.cluster.infra.redis.RedisConfiguration;
 import org.example.mqtt.broker.cluster.node.Cluster;
+import org.example.mqtt.broker.node.DefaultBroker;
 import org.example.mqtt.broker.node.DefaultServerSessionHandler;
 
 import java.util.function.Supplier;
@@ -27,7 +28,8 @@ public class BrokerBootstrap {
         if (!Boolean.getBoolean("spring.enable")) {
             Authenticator authenticator = packet -> 0x00;
             final Cluster cluster = new Cluster();
-            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo());
+            DefaultBroker broker = new DefaultBroker();
+            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), broker);
             startBroker(authenticator, cluster, clusterBroker);
         } else {
             log.info("start BrokerBootstrap with Spring Context");

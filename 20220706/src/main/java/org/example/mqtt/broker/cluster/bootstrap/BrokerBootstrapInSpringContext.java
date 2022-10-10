@@ -6,6 +6,7 @@ import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.node.Cluster;
+import org.example.mqtt.broker.node.DefaultBroker;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
@@ -21,6 +22,7 @@ import static org.example.mqtt.broker.cluster.bootstrap.BrokerBootstrap.startBro
 @Configuration
 @ComponentScan(basePackageClasses = {
         ClusterBroker.class,
+        DefaultBroker.class,
         TimedAopConfiguration.class,
 })
 public class BrokerBootstrapInSpringContext {

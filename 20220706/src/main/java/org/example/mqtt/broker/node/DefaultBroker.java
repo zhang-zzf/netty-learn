@@ -34,7 +34,7 @@ public class DefaultBroker implements Broker {
     }
 
     private void initMetrics() {
-        MetricUtil.gauge("broker.cluster.node.broker.clients", session());
+        MetricUtil.gauge("broker.cluster.node.broker.clients", sessionMap());
     }
 
     @Override
@@ -56,6 +56,7 @@ public class DefaultBroker implements Broker {
         }
     }
 
+    @Timed
     @Override
     public void forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
@@ -88,7 +89,8 @@ public class DefaultBroker implements Broker {
         return brokerState.session(clientIdentifier);
     }
 
-    public Map<String, ServerSession> session() {
+    @Override
+    public Map<String, ServerSession> sessionMap() {
         return brokerState.session();
     }
 

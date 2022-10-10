@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
@@ -59,7 +60,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
 
     static {
         String nodeName = System.getProperty("mqtt.server.cluster.nodeName", "node");
-        nodeId = nodeName + "(" + System.currentTimeMillis() + ")";
+        nodeId = Cluster.clusterNodeId(nodeName);
         log.info("Broker.nodeId->{}", nodeId);
     }
 
@@ -191,16 +192,16 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public void forward(Publish packet) {
+    public int forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
         // Node local forward
-        nodeBroker.forward(packet);
+        int times = nodeBroker.forward(packet);
         // forward to offline Clients
         List<ClusterTopic> clusterTopics = clusterDbRepo.matchTopic(packet.topicName());
         log.debug("Publish({}) match Cluster Topics: {}", packet.topicName(), clusterTopics);
         if (clusterTopics.isEmpty()) {
-            return;
+            return times;
         }
         Set<String> sendNodes = new HashSet<>();
         for (ClusterTopic ct : clusterTopics) {
@@ -214,12 +215,14 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 }
                 // 一个 Node 只转发一次
                 forwardToOtherNode(packet, targetNodeId);
+                times += 1;
             }
             // forward the PublishPacket to offline client's Session.
             for (Map.Entry<String, Integer> e : ct.getOfflineSessions().entrySet()) {
                 forwardToOfflineSession(packet, ct.topicFilter(), e.getKey(), e.getValue());
             }
         }
+        return times;
     }
 
     private void forwardToOtherNode(Publish packet, String targetNodeId) {
@@ -227,7 +230,14 @@ public class ClusterBrokerImpl implements ClusterBroker {
         NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
         Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
-        nodeBroker.forward(nodeMessagePacket);
+        int times = nodeBroker.forward(nodeMessagePacket);
+        if (times == 0) {
+            // target node may be permanently closed or temporary offline
+            if (!cluster.checkNodeOnline(targetNodeId)) {
+                // 移除路由表
+                clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(packet.topicName()));
+            }
+        }
         logMetrics(nm, targetNodeId);
     }
 

@@ -29,4 +29,13 @@ class ClusterTest {
         then(map).containsExactlyEntriesOf(hashMap);
     }
 
+    @Test
+    void givenNodeName_whenBuildId_then() {
+        String nodeName = "node2@zzf";
+        String nodeId = Cluster.clusterNodeId(nodeName);
+        String[] nameAndTime = Cluster.idToNodeNameAndTimestamp(nodeId);
+        then(nameAndTime[0]).isEqualTo(nodeName);
+        then(Long.valueOf(nameAndTime[1])).isLessThan(System.currentTimeMillis());
+    }
+
 }

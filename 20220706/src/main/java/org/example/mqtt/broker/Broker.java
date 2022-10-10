@@ -19,7 +19,7 @@ public interface Broker extends AutoCloseable {
      *
      * @param packet data
      */
-    void forward(Publish packet);
+    int forward(Publish packet);
 
     void connect(ServerSession session);
 

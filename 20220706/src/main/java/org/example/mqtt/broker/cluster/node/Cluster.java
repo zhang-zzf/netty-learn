@@ -51,6 +51,18 @@ public class Cluster implements AutoCloseable {
         initMetricsForNodes();
     }
 
+    public static String clusterNodeId(String nodeName) {
+        return nodeName + "@" + System.currentTimeMillis();
+    }
+
+    public static String[] idToNodeNameAndTimestamp(String nodeId) {
+        int idx = nodeId.lastIndexOf("@");
+        return new String[]{
+                nodeId.substring(0, idx),
+                nodeId.substring(idx + 1)
+        };
+    }
+
     private void initMetricsForNodes() {
         MetricUtil.gauge("broker.cluster.node.nodes", nodes);
     }
@@ -111,6 +123,8 @@ public class Cluster implements AutoCloseable {
             log.info("Cluster.Nodes-> num: {}, nodes: {}", nodes.size(), JSON.toJSONString(nodes.values()));
             // sync Cluster.Nodes immediately.
             publishClusterNodes();
+            // node now is definitely online
+            nodeMayOffline.remove(nodeId);
             return true;
         }
     }
@@ -257,6 +271,42 @@ public class Cluster implements AutoCloseable {
 
     public static String subscribeAllNode() {
         return String.format($_SYS_NODE_PUBLISH_TOPIC, "+", "+");
+    }
+
+
+    private final ConcurrentMap<String, Long> nodeMayOffline = new ConcurrentHashMap<>();
+    // 默认直接判定下线
+    private final long nodeOfflinePeriod = Long.getLong("mqtt.server.cluster.node.offline.period", 32000);
+
+    public boolean checkNodeOnline(String nodeId) {
+        String[] nameAndTime = idToNodeNameAndTimestamp(nodeId);
+        for (String nId : nodes.keySet()) {
+            if (nId.startsWith(nameAndTime[0])) {
+                Long tTime = Long.valueOf(nameAndTime[1]);
+                Long curTime = Long.valueOf(idToNodeNameAndTimestamp(nId)[1]);
+                if (tTime < curTime) {
+                    log.info("checkNodeOnline result-> {} is offline, reason: new same name Node in Cluster", nodeId);
+                    return false;
+                } else if (tTime == curTime) {
+                    return true;
+                } else {
+                    log.error("checkNodeOnline result-> {} nodeId is illegal", nodeId);
+                    return false;
+                }
+            }
+        }
+        // not found in Cluster
+        Long timestamp = nodeMayOffline.get(nodeId);
+        if (timestamp == null) {
+            timestamp = System.currentTimeMillis();
+            nodeMayOffline.put(nodeId, timestamp);
+        }
+        if (System.currentTimeMillis() - timestamp >= nodeOfflinePeriod) {
+            log.info("checkNodeOnline result-> {} is offline, reason: node was offline after {}ms", nodeId, nodeOfflinePeriod);
+            return false;
+        }
+        // 默认在线
+        return true;
     }
 
 }

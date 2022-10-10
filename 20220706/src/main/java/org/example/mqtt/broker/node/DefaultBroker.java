@@ -58,7 +58,8 @@ public class DefaultBroker implements Broker {
 
     @Timed(value = METRIC_NAME, histogram = true)
     @Override
-    public void forward(Publish packet) {
+    public int forward(Publish packet) {
+        int times = 0;
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
         for (Topic topic : brokerState.match(packet.topicName())) {
@@ -71,8 +72,10 @@ public class DefaultBroker implements Broker {
                 Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier);
                 log.debug("Publish({}) forward: {}->{}, {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 session.send(outgoing);
+                times += 1;
             }
         }
+        return times;
     }
 
     public static short packetIdentifier(ServerSession session, int qos) {

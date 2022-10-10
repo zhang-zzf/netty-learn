@@ -31,7 +31,6 @@ import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLO
 import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
 import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
 import static org.example.mqtt.broker.node.DefaultBroker.qoS;
-import static org.example.mqtt.model.Publish.META_P_RECEIVE;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
@@ -237,28 +236,21 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 // 移除路由表
                 clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(packet.topicName()));
             }
+        } else {
+            logMetrics(nm, targetNodeId);
         }
-        logMetrics(nm, targetNodeId);
     }
 
     public static final String METRIC_NAME = "broker.cluster.ClusterBrokerImpl";
 
     private void logMetrics(NodeMessage nm, String targetNodeId) {
         try {
-            Map<String, Object> meta = nm.getMeta();
-            if (meta == null) {
-                return;
-            }
             // Publish.Receive <-> forward to another Broker
-            Long time;
-            if ((time = (Long) meta.get(META_P_RECEIVE)) != null) {
-                time = System.currentTimeMillis() - time;
-                MetricUtil.time(METRIC_NAME, time,
-                        "phase", "packetReceive->forwardToBroker",
-                        "source", nodeId(),
-                        "target", targetNodeId
-                );
-            }
+            MetricUtil.count(METRIC_NAME, 1,
+                    "phase", "packetReceive->forwardToBroker",
+                    "source", nodeId(),
+                    "target", targetNodeId
+            );
         } catch (Exception e) {
             log.error("unExpected Exception", e);
         }

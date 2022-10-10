@@ -130,11 +130,11 @@ public class Cluster implements AutoCloseable {
     }
 
     public void updateNodes(Map<String, String> nodeIdToAddress) {
-        log.debug("Cluster before update: {}", nodes);
+        log.debug("Cluster before update: {}", nodes.values());
         for (Map.Entry<String, String> e : nodeIdToAddress.entrySet()) {
             updateNode(e.getKey(), e.getValue());
         }
-        log.debug("Cluster after update: {}", nodes);
+        log.debug("Cluster after update: {}", nodes.values());
     }
 
     private NodeClient connectNewNode(Node node) {
@@ -209,7 +209,7 @@ public class Cluster implements AutoCloseable {
         boolean nodeAdded = addNode(NODE_ID_UNKNOWN, anotherNodeAddress);
         if (nodeAdded) {
             Map<String, String> localNode = localNodeInfo();
-            log.info("Cluster start sync Local Node with remote Node({})->{}", anotherNodeAddress, localNode);
+            log.info("Cluster start sync Local Node with remote Node-> local: {}, remote: {}", localNode, anotherNodeAddress);
             nodes.get(NODE_ID_UNKNOWN).nodeClient().syncLocalNode(localNode);
             log.info("Cluster sync done");
         }
@@ -242,15 +242,15 @@ public class Cluster implements AutoCloseable {
         }
         nodes.putIfAbsent(nodeId(), new Node(nodeId(), mqttUrl));
         startSyncJob();
-        log.info("Cluster started, Cluster.Nodes->{}", JSON.toJSONString(nodes));
+        log.info("Cluster started, Cluster.Nodes->{}", nodes.values());
         started.set(true);
     }
 
     public void removeNode(Node node) {
         log.info("Cluster remove Node->{}", node);
-        log.info("Cluster.Nodes before remove->{}", JSON.toJSONString(nodes));
+        log.info("Cluster.Nodes before remove->{}", nodes.values());
         nodes.remove(node.id(), node);
-        log.info("Cluster.Nodes after remove->{}", JSON.toJSONString(nodes));
+        log.info("Cluster.Nodes after remove->{}", nodes.values());
     }
 
     public static String nodeListenTopic(String localNodeId) {

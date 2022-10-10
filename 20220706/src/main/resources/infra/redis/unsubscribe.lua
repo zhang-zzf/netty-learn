@@ -53,7 +53,10 @@ local function dfs(topicLevels, curLevel, parent)
     -- 2. 没有订阅者（集群路由信息）
     -- 3. 没有离线订阅者（cleanSession0 离线订阅）
     if (redis.call('EXISTS', childPath) == 0) then
-        local childTopicPath = string.gsub(childPath, "_", "")
+        -- {topic}_/abc_/de_ -> {topic}/abc/de
+        -- {to_pic}_/abc_/de_ -> {to_pic}/abc/de
+        -- {to_pic}_/_ab_c__/de__ -> {to_pic}/_ab_c_/de_
+        local childTopicPath  = string.sub(string.gsub(childPath, "_/", "/"), 1, -2)
         if (redis.call('EXISTS', childTopicPath) == 0
                 and redis.call('EXISTS', childTopicPath .. ":off") == 0) then
             redis.call('SREM', parent, child)

@@ -166,7 +166,6 @@ public class ClusterServerSession extends DefaultServerSession {
         return (ClusterBroker) super.broker();
     }
 
-
     public Short outQueuePacketIdentifier() {
         return outQueuePacketIdentifier;
     }

@@ -11,7 +11,6 @@ import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
-import org.example.mqtt.broker.node.DefaultServerSession;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
@@ -117,7 +116,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
             // 清除 cluster leven Session
             clusterDbRepo.deleteSession(css);
             log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
-        } else if (session instanceof DefaultServerSession) {
+        } else if (session instanceof NodeServerSession) {
             nodeBroker.destroySession(session);
         } else {
             throw new UnsupportedOperationException();
@@ -168,7 +167,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     /**
      * 清理路由表
      */
-    private void removeNodeFromTopic(Set<Subscribe.Subscription> subscriptions) {
+    @Override
+    public void removeNodeFromTopic(Set<Subscribe.Subscription> subscriptions) {
         List<String> topicToRemove = subscriptions.stream()
                 .map(Subscribe.Subscription::topicFilter)
                 .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
@@ -301,8 +301,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
             log.info("Broker is closing.");
             return;
         }
-        log.info("Broker now try to shutdown Session(cleanSession=0)");
-        closeAllSession0();
+        log.info("Broker now try to close all Session");
+        closeAllSession();
         // close the Cluster
         log.info("Broker now try to shutdown Cluster");
         cluster.close();
@@ -315,12 +315,9 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.info("Broker is closed.");
     }
 
-    private void closeAllSession0() {
+    private void closeAllSession() {
         for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
-            ServerSession s = e.getValue();
-            if (!s.cleanSession()) {
-                s.close();
-            }
+            e.getValue().close();
         }
     }
 
@@ -384,8 +381,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     @Override
     public ServerSession createSession(Connect connect) {
         if (connect.cleanSession()) {
-            log.debug("Broker now try create a new DefaultServerSession");
-            return DefaultServerSession.from(connect);
+            log.debug("Broker now try create a new NodeServerSession");
+            return NodeServerSession.from(connect);
         } else {
             log.debug("Broker now try create a new ClusterServerSession");
             return ClusterServerSession.from(connect);

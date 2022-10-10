@@ -231,7 +231,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         logMetrics(nm, targetNodeId);
     }
 
-    public static final String METRIC_NAME = ClusterBrokerImpl.class.getName();
+    public static final String METRIC_NAME = "broker.cluster.ClusterBrokerImpl";
 
     private void logMetrics(NodeMessage nm, String targetNodeId) {
         try {
@@ -331,7 +331,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    @Timed(histogram = true)
+    @Timed(value = METRIC_NAME, histogram = true)
     public void handlePublish(Publish packet) {
         // $SYS/# 特殊处理. 发送给 Broker 的 $SYS/# 消息，不做转发
         if (packet.topicName().startsWith("$SYS")) {
@@ -388,7 +388,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public void disconnectFromNodeBroker(ClusterServerSession session) {
+    public void disconnectSessionFromNode(ClusterServerSession session) {
         session.nodeId(null);
         clusterDbRepo.saveSession(session);
         // important: 1 must be executed before 2

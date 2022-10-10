@@ -56,7 +56,7 @@ public class DefaultBroker implements Broker {
         }
     }
 
-    @Timed
+    @Timed(value = METRIC_NAME, histogram = true)
     @Override
     public void forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
@@ -145,8 +145,9 @@ public class DefaultBroker implements Broker {
         return brokerState.matchRetain(topicFilter);
     }
 
+    public static final String METRIC_NAME = "broker.node.DefaultBroker";
+
     @Override
-    @Timed
     public void handlePublish(Publish packet) {
         // retain message
         if (packet.retain()) {

@@ -16,6 +16,6 @@ public interface ClusterBroker extends Broker {
 
     ClusterDbRepo clusterDbRepo();
 
-    void disconnectFromNodeBroker(ClusterServerSession session);
+    void disconnectSessionFromNode(ClusterServerSession session);
 
 }

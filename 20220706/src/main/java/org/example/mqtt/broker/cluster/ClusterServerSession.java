@@ -138,7 +138,7 @@ public class ClusterServerSession extends DefaultServerSession {
             log.debug("Cluster now try to disconnect this Session from Node->{}", this);
             // 保存 tail
             this.outQueuePacketIdentifier = ((ClusterDbQueue) outQueue()).tailPacketIdentifier();
-            broker().disconnectFromNodeBroker(this);
+            broker().disconnectSessionFromNode(this);
             log.debug("the cleanSession=0 Session was disconnected from this Node");
         }
     }

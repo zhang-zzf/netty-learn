@@ -255,6 +255,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             MetricUtil.time(METRIC_NAME, nmWrap - pReceive, "phase", "packetReceive->nmWrap");
             MetricUtil.time(METRIC_NAME, nmReceive - nmWrap, "phase", "nmWrap->nmReceive");
             MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
+            MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->nm->packetSent");
+        } else {
+            MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->.->packetSent");
         }
         // Public come from Client directly or through another Broker
         // the whole time between Publish.Receive from Client and forward to another Client.

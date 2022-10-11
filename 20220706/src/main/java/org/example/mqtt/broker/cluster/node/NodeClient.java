@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.cluster.node;
 
+import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
@@ -28,18 +29,17 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
     private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
-    private static final ExecutorService DEFAULT_EXECUTOR = new ThreadPoolExecutor(
+
+    private ExecutorService executorService = new ThreadPoolExecutor(
             CPU_NUM, CPU_NUM * 2, 60, TimeUnit.SECONDS,
             new LinkedBlockingDeque<>(CPU_NUM),
+            new DefaultThreadFactory(NodeClient.class.getSimpleName(), false),
             new ThreadPoolExecutor.CallerRunsPolicy()
     );
-
-    private ExecutorService executorService;
 
     public NodeClient(Node node, Cluster cluster) {
         this.node = node;
         this.cluster = cluster;
-        this.executorService = DEFAULT_EXECUTOR;
         String clientIdentifier = cluster.broker().nodeId() + "/" + clientIdentifierCounter.getAndIncrement();
         this.client = new Client(clientIdentifier, node.address(), this);
         initSubscribe();
@@ -184,6 +184,10 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     @Override
     public void close() throws Exception {
         log.info("NodeClient({}) now try to close", this);
+        executorService.shutdown();
+        while (!executorService.isTerminated()) {
+            executorService.awaitTermination(60, TimeUnit.SECONDS);
+        }
         client.close();
     }
 

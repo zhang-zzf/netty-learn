@@ -2,6 +2,7 @@ package org.example.mqtt.broker.cluster;
 
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
@@ -47,14 +48,14 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private Cluster cluster;
 
     private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
-    private static final ExecutorService DEFAULT_EXECUTOR = new ThreadPoolExecutor(
+
+    private ExecutorService executorService = new ThreadPoolExecutor(
             1, CPU_NUM, 60, TimeUnit.SECONDS,
             new LinkedBlockingDeque<>(CPU_NUM),
+            new DefaultThreadFactory(ClusterBrokerImpl.class.getSimpleName(), true),
             // just discard the task, wait for the next check
             new ThreadPoolExecutor.DiscardPolicy()
     );
-
-    private ExecutorService executorService = DEFAULT_EXECUTOR;
 
     /**
      * <pre>

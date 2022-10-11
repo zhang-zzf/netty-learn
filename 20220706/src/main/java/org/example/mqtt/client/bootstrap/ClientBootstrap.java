@@ -91,8 +91,9 @@ public class ClientBootstrap {
                                 clientCnt.getAndDecrement();
                             });
                         }
+                        Thread.sleep(Long.getLong("client.startup.sleep", 2));
                     } catch (Throwable e) {
-                        log.debug("connect to remote server failed", e);
+                        log.error("connect to remote server failed", e);
                         try {
                             Thread.sleep(1000);
                         } catch (InterruptedException interruptedException) {

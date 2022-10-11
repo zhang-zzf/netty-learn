@@ -35,7 +35,7 @@ class ClusterTest {
         String nodeId = Cluster.clusterNodeId(nodeName);
         String[] nameAndTime = Cluster.idToNodeNameAndTimestamp(nodeId);
         then(nameAndTime[0]).isEqualTo(nodeName);
-        then(Long.valueOf(nameAndTime[1])).isLessThan(System.currentTimeMillis());
+        then(Long.valueOf(nameAndTime[1])).isLessThanOrEqualTo(System.currentTimeMillis());
     }
 
 }

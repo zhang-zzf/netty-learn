@@ -206,10 +206,10 @@ public class ClientBootstrap {
         @Override
         public void channelActive(ChannelHandlerContext ctx) throws Exception {
             String[] ipAndPort = ctx.channel().localAddress().toString().substring(1).split(":");
-            // client_127.0.0.1/51324
-            String clientIdentifier = "client_" + ipAndPort[0] + "/" + ipAndPort[1];
+            // client_127.0.0.1_51324
+            String clientIdentifier = "client_" + ipAndPort[0] + "_" + ipAndPort[1];
             // 监听的 topic 是下一个client
-            listenedTopicFilter = "client_" + ipAndPort[0] + "/" + (Integer.valueOf(ipAndPort[1]) + 1) + "/#";
+            listenedTopicFilter = "client_" + ipAndPort[0] + "_" + (Integer.valueOf(ipAndPort[1]) + 1) + "/#";
             session = new ClientTestSession(clientIdentifier);
             // bind the channel
             session.bind(ctx.channel());
@@ -254,7 +254,7 @@ public class ClientBootstrap {
                             .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);
-                    // topic -> client_127.0.0.1/51322/publish
+                    // topic -> client_127.0.0.1_51322/publish
                     String topic = session.clientIdentifier() + "/publish";
                     session.send(Publish.outgoing(false, sendQos, false, topic,
                             session.nextPacketIdentifier(), packet));

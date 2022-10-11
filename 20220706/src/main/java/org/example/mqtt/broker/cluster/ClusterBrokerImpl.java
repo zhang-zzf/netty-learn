@@ -20,6 +20,10 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 import java.util.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
@@ -41,6 +45,16 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private final ClusterDbRepo clusterDbRepo;
     private final Broker nodeBroker;
     private Cluster cluster;
+
+    private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
+    private static final ExecutorService DEFAULT_EXECUTOR = new ThreadPoolExecutor(
+            1, CPU_NUM, 60, TimeUnit.SECONDS,
+            new LinkedBlockingDeque<>(CPU_NUM),
+            // just discard the task, wait for the next check
+            new ThreadPoolExecutor.DiscardPolicy()
+    );
+
+    private ExecutorService executorService = DEFAULT_EXECUTOR;
 
     /**
      * <pre>
@@ -231,13 +245,22 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
         int times = nodeBroker.forward(nodeMessagePacket);
         if (times == 0) {
-            // target node may be permanently closed or temporary offline
-            if (!cluster.checkNodeOnline(targetNodeId)) {
-                // 移除路由表
-                clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(packet.topicName()));
-            }
+            asyncRemoveNodeFromTopic(packet, targetNodeId);
         } else {
             logMetrics(nm, targetNodeId);
+        }
+    }
+
+
+    private void asyncRemoveNodeFromTopic(Publish packet, String targetNodeId) {
+        executorService.submit(() -> removeNodeFromTopic(packet, targetNodeId));
+    }
+
+    private void removeNodeFromTopic(Publish packet, String targetNodeId) {
+        // target node may be permanently closed or temporary offline
+        if (!cluster.checkNodeOnline(targetNodeId)) {
+            // 移除路由表
+            clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(packet.topicName()));
         }
     }
 

@@ -49,6 +49,7 @@ public class BrokerBootstrap {
             startServer(packet -> 0x00, new DefaultBroker());
         } else {
             // start with spring context
+            log.info("BrokerBootstrap in spring context");
             BrokerBootstrapInSpringContext.main(args);
         }
     }

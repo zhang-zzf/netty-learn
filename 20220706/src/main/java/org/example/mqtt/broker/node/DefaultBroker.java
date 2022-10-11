@@ -11,6 +11,8 @@ import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
@@ -31,6 +33,7 @@ public class DefaultBroker implements Broker {
 
     public DefaultBroker() {
         initMetrics();
+        this.self = this;
     }
 
     private void initMetrics() {
@@ -157,7 +160,7 @@ public class DefaultBroker implements Broker {
             retain(packet);
         }
         // Broker forward Publish to relative topic after receive a PublishPacket
-        forward(packet);
+        self.forward(packet);
     }
 
     @Override
@@ -173,6 +176,16 @@ public class DefaultBroker implements Broker {
     public void close() throws Exception {
         // Server was started by the Broker
         // So it should not be closed by the Broker
+    }
+
+    /**
+     * use for Aop proxy
+     */
+    private Broker self;
+
+    @Autowired
+    public void setSelf(@Qualifier("defaultBroker") Broker self) {
+        this.self = self;
     }
 
 }

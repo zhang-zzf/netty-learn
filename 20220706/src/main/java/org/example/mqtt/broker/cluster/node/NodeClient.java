@@ -13,7 +13,7 @@ import org.example.mqtt.model.Subscribe;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.example.mqtt.broker.cluster.node.Cluster.*;
@@ -27,9 +27,19 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final Node node;
     private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
+    private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
+    private static final ExecutorService DEFAULT_EXECUTOR = new ThreadPoolExecutor(
+            CPU_NUM, CPU_NUM * 2, 60, TimeUnit.SECONDS,
+            new LinkedBlockingDeque<>(CPU_NUM),
+            new ThreadPoolExecutor.CallerRunsPolicy()
+    );
+
+    private ExecutorService executorService;
+
     public NodeClient(Node node, Cluster cluster) {
         this.node = node;
         this.cluster = cluster;
+        this.executorService = DEFAULT_EXECUTOR;
         String clientIdentifier = cluster.broker().nodeId() + "/" + clientIdentifierCounter.getAndIncrement();
         this.client = new Client(clientIdentifier, node.address(), this);
         initSubscribe();
@@ -74,7 +84,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private void doHandleNodeMessage(NodeMessage m) {
         switch (m.getPacket()) {
             case ACTION_PUBLISH_FORWARD:
-                doHandleActionPublishForward(m);
+                doAsyncHandleActionPublishForward(m);
                 break;
             case INFO_CLUSTER_NODES:
                 doHandleInfoClusterNodes(m);
@@ -106,6 +116,11 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         Map<String, String> state = m.unwrapClusterNodes();
         log.debug("NodeClient receive Cluster.Nodes: {}", state);
         cluster.updateNodes(state);
+    }
+
+    private void doAsyncHandleActionPublishForward(NodeMessage m) {
+        // forward Publish
+        executorService.submit(() -> doHandleActionPublishForward(m));
     }
 
     private void doHandleActionPublishForward(NodeMessage m) {
@@ -170,6 +185,10 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     public void close() throws Exception {
         log.info("NodeClient({}) now try to close", this);
         client.close();
+    }
+
+    public void setExecutorService(ExecutorService executorService) {
+        this.executorService = executorService;
     }
 
 }

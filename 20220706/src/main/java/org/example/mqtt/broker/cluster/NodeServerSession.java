@@ -22,7 +22,7 @@ public class NodeServerSession extends DefaultServerSession {
 
     // must be static
     private static ExecutorService executorService = new ThreadPoolExecutor(
-            1, CPU_NUM, 60, TimeUnit.SECONDS,
+            1, CPU_NUM * 16, 60, TimeUnit.SECONDS,
             new LinkedBlockingDeque<>(CPU_NUM),
             new DefaultThreadFactory(NodeServerSession.class.getSimpleName(), true),
             // just discard the task, wait for the next check
@@ -38,11 +38,19 @@ public class NodeServerSession extends DefaultServerSession {
                 .reInitWith(connect);
     }
 
+    private volatile boolean topicCleared = false;
+
     @Override
     public void channelClosed() {
         super.channelClosed();
         // 清除路由表，非内存操作，切异步线程池处理
-        executorService.submit(()-> broker().removeNodeFromTopic(subscriptions()));
+        if (!topicCleared) {
+            executorService.submit(() -> {
+                broker().removeNodeFromTopic(subscriptions());
+                log.info("NodeServerSession#channelClosed-> subscriptions: {}", subscriptions);
+            });
+            topicCleared = true;
+        }
     }
 
     @Override

@@ -82,7 +82,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         this.nodeBroker = nodeBroker;
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                close();
+                shutdownGracefully();
             } catch (Exception e) {
                 log.error("unExpected exception", e);
             }
@@ -228,7 +228,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
                     continue;
                 }
                 // 一个 Node 只转发一次
-                forwardToOtherNode(packet, targetNodeId);
+                forwardToOtherNode(packet, ct, targetNodeId);
                 times += 1;
             }
             // forward the PublishPacket to offline client's Session.
@@ -239,29 +239,30 @@ public class ClusterBrokerImpl implements ClusterBroker {
         return times;
     }
 
-    private void forwardToOtherNode(Publish packet, String targetNodeId) {
+    private void forwardToOtherNode(Publish packet, ClusterTopic ct, String targetNodeId) {
         String topicName = nodeListenTopic(targetNodeId);
         NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
         Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
         log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
         int times = nodeBroker.forward(nodeMessagePacket);
         if (times == 0) {
-            asyncRemoveNodeFromTopic(packet, targetNodeId);
+            asyncRemoveNodeFromTopic(ct, targetNodeId);
         } else {
             logMetrics(nm, targetNodeId);
         }
     }
 
 
-    private void asyncRemoveNodeFromTopic(Publish packet, String targetNodeId) {
-        executorService.submit(() -> removeNodeFromTopic(packet, targetNodeId));
+    private void asyncRemoveNodeFromTopic(ClusterTopic ct, String targetNodeId) {
+        executorService.submit(() -> removeNodeFromTopic(ct, targetNodeId));
     }
 
-    private void removeNodeFromTopic(Publish packet, String targetNodeId) {
+    private void removeNodeFromTopic(ClusterTopic ct, String targetNodeId) {
         // target node may be permanently closed or temporary offline
         if (!cluster.checkNodeOnline(targetNodeId)) {
+            log.info("removeNodeFromTopic->nodeId: {}, topic: {}, curCluster: {}", targetNodeId, ct.topicFilter(), cluster.nodes().values());
             // 移除路由表
-            clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(packet.topicName()));
+            clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(ct.topicFilter()));
         }
     }
 
@@ -334,6 +335,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private void closeAllSession() {
         for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
             e.getValue().close();
+            log.info("closeAllSession-> {}", e.getValue());
         }
     }
 

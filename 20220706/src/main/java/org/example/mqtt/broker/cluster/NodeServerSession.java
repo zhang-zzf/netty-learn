@@ -26,7 +26,7 @@ public class NodeServerSession extends DefaultServerSession {
             new LinkedBlockingDeque<>(CPU_NUM),
             new DefaultThreadFactory(NodeServerSession.class.getSimpleName(), true),
             // just discard the task, wait for the next check
-            new ThreadPoolExecutor.DiscardPolicy()
+            new ThreadPoolExecutor.CallerRunsPolicy()
     );
 
     public NodeServerSession(String clientIdentifier) {

@@ -44,7 +44,7 @@ public class Cluster implements AutoCloseable {
     private ScheduledThreadPoolExecutor scheduledExecutorService;
     private volatile ScheduledFuture<?> syncJob;
 
-    private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 300);
+    private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 1);
 
     public Cluster() {
         // init metric for nodes

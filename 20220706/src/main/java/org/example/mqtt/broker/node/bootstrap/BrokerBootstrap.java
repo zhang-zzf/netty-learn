@@ -105,9 +105,9 @@ public class BrokerBootstrap {
                                                    Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         // 配置 websocket tls bootstrap
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttOverSecureWebsocket");
+        DefaultThreadFactory workerTF = new DefaultThreadFactory("wss-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-mqttOverSecureWebsocket");
+        DefaultThreadFactory bossTF = new DefaultThreadFactory("wss-boss");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
@@ -140,9 +140,9 @@ public class BrokerBootstrap {
 
     private static Channel mqttOverWebsocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-mqttOverWebsocket");
+        DefaultThreadFactory bossTF = new DefaultThreadFactory("ws-worker");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttOverWebSocket");
+        DefaultThreadFactory workerTF = new DefaultThreadFactory("ws-boss");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()
@@ -170,9 +170,9 @@ public class BrokerBootstrap {
     private static Channel secureMqttServer(InetSocketAddress address,
                                             Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-secureMqtt");
+        DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtts-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-secureMqtt");
+        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtts-boss");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
@@ -206,9 +206,9 @@ public class BrokerBootstrap {
     private static Channel mqttServer(InetSocketAddress address,
                                       Supplier<DefaultServerSessionHandler> handlerSupplier) {
         int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("netty-boss-mqttServer");
+        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("netty-worker-mqttServer");
+        DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtt-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()

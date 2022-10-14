@@ -4,7 +4,6 @@ import com.alibaba.fastjson.JSON;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.config.MicroMeterConfiguration;
 import org.example.mqtt.broker.cluster.infra.redis.ClusterDbRepoImplPressure;
-import org.example.mqtt.broker.metrics.BrokerBootstrapWithMetrics;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.client.bootstrap.ClientBootstrap;
 
@@ -32,12 +31,6 @@ public class Application {
         }
         if (Boolean.getBoolean("mqtt.client.mode")) {
             new Thread(() -> ClientBootstrap.main(args), "bootstrap-thread").start();
-            return;
-        }
-        if (Boolean.getBoolean("mqtt.server.metrics")) {
-            // Server metric mode (just for Node mode)
-            BrokerBootstrapWithMetrics.main(args);
-            // 启动 MicroMeter 打点框架
             return;
         }
         // Server Node mode

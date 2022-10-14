@@ -3,7 +3,6 @@ package org.example.mqtt.broker.node;
 import io.micrometer.core.annotation.Timed;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
@@ -32,12 +31,7 @@ public class DefaultBroker implements Broker {
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
 
     public DefaultBroker() {
-        initMetrics();
         this.self = this;
-    }
-
-    private void initMetrics() {
-        MetricUtil.gauge("broker.cluster.node.broker.clients", sessionMap());
     }
 
     @Override

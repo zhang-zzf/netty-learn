@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.node;
 
 import lombok.extern.slf4j.Slf4j;
+import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
@@ -36,6 +37,15 @@ public class DefaultBrokerState {
      * topicName <-> Publish
      */
     private final ConcurrentMap<String, Publish> retainedPublish = new ConcurrentHashMap<>();
+
+    public DefaultBrokerState() {
+        initMetrics();
+    }
+
+    private void initMetrics() {
+        MetricUtil.gauge("broker.cluster.node.broker.clients", sessionMap);
+    }
+
 
     public ServerSession session(String clientIdentifier) {
         return sessionMap.get(clientIdentifier);

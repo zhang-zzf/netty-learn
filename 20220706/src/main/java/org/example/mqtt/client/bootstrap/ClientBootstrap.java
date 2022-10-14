@@ -259,7 +259,7 @@ public class ClientBootstrap {
                     String topic = session.clientIdentifier() + "/publish";
                     session.send(Publish.outgoing(false, sendQos, false, topic,
                             session.nextPacketIdentifier(), packet));
-                }, 1, period, TimeUnit.SECONDS);
+                }, period, period, TimeUnit.MILLISECONDS);
             } else {
                 session.onPacket(cp);
             }

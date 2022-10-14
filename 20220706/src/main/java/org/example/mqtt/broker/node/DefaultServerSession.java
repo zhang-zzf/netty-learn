@@ -110,6 +110,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     protected boolean onPublish(Publish packet) {
+        // todo consul 配置中心控制是否进 Broker 转发消息
+        //  可以按 clientIdentifier/ Publish.topicName / TopicFilter 匹配
+        //  如 topicName 匹配 +/gps
         broker.handlePublish(packet);
         return true;
     }

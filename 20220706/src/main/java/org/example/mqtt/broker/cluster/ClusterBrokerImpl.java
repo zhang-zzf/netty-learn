@@ -208,27 +208,29 @@ public class ClusterBrokerImpl implements ClusterBroker {
     public int forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
-        // Node local forward
-        int times = nodeBroker.forward(packet);
+        int times = 0;
         // forward to offline Clients
         List<ClusterTopic> clusterTopics = clusterDbRepo.matchTopic(packet.topicName());
         log.debug("Publish({}) match Cluster Topics: {}", packet.topicName(), clusterTopics);
         if (clusterTopics.isEmpty()) {
             return times;
         }
-        Set<String> sendNodes = new HashSet<>();
+        // todo Set 替代方案
+        Set<String> sendNodes = new HashSet<>(4);
         for (ClusterTopic ct : clusterTopics) {
             // forward to another Node in the cluster
             for (String targetNodeId : ct.getNodes()) {
-                if (nodeId().equals(targetNodeId)) {
-                    continue;
-                }
+                // 一个 Node 只转发一次
                 if (!sendNodes.add(targetNodeId)) {
                     continue;
                 }
-                // 一个 Node 只转发一次
-                forwardToOtherNode(packet, ct, targetNodeId);
-                times += 1;
+                if (nodeId().equals(targetNodeId)) {
+                    // Node local forward
+                    times += nodeBroker.forward(packet);
+                } else {
+                    forwardToOtherNode(packet, ct, targetNodeId);
+                    times += 1;
+                }
             }
             // forward the PublishPacket to offline client's Session.
             for (Map.Entry<String, Integer> e : ct.getOfflineSessions().entrySet()) {
@@ -241,7 +243,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private void forwardToOtherNode(Publish packet, ClusterTopic ct, String targetNodeId) {
         // 先随机挑一个通道转发
         String topicName = cluster.pickOneChannelToNode(targetNodeId);
-        boolean forwarded  = doForwardToOtherNode(packet, targetNodeId, topicName);
+        boolean forwarded = doForwardToOtherNode(packet, targetNodeId, topicName);
         if (forwarded) {
             return;
         }

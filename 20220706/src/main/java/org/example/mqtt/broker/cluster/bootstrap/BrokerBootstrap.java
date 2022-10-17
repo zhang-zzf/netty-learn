@@ -46,7 +46,7 @@ public class BrokerBootstrap {
         org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
         // 开启集群节点信息同步
         // broker join the Cluster
-        cluster.join(clusterBroker).start();
+        cluster.bind(clusterBroker).start();
         String anotherNode = System.getProperty("mqtt.server.cluster.join");
         if (anotherNode != null) {
             log.info("Cluster try to connect to another Node->{}", anotherNode);

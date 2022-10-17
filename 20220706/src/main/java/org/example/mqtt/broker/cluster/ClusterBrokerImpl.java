@@ -30,7 +30,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
-import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
 import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
@@ -240,18 +239,37 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     private void forwardToOtherNode(Publish packet, ClusterTopic ct, String targetNodeId) {
-        String topicName = nodeListenTopic(targetNodeId);
-        NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
-        Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
-        log.debug("forward Publish to other Node->Node:{}, through {}", targetNodeId, topicName);
-        int times = nodeBroker.forward(nodeMessagePacket);
-        if (times == 0) {
+        // 先随机挑一个通道转发
+        String topicName = cluster.pickOneChannelToNode(targetNodeId);
+        boolean forwarded  = doForwardToOtherNode(packet, targetNodeId, topicName);
+        if (forwarded) {
+            return;
+        }
+        // 兜底遍历所有通道转发
+        Set<String> clientIdentifiers = cluster.channelsToNode(targetNodeId);
+        for (String cId : clientIdentifiers) {
+            forwarded = doForwardToOtherNode(packet, targetNodeId, cId);
+            // should forward the packet only once;
+            if (forwarded) {
+                break;
+            }
+        }
+        if (!forwarded) {
             asyncRemoveNodeFromTopic(ct, targetNodeId);
-        } else {
-            logMetrics(nm, targetNodeId);
         }
     }
 
+    private boolean doForwardToOtherNode(Publish packet, String targetNodeId, String topicName) {
+        NodeMessage nm = NodeMessage.wrapPublish(nodeId(), packet);
+        Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
+        log.debug("forward Publish to other Node-> Node: {}, through topic: {}", targetNodeId, topicName);
+        int times = nodeBroker.forward(nodeMessagePacket);
+        if (times > 0) {
+            logMetrics(nm, targetNodeId);
+            return true;
+        }
+        return false;
+    }
 
     private void asyncRemoveNodeFromTopic(ClusterTopic ct, String targetNodeId) {
         executorService.submit(() -> removeNodeFromTopic(ct, targetNodeId));
@@ -377,9 +395,9 @@ public class ClusterBrokerImpl implements ClusterBroker {
         NodeMessage m = NodeMessage.fromBytes(packet.payload());
         switch (m.getPacket()) {
             case INFO_CLUSTER_NODES:
-                Map<String, String> state = m.unwrapClusterNodes();
+                Set<NodeMessage.NodeInfo> state = m.unwrapClusterNodes();
                 log.info("Broker receive Cluster.Nodes->{}", state);
-                cluster.updateNodes(state);
+                cluster.updateNodes(m.getNodeId(), state);
                 break;
             case ACTION_BROKER_CLOSE:
                 log.info("Broker receive shutdown Instruction");

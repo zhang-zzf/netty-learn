@@ -21,6 +21,8 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
 
     private final Client client;
 
+    private volatile boolean clientClosed = false;
+
     public DefaultClientSession(Client client) {
         super(client.clientIdentifier());
         this.client = client;
@@ -97,7 +99,10 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
 
     @Override
     public void channelClosed() {
-        client.disconnected();
+        if (!clientClosed) {
+            clientClosed = true;
+            client.disconnected();
+        }
     }
 
 }

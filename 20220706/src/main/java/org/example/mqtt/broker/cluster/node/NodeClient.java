@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
-import io.netty.util.concurrent.DefaultThreadFactory;
+import io.netty.buffer.ByteBuf;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
@@ -13,11 +14,12 @@ import org.example.mqtt.model.Subscribe;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Map;
-import java.util.concurrent.*;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static org.example.mqtt.broker.cluster.node.Cluster.*;
+import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_TOPIC;
+import static org.example.mqtt.broker.cluster.node.Cluster.subscribeAllNode;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 
 @Slf4j
@@ -25,34 +27,27 @@ public class NodeClient implements MessageHandler, AutoCloseable {
 
     private final Client client;
     private final Cluster cluster;
-    private final Node node;
+    private final Node remoteNode;
+    @Getter
+    private final String clientIdentifier;
     private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
-    private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
-
-    private ExecutorService executorService = new ThreadPoolExecutor(
-            CPU_NUM, CPU_NUM * 2, 60, TimeUnit.SECONDS,
-            new LinkedBlockingDeque<>(CPU_NUM),
-            new DefaultThreadFactory(NodeClient.class.getSimpleName(), false),
-            new ThreadPoolExecutor.CallerRunsPolicy()
-    );
-
-    public NodeClient(Node node, Cluster cluster) {
-        this.node = node;
+    public NodeClient(Node remoteNode, Cluster cluster) {
+        this.clientIdentifier = String.format($_SYS_NODE_TOPIC,
+                cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
+        this.remoteNode = remoteNode;
         this.cluster = cluster;
-        String clientIdentifier = cluster.broker().nodeId() + "/" + clientIdentifierCounter.getAndIncrement();
-        this.client = new Client(clientIdentifier, node.address(), this);
+        this.client = new Client(clientIdentifier, remoteNode.address(), this);
         initSubscribe();
     }
 
     private void initSubscribe() {
-        String subscribeOnlyMyself = nodeListenTopic(broker().nodeId());
         Subscribe.Subscription nodeSubscription =
-                new Subscribe.Subscription(subscribeOnlyMyself, Publish.EXACTLY_ONCE);
+                new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
         Subscribe.Subscription clusterNodes =
                 new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
         List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription, clusterNodes);
-        log.debug("NodeClient try to subscribe: {}", sub);
+        log.info("NodeClient try to subscribe: {}", sub);
         client.syncSubscribe(sub);
     }
 
@@ -84,7 +79,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private void doHandleNodeMessage(NodeMessage m) {
         switch (m.getPacket()) {
             case ACTION_PUBLISH_FORWARD:
-                doAsyncHandleActionPublishForward(m);
+                doHandleActionPublishForward(m);
                 break;
             case INFO_CLUSTER_NODES:
                 doHandleInfoClusterNodes(m);
@@ -113,14 +108,9 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     private void doHandleInfoClusterNodes(NodeMessage m) {
-        Map<String, String> state = m.unwrapClusterNodes();
+        Set<NodeInfo> state = m.unwrapClusterNodes();
         log.debug("NodeClient receive Cluster.Nodes: {}", state);
-        cluster.updateNodes(state);
-    }
-
-    private void doAsyncHandleActionPublishForward(NodeMessage m) {
-        // forward Publish
-        executorService.submit(() -> doHandleActionPublishForward(m));
+        cluster.updateNodes(m.getNodeId(), state);
     }
 
     private void doHandleActionPublishForward(NodeMessage m) {
@@ -151,48 +141,34 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     @Override
     public void clientClosed() {
         log.info("NodeClient({}) clientClosed", this);
-        cluster.removeNode(node);
-    }
-
-    private String cId() {
-        return broker().nodeId();
-    }
-
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("{");
-        if (node != null) {
-            sb.append("\"node\":");
-            String objectStr = node.toString().trim();
-            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
-                sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
-                sb.append(objectStr);
-            } else {
-                sb.append("\"").append(objectStr).append("\"");
-            }
-            sb.append(',');
+        boolean removed = remoteNode.removeNodeClient(this);
+        if (!removed) {
+            log.error("NodeClient({}) remove from Node failed-> Node{}", this, remoteNode);
+            return;
         }
-        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
-    public void syncLocalNode(Map<String, String> nodes) throws ExecutionException, InterruptedException {
-        NodeMessage nm = wrapClusterNodes(broker().nodeId(), nodes);
-        client.syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
+        log.info("NodeClient({}) removed from Node-> Node{}", this, remoteNode);
+        if (remoteNode.nodeClientsCnt() == 0) {
+            cluster.removeNode(remoteNode);
+        }
     }
 
     @Override
     public void close() throws Exception {
         log.info("NodeClient({}) now try to close", this);
-        executorService.shutdown();
-        while (!executorService.isTerminated()) {
-            executorService.awaitTermination(60, TimeUnit.SECONDS);
-        }
         client.close();
     }
 
-    public void setExecutorService(ExecutorService executorService) {
-        this.executorService = executorService;
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        if (clientIdentifier != null) {
+            sb.append("\"clientIdentifier\":\"").append(clientIdentifier).append('\"').append(',');
+        }
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public void syncSend(int qos, String topic, ByteBuf payload) throws ExecutionException, InterruptedException {
+        client.syncSend(qos, topic, payload);
     }
 
 }

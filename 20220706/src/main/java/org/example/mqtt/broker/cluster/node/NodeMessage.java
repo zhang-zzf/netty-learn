@@ -1,15 +1,13 @@
 package org.example.mqtt.broker.cluster.node;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.TypeReference;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
+import lombok.experimental.Accessors;
 import org.example.mqtt.model.Publish;
 
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static io.netty.buffer.ByteBufUtil.getBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -84,18 +82,16 @@ public class NodeMessage {
         return payload;
     }
 
-    public static NodeMessage wrapClusterNodes(String nodeId, Map<String, String> nodes) {
+    public static NodeMessage wrapClusterNodes(String localNodeId, Set<NodeInfo> nodes) {
         NodeMessage nm = new NodeMessage();
-        nm.setNodeId(nodeId);
+        nm.setNodeId(localNodeId);
         nm.setPacket(INFO_CLUSTER_NODES);
         nm.setPayload(JSON.toJSONString(nodes));
         return nm;
     }
 
-    public Map<String, String> unwrapClusterNodes() {
-        return JSON.parseObject(payload,
-                new TypeReference<Map<String, String>>() {
-                });
+    public Set<NodeInfo> unwrapClusterNodes() {
+        return new HashSet<>(JSON.parseArray(payload, NodeInfo.class));
     }
 
     @Override
@@ -142,5 +138,39 @@ public class NodeMessage {
         return nm;
     }
 
+    @Data
+    @Accessors(chain = true)
+    public static class NodeInfo {
+
+        private String id;
+        private String address;
+        private Set<String> nodeClientIds;
+
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("{");
+            if (id != null) {
+                sb.append("\"id\":\"").append(id).append('\"').append(',');
+            }
+            if (address != null) {
+                sb.append("\"address\":\"").append(address).append('\"').append(',');
+            }
+            if (nodeClientIds != null) {
+                sb.append("\"nodeClientIds\":");
+                if (!(nodeClientIds).isEmpty()) {
+                    sb.append("[");
+                    for (Object collectionValue : nodeClientIds) {
+                        sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
+                    }
+                    sb.replace(sb.length() - 1, sb.length(), "]");
+                } else {
+                    sb.append("[]");
+                }
+                sb.append(',');
+            }
+            return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
+    }
 
 }

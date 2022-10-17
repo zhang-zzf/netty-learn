@@ -19,7 +19,9 @@ public class Application {
 
     public static void main(String[] args) throws URISyntaxException, SSLException {
         log.info("Application#main: {}", JSON.toJSONString(args));
-        new MicroMeterConfiguration().init("20220706");
+        String appName = System.getProperty("appName", "20220706");
+        log.info("appName: {}", appName);
+        new MicroMeterConfiguration().init(appName);
         if (Boolean.getBoolean("mqtt.server.cluster.mode.pressure")) {
             ClusterDbRepoImplPressure.main(args);
             return;

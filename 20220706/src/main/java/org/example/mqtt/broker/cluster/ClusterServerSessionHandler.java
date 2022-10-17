@@ -13,7 +13,6 @@ import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 
-import static org.example.mqtt.broker.cluster.node.Cluster.nodeListenTopic;
 
 @Slf4j
 public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
@@ -133,8 +132,9 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 break;
             } else {
                 // 定向 Node 发送消息
+                String topicName = cluster.pickOneChannelToNode(sessionNodeId);
                 NodeMessage nm = NodeMessage.wrapSessionClose(broker().nodeId(), css.clientIdentifier());
-                Publish outgoing = Publish.outgoing(Publish.AT_LEAST_ONCE, nodeListenTopic(sessionNodeId), nm.toByteBuf());
+                Publish outgoing = Publish.outgoing(Publish.AT_LEAST_ONCE, topicName, nm.toByteBuf());
                 // async notify
                 broker().nodeBroker().forward(outgoing);
                 // 等待 100 ms

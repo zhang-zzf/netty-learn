@@ -209,7 +209,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     public int forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
-        int times = 0;
+        int times = nodeBroker.forward(packet);
         // forward to offline Clients
         List<ClusterTopic> clusterTopics = clusterDbRepo.matchTopic(packet.topicName());
         log.debug("Publish({}) match Cluster Topics: {}", packet.topicName(), clusterTopics);
@@ -227,7 +227,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 }
                 if (nodeId().equals(targetNodeId)) {
                     // Node local forward
-                    times += nodeBroker.forward(packet);
+                    // times += nodeBroker.forward(packet);
                 } else {
                     forwardToOtherNode(packet, ct, targetNodeId);
                     times += 1;

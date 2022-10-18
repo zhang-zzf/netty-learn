@@ -2,6 +2,7 @@ package org.example.mqtt.broker.cluster;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.experimental.Accessors;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.node.DefaultTopic;
 
@@ -11,6 +12,7 @@ import java.util.Set;
 
 @Getter
 @Setter
+@Accessors(chain = true)
 public class ClusterTopic extends DefaultTopic implements Topic {
 
     /**

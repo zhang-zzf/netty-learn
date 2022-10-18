@@ -241,11 +241,14 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     private void forwardToOtherNode(Publish packet, ClusterTopic ct, String targetNodeId) {
+        boolean forwarded = false;
         // 先随机挑一个通道转发
         String topicName = cluster.pickOneChannelToNode(targetNodeId);
-        boolean forwarded = doForwardToOtherNode(packet, targetNodeId, topicName);
-        if (forwarded) {
-            return;
+        if (topicName != null) {
+            forwarded = doForwardToOtherNode(packet, targetNodeId, topicName);
+            if (forwarded) {
+                return;
+            }
         }
         // 兜底遍历所有通道转发
         Set<String> clientIdentifiers = cluster.channelsToNode(targetNodeId);

@@ -13,4 +13,9 @@ class NodeMessageTest {
         log.info("BrokerClose: {}", nm);
     }
 
+
+    @Test
+    void givenNodeMessage_whenWrapPublish_then() {
+
+    }
 }

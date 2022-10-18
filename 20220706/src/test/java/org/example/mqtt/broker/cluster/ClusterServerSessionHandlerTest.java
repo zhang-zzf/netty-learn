@@ -12,9 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
@@ -55,6 +53,13 @@ class ClusterServerSessionHandlerTest {
         clientB.writeInbound(Connect.from(MQTT_CLIENT_B, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(clientB.readOutbound())).isNotNull();
+        // topicFilter 匹配自己
+        ClusterTopic any = new ClusterTopic("any")
+                .setNodes(new HashSet<String>() {{
+                    add(broker.nodeId());
+                }})
+                .setOfflineSessions(new HashMap<>(0));
+        given(dbRepo.matchTopic(any())).willReturn(singletonList(any));
     }
 
     /**

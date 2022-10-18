@@ -266,13 +266,20 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     private boolean doForwardToOtherNode(Publish packet, String targetNodeId, String topicName) {
-        NodeMessage nm = NodePublish.wrapPublish(nodeId(), packet);
+        NodePublish nm = NodePublish.wrapPublish(nodeId(), packet);
+        // nodeMessagePacket.payload 指向 CompositeByteBuf, 而不是指向 packet 的 ByteBuf
+        // important: nm.retainPublishPacket() must be called before convert to CompositeByteBuf
+        // when nm.ByteBuf released, the retainedPublishPacket will also be released.
+        nm.retainPublishPacket();
         Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
         log.debug("forward Publish to other Node-> Node: {}, through topic: {}", targetNodeId, topicName);
         int times = nodeBroker.forward(nodeMessagePacket);
         if (times > 0) {
             logMetrics(nm, targetNodeId);
             return true;
+        } else {
+            // the nodeMessagePacket was not send to any Channel
+            nm.releasePublishPacket();
         }
         return false;
     }

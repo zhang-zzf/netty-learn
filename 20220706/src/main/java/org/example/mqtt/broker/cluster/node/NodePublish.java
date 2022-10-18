@@ -3,6 +3,7 @@ package org.example.mqtt.broker.cluster.node;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
+import lombok.experimental.Accessors;
 import org.example.mqtt.model.Publish;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -12,6 +13,7 @@ import static org.example.mqtt.model.Publish.*;
  * 性能考虑
  */
 @Data
+@Accessors(chain = true)
 public class NodePublish extends NodeMessage {
 
     /**
@@ -29,7 +31,7 @@ public class NodePublish extends NodeMessage {
     /**
      * the PublishPacket
      */
-    private ByteBuf publishPacket;
+    private Publish publishPacket;
 
     public NodePublish() {
     }
@@ -41,7 +43,7 @@ public class NodePublish extends NodeMessage {
         this.metaNmWrap = buf.readLong();
         // just a view of the origin buf
         // NO COPY
-        this.publishPacket = buf.slice();
+        this.publishPacket = new Publish(buf);
     }
 
     public final ByteBuf toByteBuf() {
@@ -55,14 +57,15 @@ public class NodePublish extends NodeMessage {
         // NO COPY
         return Unpooled.compositeBuffer()
                 .addComponent(true, meta)
-                .addComponent(true, publishPacket);
+                // origin Packet
+                .addComponent(true, publishPacket.content());
     }
 
     public static NodePublish wrapPublish(String nodeId, Publish packet) {
         NodePublish nm = new NodePublish();
         nm.setNodeId(nodeId);
         nm.setPacket(ACTION_PUBLISH_FORWARD);
-        nm.publishPacket = packet.toByteBuf();
+        nm.publishPacket = packet;
         metaData(nm, packet);
         return nm;
     }
@@ -75,11 +78,10 @@ public class NodePublish extends NodeMessage {
     }
 
     public Publish unwrapPublish() {
-        Publish publish = new Publish(publishPacket);
         // just for metric usage
         // transfer to Publish packet
-        metricMeta(publish);
-        return publish;
+        metricMeta(publishPacket);
+        return publishPacket;
     }
 
     private void metricMeta(Publish publish) {
@@ -88,6 +90,16 @@ public class NodePublish extends NodeMessage {
         publish.addMeta(META_NM_RECEIVE, metaNmReceive);
         // mark source
         publish.addMeta(META_P_SOURCE, META_P_SOURCE_BROKER);
+    }
+
+    public NodePublish retainPublishPacket() {
+        publishPacket.content().retain();
+        return this;
+    }
+
+    public NodePublish releasePublishPacket() {
+        publishPacket.content().release();
+        return this;
     }
 
 }

@@ -121,7 +121,6 @@ public class Publish extends ControlPacket {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
-        // important: use retainedSlice() to increase the refCnt
         this.payload = payload;
     }
 

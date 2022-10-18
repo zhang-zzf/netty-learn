@@ -306,19 +306,10 @@ public class Publish extends ControlPacket {
         return meta;
     }
 
-    public void addMeta(Map<String, Object> meta) {
-        if (meta == null) {
-            return;
-        }
-        if (this.meta == null) {
-            this.meta = new HashMap<>();
-        }
-        this.meta.putAll(meta);
-    }
-
     public void addMeta(String n, Object v) {
         if (meta == null) {
-            meta = new HashMap<>();
+            // total 4 meta for now
+            meta = new HashMap<>(6);
         }
         meta.put(n, v);
     }

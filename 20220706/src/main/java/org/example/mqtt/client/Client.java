@@ -2,7 +2,6 @@ package org.example.mqtt.client;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPromise;
@@ -205,7 +204,7 @@ public class Client implements AutoCloseable {
      */
     public void receivePublish(Publish packet) {
         log.debug("receivePublish: {}", packet);
-        handler.handle(packet.topicName(), ByteBufUtil.getBytes(packet.payload()), packet);
+        handler.handle(packet.topicName(), packet);
     }
 
     /**

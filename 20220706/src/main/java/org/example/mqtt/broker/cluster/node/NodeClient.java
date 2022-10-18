@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
@@ -56,8 +57,16 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     @Override
-    public void handle(String topic, byte[] payload, Publish packet) {
-        NodeMessage m = NodeMessage.fromBytes(payload);
+    public void handle(String topic, Publish packet) {
+        ByteBuf payload = packet.payload();
+        NodeMessage m;
+        if ((byte) '{' == payload.getByte(0)) {
+            // json NodeMessage
+            m = NodeMessage.fromBytes(ByteBufUtil.getBytes(payload));
+        } else {
+            // binary protocol Publish NodeMessage
+            m = new NodePublish(payload);
+        }
         log.debug("NodeClient receive message->{}", m);
         doHandleNodeMessageWithMetric(m);
     }
@@ -79,7 +88,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private void doHandleNodeMessage(NodeMessage m) {
         switch (m.getPacket()) {
             case ACTION_PUBLISH_FORWARD:
-                doHandleActionPublishForward(m);
+                doHandleActionPublishForward((NodePublish) m);
                 break;
             case INFO_CLUSTER_NODES:
                 doHandleInfoClusterNodes(m);
@@ -113,7 +122,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         cluster.updateNodes(m.getNodeId(), state);
     }
 
-    private void doHandleActionPublishForward(NodeMessage m) {
+    private void doHandleActionPublishForward(NodePublish m) {
         // forward Publish
         Publish packet = m.unwrapPublish();
         log.debug("NodeClient receive Publish: {}", packet);

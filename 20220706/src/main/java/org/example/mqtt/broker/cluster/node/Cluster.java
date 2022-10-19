@@ -97,6 +97,8 @@ public class Cluster implements AutoCloseable {
             if (nodes.remove(NODE_ID_UNKNOWN, firstJoinedNode)) {
                 nodes.put(nodeId, firstJoinedNode.nodeId(nodeId));
             }
+            // sync Cluster.Nodes immediately.
+            publishClusterNodes();
         } else {
             addNode(nodeId, remoteAddress);
         }
@@ -351,7 +353,8 @@ public class Cluster implements AutoCloseable {
                 if (tTime < curTime) {
                     log.info("checkNodeOnline result-> {} is offline, reason: new same name Node in Cluster", nodeId);
                     return false;
-                } else if (tTime == curTime) {
+                } else if (tTime.equals(curTime)) {
+                    // watch out: if (Long == Long) {}
                     return true;
                 } else {
                     log.error("checkNodeOnline result-> {} nodeId is illegal", nodeId);

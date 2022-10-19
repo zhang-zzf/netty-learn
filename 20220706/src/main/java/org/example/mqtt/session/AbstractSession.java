@@ -102,29 +102,6 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    protected void sendPublishInEventLoop(Publish publish) {
-        if (eventLoop == null) {
-            throw new IllegalStateException();
-        }
-        // make sure use the safe thread that the session wad bound to
-        if (eventLoop.inEventLoop()) {
-            invokeSendPublish(publish);
-        } else {
-            eventLoop.execute(() -> invokeSendPublish(publish));
-        }
-    }
-
-    private void invokeSendPublish(Publish packet) {
-        // send immediately if can or queue the packet
-        // put Publish packet into queue
-        try {
-            sendingPublishThread = Thread.currentThread();
-            doSendPublish(packet);
-        } finally {
-            sendingPublishThread = null;
-        }
-    }
-
     private void doSendPublish(Publish outgoing) {
         // very little chance
         if (outQueueQos2DuplicateCheck(outgoing)) {
@@ -156,7 +133,31 @@ public abstract class AbstractSession implements Session {
                 publishPacketSentComplete(cpx);
                 return;
             }
+            // no send, but there is no memory leak
             outQueueEnqueue(cpx);
+        }
+    }
+
+    protected void sendPublishInEventLoop(Publish publish) {
+        if (eventLoop == null) {
+            throw new IllegalStateException();
+        }
+        // make sure use the safe thread that the session wad bound to
+        if (eventLoop.inEventLoop()) {
+            invokeSendPublish(publish);
+        } else {
+            eventLoop.execute(() -> invokeSendPublish(publish));
+        }
+    }
+
+    private void invokeSendPublish(Publish packet) {
+        // send immediately if can or queue the packet
+        // put Publish packet into queue
+        try {
+            sendingPublishThread = Thread.currentThread();
+            doSendPublish(packet);
+        } finally {
+            sendingPublishThread = null;
         }
     }
 

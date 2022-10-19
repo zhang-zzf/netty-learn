@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster;
 
 import io.micrometer.core.annotation.Timed;
+import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
@@ -270,18 +271,19 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // nodeMessagePacket.payload 指向 CompositeByteBuf, 而不是指向 packet 的 ByteBuf
         // important: nm.retainPublishPacket() must be called before convert to CompositeByteBuf
         // when nm.ByteBuf released, the retainedPublishPacket will also be released.
-        nm.retainPublishPacket();
-        Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, nm.toByteBuf());
-        log.debug("forward Publish to other Node-> Node: {}, through topic: {}", targetNodeId, topicName);
-        int times = nodeBroker.forward(nodeMessagePacket);
-        if (times > 0) {
-            logMetrics(nm, targetNodeId);
-            return true;
-        } else {
-            // the nodeMessagePacket was not send to any Channel
-            nm.releasePublishPacket();
+        ByteBuf payload = nm.retainPublishPacket().toByteBuf();
+        try {
+            Publish nodeMessagePacket = Publish.outgoing(packet.qos(), topicName, payload);
+            log.debug("forward Publish to other Node-> Node: {}, through topic: {}", targetNodeId, topicName);
+            int times = nodeBroker.forward(nodeMessagePacket);
+            if (times > 0) {
+                logMetrics(nm, targetNodeId);
+                return true;
+            }
+            return false;
+        } finally {
+            payload.release();
         }
-        return false;
     }
 
     private void asyncRemoveNodeFromTopic(ClusterTopic ct, String targetNodeId) {

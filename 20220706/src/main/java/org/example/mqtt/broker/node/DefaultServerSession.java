@@ -59,6 +59,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void onPacket(ControlPacket packet) {
+        if (packet.type() == PUBLISH) {
+            if (broker.blockTopic(((Publish) packet).topicName())) {
+                return;
+            }
+        }
         switch (packet.type()) {
             case SUBSCRIBE:
                 doReceiveSubscribe((Subscribe) packet);

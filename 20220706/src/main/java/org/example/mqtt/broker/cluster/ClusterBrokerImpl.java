@@ -446,6 +446,11 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
+    public boolean blockTopic(String topicName) {
+        return nodeBroker.blockTopic(topicName);
+    }
+
+    @Override
     public void disconnectSessionFromNode(ClusterServerSession session) {
         session.nodeId(null);
         clusterDbRepo.saveSession(session);

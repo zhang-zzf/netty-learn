@@ -17,6 +17,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.Nullable;
 import java.util.*;
 
+import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
 import static org.example.mqtt.model.Publish.needAck;
 
@@ -30,8 +31,13 @@ public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
 
+    private volatile TopicFilterTree blockedTopicFilter;
+
     public DefaultBroker() {
         this.self = this;
+        String tfConfig = System.getProperty("mqtt.server.block.tf", "+/server/#");
+        Set<String> blockedTf = Arrays.stream(tfConfig.split(",")).collect(toSet());
+        blockedTopicFilter = TopicFilterTree.from(blockedTf);
     }
 
     @Override
@@ -100,6 +106,11 @@ public class DefaultBroker implements Broker {
         log.debug("Broker try to destroySession->{}", session);
         brokerState.disconnect(session).get();
         log.debug("Broker destroyed Session");
+    }
+
+    @Override
+    public boolean blockTopic(String topicName) {
+        return !blockedTopicFilter.match(topicName).isEmpty();
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {

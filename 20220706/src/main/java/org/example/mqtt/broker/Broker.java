@@ -65,4 +65,6 @@ public interface Broker extends AutoCloseable {
         return false;
     }
 
+    boolean blockTopic(String topicName);
+
 }

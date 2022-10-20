@@ -187,6 +187,7 @@ public class ClientBootstrap {
 
     public static class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
+        // ms
         final int period;
         final ByteBuf payload;
         final byte sendQos;
@@ -216,7 +217,7 @@ public class ClientBootstrap {
             session.bind(ctx.channel());
             // ChannelActive send Connect
             log.info("client({}) channelActive", clientIdentifier);
-            int keepAlive = period * 4;
+            int keepAlive = period / 1000 * 4;
             keepAlive = keepAlive > Short.MAX_VALUE ? Short.MAX_VALUE : keepAlive;
             session.send(Connect.from(session.clientIdentifier(), (short) keepAlive));
             super.channelActive(ctx);

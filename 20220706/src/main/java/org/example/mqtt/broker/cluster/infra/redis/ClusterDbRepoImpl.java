@@ -263,11 +263,11 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @NotNull
     private CompletionStage<List<ClusterTopic>> asyncMatchTopicBy(String topicName) {
         // call lua script by sha digest
-        log.debug("matchTopic req-> {}", topicName);
+        log.debug("asyncMatchTopic req-> {}", topicName);
         String redisKey = toTopicFilterRedisKey(topicName);
         RFuture<String> future = rScript.evalAsync(redisKey, READ_ONLY, LUA_MATCH, VALUE, asList(redisKey));
         return future.thenApply(resp -> {
-            log.debug("matchTopic resp-> {}", resp);
+            log.debug("asyncMatchTopic resp-> {}", resp);
             return toClusterTopicDomain(resp);
         });
     }

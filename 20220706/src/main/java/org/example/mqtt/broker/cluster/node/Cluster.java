@@ -63,6 +63,14 @@ public class Cluster implements AutoCloseable {
     private volatile ScheduledFuture<?> syncJob;
 
     private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 1);
+    private static final int MQTT_CLUSTER_CLIENT_CHANNEL_NUM;
+
+    static {
+        MQTT_CLUSTER_CLIENT_CHANNEL_NUM = Integer.getInteger("mqtt.server.cluster.node.channel.num",
+                MQTT_SERVER_THREAD_NUM * 2);
+        log.info("MQTT_CLUSTER_CLIENT_CHANNEL_NUM-> {}", MQTT_CLUSTER_CLIENT_CHANNEL_NUM);
+    }
+
 
     private final EventLoopGroup clientEventLoopGroup;
 
@@ -160,7 +168,7 @@ public class Cluster implements AutoCloseable {
         }
         // Why？why not just use a single NodeClient?
         // 性能问题。与 Broker 建立一条 tcp(nc) 可以处理的数据量有限，影响 Publish 消息在集群中转发的效率（增加了消息的延时）
-        for (int i = nn.nodeClientsCnt(); i < MQTT_SERVER_THREAD_NUM * 2; i++) {
+        for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
             NodeClient nc = buildChannelToNode(nn);
             if (nc != null) {
                 nn.addNodeClient(nc);

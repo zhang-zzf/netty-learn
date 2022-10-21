@@ -42,6 +42,7 @@ public class BrokerBootstrap {
 
     private static final Map<String, ListenPort> LISTENED_SERVER = new HashMap<>(8);
     public static final Map<String, ListenPort> LISTENED_SERVERS = Collections.unmodifiableMap(LISTENED_SERVER);
+
     public static final int MQTT_SERVER_THREAD_NUM;
 
     static {

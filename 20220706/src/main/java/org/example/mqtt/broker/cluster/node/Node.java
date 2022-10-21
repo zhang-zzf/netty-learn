@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
 
@@ -24,6 +25,11 @@ public class Node implements AutoCloseable {
 
     // thread safe
     private final CopyOnWriteArrayList<NodeClient> nodeClients = new CopyOnWriteArrayList<>();
+    /**
+     * 集群广播消息专用 client
+     * <p>nodeClients 中的其中一个 Client 肩负订阅集群消息</p>
+     */
+    private final AtomicReference<NodeClient> clusterMessageClient = new AtomicReference();
 
     public Node(String id, String address) {
         this.id = id;
@@ -55,18 +61,35 @@ public class Node implements AutoCloseable {
     }
 
     public Node addNodeClient(NodeClient nodeClient) {
-        this.nodeClients.add(nodeClient);
+        nodeClients.add(nodeClient);
+        trySubscribeClusterMessage(nodeClient);
         return this;
     }
 
     public boolean removeNodeClient(NodeClient nc) {
+        boolean removed = false;
+        boolean clusterMessageClientRemoved = false;
         for (int i = 0; i < nodeClients.size(); i++) {
             if (nodeClients.get(i).getClientIdentifier().equals(nc.getClientIdentifier())) {
                 nodeClients.remove(i);
-                return true;
+                removed = true;
+                if (clusterMessageClient.get() == nc) {
+                    // 移除的是订阅集群广播消息的客户端
+                    clusterMessageClientRemoved = clusterMessageClient.compareAndSet(nc, null);
+                }
+                break;
             }
         }
-        return false;
+        if (clusterMessageClientRemoved && !nodeClients.isEmpty()) {
+            trySubscribeClusterMessage(nodeClients.get(0));
+        }
+        return removed;
+    }
+
+    private void trySubscribeClusterMessage(NodeClient nodeClient) {
+        if (clusterMessageClient.compareAndSet(null, nodeClient)) {
+            nodeClient.subscribeClusterMessage();
+        }
     }
 
     public Node nodeId(String nodeId) {

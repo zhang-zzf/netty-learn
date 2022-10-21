@@ -42,6 +42,13 @@ public class BrokerBootstrap {
 
     private static final Map<String, ListenPort> LISTENED_SERVER = new HashMap<>(8);
     public static final Map<String, ListenPort> LISTENED_SERVERS = Collections.unmodifiableMap(LISTENED_SERVER);
+    public static final int MQTT_SERVER_THREAD_NUM;
+
+    static {
+        MQTT_SERVER_THREAD_NUM = Integer.getInteger("mqtt.server.thread.num",
+                Runtime.getRuntime().availableProcessors() * 2);
+        log.info("MQTT_SERVER_THREAD_NUM-> {}", MQTT_SERVER_THREAD_NUM);
+    }
 
     @SneakyThrows
     public static void main(String[] args) {
@@ -104,11 +111,10 @@ public class BrokerBootstrap {
     private static Channel mqttOverSecureWebSocket(InetSocketAddress address,
                                                    Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         // 配置 websocket tls bootstrap
-        int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory workerTF = new DefaultThreadFactory("wss-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         DefaultThreadFactory bossTF = new DefaultThreadFactory("wss-boss");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         SslContext sslCtx = SslContextBuilder.forServer(
@@ -139,11 +145,10 @@ public class BrokerBootstrap {
     }
 
     private static Channel mqttOverWebsocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
-        int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory bossTF = new DefaultThreadFactory("ws-worker");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("ws-boss");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
@@ -169,11 +174,10 @@ public class BrokerBootstrap {
 
     private static Channel secureMqttServer(InetSocketAddress address,
                                             Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
-        int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtts-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtts-boss");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         SslContext sslCtx = SslContextBuilder.forServer(
@@ -205,11 +209,10 @@ public class BrokerBootstrap {
 
     private static Channel mqttServer(InetSocketAddress address,
                                       Supplier<DefaultServerSessionHandler> handlerSupplier) {
-        int cpuNum = Integer.getInteger("mqtt.server.thread.num", Runtime.getRuntime().availableProcessors());
         DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(4, bossTF);
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtt-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(cpuNum, workerTF);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)

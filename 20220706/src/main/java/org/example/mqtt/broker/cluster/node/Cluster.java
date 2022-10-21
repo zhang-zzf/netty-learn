@@ -1,5 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,7 @@ import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.wrapClusterNodes;
+import static org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.MQTT_SERVER_THREAD_NUM;
 
 @Slf4j
 @Component
@@ -61,11 +64,11 @@ public class Cluster implements AutoCloseable {
 
     private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 1);
 
-    // 默认 CPU 数量
-    private int publishForwardChannelNum = Integer.getInteger("mqtt.server.cluster.node.channel.num",
-            Runtime.getRuntime().availableProcessors());
+    private final EventLoopGroup clientEventLoopGroup;
 
     public Cluster() {
+        DefaultThreadFactory tf = new DefaultThreadFactory("cluster-client");
+        clientEventLoopGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, tf);
         // init metric for nodes
         initMetricsForNodes();
     }
@@ -157,7 +160,7 @@ public class Cluster implements AutoCloseable {
         }
         // Why？why not just use a single NodeClient?
         // 性能问题。与 Broker 建立一条 tcp(nc) 可以处理的数据量有限，影响 Publish 消息在集群中转发的效率（增加了消息的延时）
-        for (int i = nn.nodeClientsCnt(); i < publishForwardChannelNum; i++) {
+        for (int i = nn.nodeClientsCnt(); i < MQTT_SERVER_THREAD_NUM * 2; i++) {
             NodeClient nc = buildChannelToNode(nn);
             if (nc != null) {
                 nn.addNodeClient(nc);
@@ -201,7 +204,7 @@ public class Cluster implements AutoCloseable {
 
     private NodeClient buildChannelToNode(Node remoteNode) {
         try {
-            return new NodeClient(remoteNode, this);
+            return new NodeClient(remoteNode, clientEventLoopGroup, this);
         } catch (Exception e) {
             log.error("Cluster connect to another node failed", e);
             return null;
@@ -262,6 +265,8 @@ public class Cluster implements AutoCloseable {
             }
             e.getValue().close();
         }
+        // shutdown the threads
+        clientEventLoopGroup.shutdownGracefully();
     }
 
     public Node node(String nodeId) {

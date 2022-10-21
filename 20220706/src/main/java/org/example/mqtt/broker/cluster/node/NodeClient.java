@@ -2,6 +2,7 @@ package org.example.mqtt.broker.cluster.node;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.EventLoopGroup;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
@@ -33,22 +34,28 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final String clientIdentifier;
     private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
-    public NodeClient(Node remoteNode, Cluster cluster) {
+    public NodeClient(Node remoteNode, EventLoopGroup clientEventLoopGroup, Cluster cluster) {
         this.clientIdentifier = String.format($_SYS_NODE_TOPIC,
                 cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
         this.remoteNode = remoteNode;
         this.cluster = cluster;
-        this.client = new Client(clientIdentifier, remoteNode.address(), this);
+        this.client = new Client(clientIdentifier, remoteNode.address(), clientEventLoopGroup, this);
         initSubscribe();
+    }
+
+    public void subscribeClusterMessage() {
+        Subscribe.Subscription clusterNodes =
+                new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
+        List<Subscribe.Subscription> sub = Arrays.asList(clusterNodes);
+        log.info("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
+        client.syncSubscribe(sub);
     }
 
     private void initSubscribe() {
         Subscribe.Subscription nodeSubscription =
                 new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
-        Subscribe.Subscription clusterNodes =
-                new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
-        List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription, clusterNodes);
-        log.info("NodeClient try to subscribe: {}", sub);
+        List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription);
+        log.info("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
         client.syncSubscribe(sub);
     }
 

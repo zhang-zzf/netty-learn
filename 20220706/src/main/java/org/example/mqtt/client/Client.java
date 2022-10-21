@@ -51,7 +51,7 @@ public class Client implements AutoCloseable {
     }
 
     @SneakyThrows
-    Client(String clientIdentifier, String remoteAddress, EventLoopGroup eventLoop, MessageHandler handler) {
+    public Client(String clientIdentifier, String remoteAddress, EventLoopGroup eventLoop, MessageHandler handler) {
         this.clientIdentifier = clientIdentifier;
         this.remoteAddress = remoteAddress;
         this.eventLoop = eventLoop;
@@ -144,12 +144,9 @@ public class Client implements AutoCloseable {
             connect(channel);
             channel.closeFuture().addListener(f -> {
                 log.debug("Client({}) Channel was closed.", cId());
-                // session.channelClosed();
-                eventLoop.shutdownGracefully();
             });
         } catch (Exception e) {
             log.info("Client(" + cId() + ") Channel connect to remote broker exception. ", e);
-            eventLoop.shutdownGracefully();
             throw new RuntimeException(e);
         }
     }

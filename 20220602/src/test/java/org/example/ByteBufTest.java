@@ -381,6 +381,38 @@ class ByteBufTest {
     }
 
     /**
+     * Composite.retain 不会操作底层的的 Component 的 refCnt
+     */
+    @Test
+    void givenCompositeByteBuf_whenRetainedCompositeAndReleaseComponent_then() {
+        ByteBuf header = Unpooled.buffer(8);
+        header.writeInt(Integer.MAX_VALUE);
+        ByteBuf body = Unpooled.buffer(32);
+        body.writeLong(Long.MAX_VALUE);
+        CompositeByteBuf req = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, body);
+        then(req.refCnt()).isEqualTo(1);
+        // retain the CompositeByteBuf
+        req.retain();
+        // Composite.retain 不会操作底层的的 Component 的 refCnt
+        then(req.refCnt()).isEqualTo(2);
+        then(header.refCnt()).isEqualTo(1);
+        then(body.refCnt()).isEqualTo(1);
+        // 把 Composite 的 ref-=1
+        // 若 Composite.ref>0，不操作底层的 Component.refCnt
+        req.release();
+        then(req.refCnt()).isEqualTo(1);
+        then(header.refCnt()).isEqualTo(1);
+        then(body.refCnt()).isEqualTo(1);
+        // 若 Composite.ref=0，release all its Component
+        req.release();
+        then(req.refCnt()).isEqualTo(0);
+        then(header.refCnt()).isEqualTo(0);
+        then(body.refCnt()).isEqualTo(0);
+    }
+
+    /**
      * CompositeByteBuf 底层的 Component 被释放，导致 CompositeByteBuf 访问抛出异常。
      */
     @Test

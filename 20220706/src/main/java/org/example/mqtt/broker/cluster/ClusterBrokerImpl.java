@@ -137,7 +137,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
 
     @Override
     public void connect(ServerSession session) {
-        // Session 连接到 LocalBroker
+        // Session 连接到 nodeBroker
         nodeBroker.connect(session);
         if (session instanceof ClusterServerSession) {
             ClusterServerSession css = (ClusterServerSession) session;

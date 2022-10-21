@@ -133,7 +133,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         // forward Publish
         Publish packet = m.unwrapPublish();
         log.debug("NodeClient receive Publish: {}", packet);
-        // just use LocalBroker to forward the PublishPacket
+        // just use nodeBroker to forward the PublishPacket
         broker().nodeBroker().forward(packet);
     }
 

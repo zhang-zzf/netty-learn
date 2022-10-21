@@ -56,7 +56,7 @@ public class Cluster implements AutoCloseable {
      */
     private final ConcurrentMap<String, CopyOnWriteArraySet<String>> channelsToOtherNodes = new ConcurrentHashMap<>();
 
-    private ClusterBroker localBroker;
+    private ClusterBroker nodeBroker;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private ScheduledThreadPoolExecutor scheduledExecutorService;
@@ -223,7 +223,8 @@ public class Cluster implements AutoCloseable {
         if (started.get()) {
             return;
         }
-        this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1, new DefaultThreadFactory("Cluster-Sync"));
+        this.scheduledExecutorService = new ScheduledThreadPoolExecutor(1,
+                new DefaultThreadFactory("Cluster-Sync"));
         this.syncJob = scheduledExecutorService.scheduleAtFixedRate(() -> publishClusterNodes(),
                 publishClusterNodesPeriod, publishClusterNodesPeriod, TimeUnit.SECONDS);
     }
@@ -235,10 +236,10 @@ public class Cluster implements AutoCloseable {
         Set<NodeMessage.NodeInfo> state = nodes.values().stream().map(this::toNodeInfo).collect(toSet());
         // 广播我的集群状态
         String publishTopic = clusterNodeChangePublishTopic(nodeId());
-        log.debug("Cluster publish Cluster.Nodes: {}->{}", state, publishTopic);
+        log.debug("Cluster.publishClusterNodes() Cluster.Nodes-> nodes: {}, topic: {}", state, publishTopic);
         NodeMessage nm = wrapClusterNodes(nodeId(), state);
         Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
-        localBroker.nodeBroker().forward(publish);
+        nodeBroker.nodeBroker().forward(publish);
     }
 
     private NodeMessage.NodeInfo toNodeInfo(Node n) {
@@ -249,11 +250,12 @@ public class Cluster implements AutoCloseable {
     }
 
     private String nodeId() {
-        return localBroker.nodeId();
+        return nodeBroker.nodeId();
     }
 
     @Override
     public void close() throws Exception {
+        log.info("Cluster.close()");
         cancelSyncJob();
         closeAllClient();
     }
@@ -263,6 +265,7 @@ public class Cluster implements AutoCloseable {
             syncJob.cancel(true);
             syncJob = null;
             scheduledExecutorService.shutdown();
+            log.info("Cluster.cancelSyncJob()");
         }
     }
 
@@ -275,6 +278,7 @@ public class Cluster implements AutoCloseable {
         }
         // shutdown the threads
         clientEventLoopGroup.shutdownGracefully();
+        log.info("Cluster.closeAllClient()");
     }
 
     public Node node(String nodeId) {
@@ -282,7 +286,7 @@ public class Cluster implements AutoCloseable {
     }
 
     public ClusterBroker broker() {
-        return localBroker;
+        return nodeBroker;
     }
 
     @SneakyThrows
@@ -313,7 +317,7 @@ public class Cluster implements AutoCloseable {
 
     public Cluster bind(ClusterBroker clusterBroker) {
         clusterBroker.join(this);
-        this.localBroker = clusterBroker;
+        this.nodeBroker = clusterBroker;
         return this;
     }
 

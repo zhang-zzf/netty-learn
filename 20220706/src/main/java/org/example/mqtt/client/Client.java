@@ -2,10 +2,7 @@ package org.example.mqtt.client;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelPromise;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.DefaultThreadFactory;
@@ -137,7 +134,15 @@ public class Client implements AutoCloseable {
             Bootstrap bootstrap = bootstrap(eventLoop, session);
             URI uri = new URI(remoteAddress);
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
-            Channel channel = bootstrap.connect(address).sync().channel();
+            ChannelFuture future = bootstrap.connect(address);
+            // just wait 3 seconds
+            if (!future.await(3, TimeUnit.SECONDS)) {
+                throw new TimeoutException("Client.connectToBroker() timeout.");
+            }
+            Channel channel = future.channel();
+            if (!channel.isActive()) {
+                throw new IllegalStateException("Client.connectToBroker channel is not ACTIVE.");
+            }
             log.debug("Client({}) Channel connected to remote broker", cId());
             // bind Channel with Session
             session.bind(channel);

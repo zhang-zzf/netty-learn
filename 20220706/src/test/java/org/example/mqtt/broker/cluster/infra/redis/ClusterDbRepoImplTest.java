@@ -15,14 +15,14 @@ import org.junit.jupiter.params.provider.CsvFileSource;
 import org.redisson.api.RedissonClient;
 
 import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
@@ -39,6 +39,54 @@ class ClusterDbRepoImplTest {
     }
 
     final static ClusterDbRepo dbRepo = new ClusterDbRepoImpl(client);
+
+    /**
+     * 验证 CompletionStage 异常的传递
+     */
+
+
+    @Test
+    void givenCompletionStage_whenException_then() throws ExecutionException, InterruptedException {
+        CompletableFuture<Integer> f = CompletableFuture.supplyAsync(() -> {
+            throw new RuntimeException();
+        });
+        f.thenAccept(o -> {
+            // will not go here
+            log.info("o -> {}", 0);
+        }).exceptionally(t -> {
+            // go here
+            log.error("exception-> ", t);
+            return null;
+        }).whenComplete((v, t) -> {
+            // go here
+            // t is null
+            log.info("exception in complete-> ", t);
+            log.info("result in complete-> {}", v);
+        })
+        ;
+        then(catchThrowable(() -> f.get())).isNotNull();
+    }
+
+    /**
+     * 验证 matchTopicAsync
+     */
+    @Test
+    void givenTopicName_whenMatchTopicAsync_then() throws InterruptedException {
+        String prefix = UUID.randomUUID().toString();
+        String topic = prefix + "0211/2/3/4/5/6";
+        String someNode = "someNode";
+        dbRepo.addNodeToTopic(someNode, asList(topic));
+        AtomicInteger aInt = new AtomicInteger(1);
+        dbRepo.matchTopicAsync(topic)
+                .thenAccept((topics) -> {
+                    log.info("matchTopicAsync resp-> {}", topics);
+                    then(topics).isNotEmpty();
+                })
+                .whenComplete((v, t) -> then(aInt.decrementAndGet()).isEqualTo(0));
+        // wait for async done
+        Thread.sleep(1000);
+        dbRepo.removeNodeFromTopic(someNode, asList(topic));
+    }
 
     @Test
     void givenTopicFilter_whenConvertToRedisKey_then() {

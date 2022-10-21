@@ -16,6 +16,7 @@ import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.session.ControlPacketContext;
 import org.jetbrains.annotations.NotNull;
 import org.redisson.api.RBucket;
+import org.redisson.api.RFuture;
 import org.redisson.api.RScript;
 import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.Codec;
@@ -31,6 +32,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -247,12 +249,28 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     @Override
     public List<ClusterTopic> matchTopic(String topicName) {
         List<ClusterTopic> ret = matchTopicBy(topicName);
-        // todo
+        // todo 暂不支持 + 开头的订阅
         // List<ClusterTopic> singleLevelWildCardMatch = matchTopicBy(singleLevelWildCardTopic(topicName));
         // ret.addAll(singleLevelWildCardMatch);
         return ret;
     }
 
+    @Override
+    public CompletionStage<List<ClusterTopic>> matchTopicAsync(String topicName) {
+        return asyncMatchTopicBy(topicName);
+    }
+
+    @NotNull
+    private CompletionStage<List<ClusterTopic>> asyncMatchTopicBy(String topicName) {
+        // call lua script by sha digest
+        log.debug("matchTopic req-> {}", topicName);
+        String redisKey = toTopicFilterRedisKey(topicName);
+        RFuture<String> future = rScript.evalAsync(redisKey, READ_ONLY, LUA_MATCH, VALUE, asList(redisKey));
+        return future.thenApply(resp -> {
+            log.debug("matchTopic resp-> {}", resp);
+            return toClusterTopicDomain(resp);
+        });
+    }
     private String singleLevelWildCardTopic(String topicName) {
         String[] split = topicName.split("/");
         split[0] = "+";
@@ -265,8 +283,13 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         log.debug("matchTopic req-> {}", topicName);
         String redisKey = toTopicFilterRedisKey(topicName);
         String resp = rScript.eval(redisKey, READ_ONLY, LUA_MATCH, RScript.ReturnType.VALUE, asList(redisKey));
-        List<TopicFilterPO> pOList = TopicFilterPO.jsonDecodeArray(resp);
         log.debug("matchTopic resp-> {}", resp);
+        return toClusterTopicDomain(resp);
+    }
+
+    @NotNull
+    private List<ClusterTopic> toClusterTopicDomain(String resp) {
+        List<TopicFilterPO> pOList = TopicFilterPO.jsonDecodeArray(resp);
         return pOList.stream()
                 .map(po -> po.setValue(fromTopicFilterRedisKey(po.getValue())))
                 .map(TopicFilterPO::toDomain)

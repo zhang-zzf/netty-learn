@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
@@ -60,6 +61,7 @@ class ClusterServerSessionHandlerTest {
                 }})
                 .setOfflineSessions(new HashMap<>(0));
         given(dbRepo.matchTopic(any())).willReturn(singletonList(any));
+        given(dbRepo.matchTopicAsync(any())).willReturn(new CompletableFuture<>());
     }
 
     /**

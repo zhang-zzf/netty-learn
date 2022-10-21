@@ -23,10 +23,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
@@ -211,11 +208,25 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // must set retain to false before forward the PublishPacket
         packet.retain(false);
         int times = nodeBroker.forward(packet);
-        // forward to offline Clients
-        List<ClusterTopic> clusterTopics = clusterDbRepo.matchTopic(packet.topicName());
+        // must retain the Publish.packet for async callback
+        packet.content().retain();
+        clusterDbRepo.matchTopicAsync(packet.topicName())
+                .thenAccept((topics) -> forwardToBrokerAndOfflineSession(packet, topics))
+                .whenComplete((v, t) -> {
+                    // must release PublishPacket anyway
+                    packet.content().release();
+                    if (t != null) {
+                        log.error("forward Publish failed-> Publish: {}", packet);
+                    }
+                });
+        return times;
+    }
+
+    private void forwardToBrokerAndOfflineSession(Publish packet, List<ClusterTopic> clusterTopics) {
+        // 从 DB 获取到 ClusterTopic 后的异步回调
         log.debug("Publish({}) match Cluster Topics: {}", packet.topicName(), clusterTopics);
         if (clusterTopics.isEmpty()) {
-            return times;
+            return;
         }
         // todo Set 替代方案
         Set<String> sendNodes = new HashSet<>(4);
@@ -231,7 +242,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
                     // times += nodeBroker.forward(packet);
                 } else {
                     forwardToOtherNode(packet, ct, targetNodeId);
-                    times += 1;
                 }
             }
             // forward the PublishPacket to offline client's Session.
@@ -239,7 +249,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 forwardToOfflineSession(packet, ct.topicFilter(), e.getKey(), e.getValue());
             }
         }
-        return times;
     }
 
     private void forwardToOtherNode(Publish packet, ClusterTopic ct, String targetNodeId) {

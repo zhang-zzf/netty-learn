@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 
 public interface ClusterDbRepo {
 
@@ -48,6 +49,8 @@ public interface ClusterDbRepo {
     void removeTopic(List<String> tfSet);
 
     List<ClusterTopic> matchTopic(String topicName);
+
+    CompletionStage<List<ClusterTopic>> matchTopicAsync(String topicName);
 
     void close() throws IOException;
 

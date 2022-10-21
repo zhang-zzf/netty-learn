@@ -7,6 +7,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
@@ -30,6 +31,11 @@ public class Node implements AutoCloseable {
      * <p>nodeClients 中的其中一个 Client 肩负订阅集群消息</p>
      */
     private final AtomicReference<NodeClient> clusterMessageClient = new AtomicReference();
+
+    /**
+     * 连接失败次数统计
+     */
+    private final AtomicInteger connectFailCnt = new AtomicInteger();
 
     public Node(String id, String address) {
         this.id = id;
@@ -63,6 +69,8 @@ public class Node implements AutoCloseable {
     public Node addNodeClient(NodeClient nodeClient) {
         nodeClients.add(nodeClient);
         trySubscribeClusterMessage(nodeClient);
+        // 添加新节点， Node 是可达的
+        connectFailCnt.set(0);
         return this;
     }
 
@@ -144,6 +152,10 @@ public class Node implements AutoCloseable {
         return nodeClients.stream()
                 .map(NodeClient::getClientIdentifier)
                 .collect(toSet());
+    }
+
+    public int connectFailed() {
+        return connectFailCnt.incrementAndGet();
     }
 
 }

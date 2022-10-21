@@ -210,6 +210,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel-> channel: {}", ctx.channel());
         log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
         closeSession(ctx);
     }

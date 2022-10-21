@@ -136,7 +136,7 @@ public class Client implements AutoCloseable {
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
             ChannelFuture future = bootstrap.connect(address);
             // just wait 3 seconds
-            if (!future.await(3, TimeUnit.SECONDS)) {
+            if (!future.await(1, TimeUnit.SECONDS)) {
                 throw new TimeoutException("Client.connectToBroker() timeout.");
             }
             Channel channel = future.channel();

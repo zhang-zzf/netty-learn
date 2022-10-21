@@ -1,5 +1,6 @@
 package org.example.mqtt.broker.cluster.node;
 
+import com.alibaba.fastjson.JSON;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.DefaultThreadFactory;
@@ -47,6 +48,8 @@ public class Cluster implements AutoCloseable {
      */
     public static final String $_SYS_NODE_PUBLISH_TOPIC = "$SYS/cluster/nodes/%s/%s";
     public static final String $_SYS_TOPIC = "$SYS";
+
+    public static final int CONNECT_FAILED_THRESHOLD = 100;
 
     private final ConcurrentMap<String, Node> nodes = new ConcurrentHashMap<>();
 
@@ -214,7 +217,17 @@ public class Cluster implements AutoCloseable {
         try {
             return new NodeClient(remoteNode, clientEventLoopGroup, this);
         } catch (Exception e) {
+            log.error("Cluster connect to another node failed-> remoteNode: {}", remoteNode);
             log.error("Cluster connect to another node failed", e);
+            // 连接节点失败，添加统计
+            if (remoteNode.connectFailed() > CONNECT_FAILED_THRESHOLD) {
+                log.error("Cluster connect to another node failed more than {}times, " +
+                        "now offline it-> Node: {}", CONNECT_FAILED_THRESHOLD, remoteNode);
+                boolean removed = nodes.remove(remoteNode.id(), remoteNode);
+                if (!removed) {
+                    log.error("Cluster remove Node failed-> Node: {}, Cluster: {}", remoteNode, JSON.toJSON(nodes));
+                }
+            }
             return null;
         }
     }

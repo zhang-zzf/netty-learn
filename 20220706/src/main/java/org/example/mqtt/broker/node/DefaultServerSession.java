@@ -10,10 +10,7 @@ import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.example.mqtt.model.ControlPacket.*;
 import static org.example.mqtt.model.Publish.*;
@@ -220,10 +217,35 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"registered\":").append(registered).append(',');
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
+        sb.append("\"registered\":").append(registered).append(',');
         sb.append("\"cleanSession\":").append(cleanSession()).append(',');
         sb.append("\"bound\":").append(isBound()).append(',');
+        if (subscriptions != null) {
+            sb.append("\"subscriptions\":");
+            if (!(subscriptions).isEmpty()) {
+                sb.append("[");
+                for (Object collectionValue : subscriptions) {
+                    sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
+                }
+                sb.replace(sb.length() - 1, sb.length(), "]");
+            } else {
+                sb.append("[]");
+            }
+            sb.append(',');
+        }
+        if (willMessage != null) {
+            sb.append("\"willMessage\":");
+            String objectStr = willMessage.toString().trim();
+            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
+                sb.append(objectStr);
+            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+                sb.append(objectStr);
+            } else {
+                sb.append("\"").append(objectStr).append("\"");
+            }
+            sb.append(',');
+        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 

@@ -243,6 +243,7 @@ public class ClientBootstrap {
 
         private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
             if (cp instanceof ConnAck) {
+                log.debug("receive ConnAck-> {}", cp);
                 // send subscribe
                 // clientIdentifier -> client_127.0.0.1/51324
                 // topicFilters -> client_127.0.0.1/51325

@@ -455,8 +455,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public boolean blockTopic(String topicName) {
-        return nodeBroker.blockTopic(topicName);
+    public boolean block(Publish packet) {
+        return nodeBroker.block(packet);
     }
 
     @Override

@@ -111,8 +111,8 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public boolean blockTopic(String topicName) {
-        return !blockedTopicFilter.match(topicName).isEmpty();
+    public boolean block(Publish packet) {
+        return !blockedTopicFilter.match(packet.topicName()).isEmpty();
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {

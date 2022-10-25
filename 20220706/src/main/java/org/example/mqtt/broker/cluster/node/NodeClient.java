@@ -40,7 +40,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         this.remoteNode = remoteNode;
         this.cluster = cluster;
         this.client = new Client(clientIdentifier, remoteNode.address(), clientEventLoopGroup, this);
-        initSubscribe();
+        subscribeMyClientIdentifier();
     }
 
     public void subscribeClusterMessage() {
@@ -51,7 +51,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         client.syncSubscribe(sub);
     }
 
-    private void initSubscribe() {
+    private void subscribeMyClientIdentifier() {
         Subscribe.Subscription nodeSubscription =
                 new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
         List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription);

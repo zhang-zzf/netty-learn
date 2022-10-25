@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 import javax.annotation.Nullable;
 import java.util.Objects;
@@ -12,6 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toSet;
 
+@Slf4j
 public class Node implements AutoCloseable {
 
     public static final String NODE_ID_UNKNOWN = "NODE_ID_UNKNOWN";
@@ -75,28 +77,40 @@ public class Node implements AutoCloseable {
     }
 
     public boolean removeNodeClient(NodeClient nc) {
+        log.debug("removeNodeClient-> NodeClient: {}", nc);
         boolean removed = false;
         boolean clusterMessageClientRemoved = false;
         for (int i = 0; i < nodeClients.size(); i++) {
             if (nodeClients.get(i).getClientIdentifier().equals(nc.getClientIdentifier())) {
                 nodeClients.remove(i);
+                log.debug("removeNodeClient removed-> NodeClient: {}", nc);
                 removed = true;
                 if (clusterMessageClient.get() == nc) {
+                    log.debug("removeNodeClient clusterMessageClient removed-> NodeClient: {}", nc);
                     // 移除的是订阅集群广播消息的客户端
-                    clusterMessageClientRemoved = clusterMessageClient.compareAndSet(nc, null);
+                    clusterMessageClient.set(null);
+                    clusterMessageClientRemoved = true;
                 }
                 break;
             }
         }
         if (clusterMessageClientRemoved && !nodeClients.isEmpty()) {
+            log.debug("removeNodeClient trySubscribeClusterMessage-> NodeClient: {}", nc);
             trySubscribeClusterMessage(nodeClients.get(0));
         }
         return removed;
     }
 
     private void trySubscribeClusterMessage(NodeClient nodeClient) {
+        log.debug("trySubscribeClusterMessage-> cur: {}", clusterMessageClient.get());
         if (clusterMessageClient.compareAndSet(null, nodeClient)) {
-            nodeClient.subscribeClusterMessage();
+            log.debug("trySubscribeClusterMessage new NodeClient-> NodeClient: {}", nodeClient);
+            try {
+                nodeClient.subscribeClusterMessage();
+            } catch (Exception e) {
+                log.error("trySubscribeClusterMessage failed-> NodeClient: {}, exception: {}", nodeClient, e);
+                clusterMessageClient.compareAndSet(nodeClient, null);
+            }
         }
     }
 

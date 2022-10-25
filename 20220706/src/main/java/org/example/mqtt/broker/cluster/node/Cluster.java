@@ -148,10 +148,11 @@ public class Cluster implements AutoCloseable {
         // try to connect the Node
         // 与 Broker 建立 n 个 NodeClient，用于接受从 Broker 转发的 Publish 消息
         buildChannelsToNode(nn);
+        log.info("Cluster buildChannelsToNode-> Node: {}", nn);
         if (nn.nodeClient() == null) {
             // wait for next update
             nodes.remove(nodeId, nn);
-            log.error("Cluster connect to new Node failed->{}", nn);
+            log.error("Cluster connect to new Node failed-> Node: {}", nn);
             return false;
         } else {
             log.info("Cluster connected to new Node->{}", nn);

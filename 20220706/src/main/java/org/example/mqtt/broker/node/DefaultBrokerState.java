@@ -21,7 +21,13 @@ public class DefaultBrokerState {
     static String MULTI_LEVEL_WILDCARD = "#";
     static String SINGLE_LEVEL_WILDCARD = "+";
 
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService executorService = new ThreadPoolExecutor(1, 1,
+            60, TimeUnit.SECONDS,
+            // 使用无界队列
+            new LinkedBlockingDeque<>(),
+            (r) -> new Thread(r, "broker-state"),
+            new ThreadPoolExecutor.AbortPolicy()
+    );
     private final ConcurrentMap<String, Topic> preciseTopicFilter = new ConcurrentHashMap<>();
 
     // fuzzy TopicFilter tree

@@ -103,7 +103,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
             Connect connect = (Connect) cp;
-            log.info("Client receive Connect-> cId: {}, packet: {}", connect.clientIdentifier(), connect);
+            log.debug("Client receive Connect-> cId: {}, packet: {}", connect.clientIdentifier(), connect);
             // The Server MUST respond to the CONNECT Packet
             // with a CONNACK return code 0x01 (unacceptable protocol level) and then
             // disconnect the Client if the Protocol Level is not supported by the Server

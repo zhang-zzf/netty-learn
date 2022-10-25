@@ -20,10 +20,11 @@ public class MicroMeterConfiguration {
         if (prometheusExport != null) {
             log.info("MicroMeterConfiguration prometheusExport: {}", prometheusExport);
             String[] hostAndPort = prometheusExport.split(":");
-            InetSocketAddress address = new InetSocketAddress(hostAndPort[0], Integer.valueOf(hostAndPort[1]));
+            String ipAddress = hostAndPort[0];
+            InetSocketAddress address = new InetSocketAddress(ipAddress, Integer.valueOf(hostAndPort[1]));
             InetSocketAddress listened = new PrometheusConfiguration().init(address);
             String serviceId = listened.toString().substring(1).replace(":", "_");
-            registerPrometheusToConsul(appName, serviceId, listened.getHostName(), listened.getPort());
+            registerPrometheusToConsul(appName, serviceId, ipAddress, listened.getPort());
         }
         new MicrometerJvmConfiguration().init();
     }

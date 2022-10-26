@@ -183,6 +183,7 @@ public class DefaultBroker implements Broker {
     public void close() throws Exception {
         // Server was started by the Broker
         // So it should not be closed by the Broker
+        brokerState.close();
     }
 
     /**

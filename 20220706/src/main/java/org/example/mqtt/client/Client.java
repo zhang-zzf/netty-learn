@@ -33,7 +33,7 @@ public class Client implements AutoCloseable {
      */
     private final String remoteAddress;
     private final EventLoopGroup eventLoop;
-    public static final short KEEP_ALIVE = 120;
+    public static final short KEEP_ALIVE = 8;
 
     private volatile ChannelPromise connAck;
 
@@ -104,7 +104,7 @@ public class Client implements AutoCloseable {
     }
 
     private String cId() {
-        return clientIdentifier + "->" + remoteAddress;
+        return clientIdentifier + "-->" + remoteAddress;
     }
 
     @SneakyThrows
@@ -146,7 +146,7 @@ public class Client implements AutoCloseable {
             log.debug("Client({}) Channel connected to remote broker", cId());
             // bind Channel with Session
             session.bind(channel);
-            connect(channel);
+            mqttConnect(channel);
             channel.closeFuture().addListener(f -> {
                 log.debug("Client({}) Channel was closed.", cId());
             });
@@ -156,7 +156,7 @@ public class Client implements AutoCloseable {
         }
     }
 
-    private void connect(Channel channel) throws InterruptedException {
+    private void mqttConnect(Channel channel) throws InterruptedException {
         log.debug("Client({}) try send Connect", cId());
         // send Connect
         connAck = channel.newPromise();
@@ -213,7 +213,7 @@ public class Client implements AutoCloseable {
      * Client 连接断开回调
      */
     public void disconnected() {
-        log.info("Client({}) disconnected from remote Broker", cId());
+        log.info("Client disconnected from remote Broker-> {}", cId());
         handler.clientClosed();
     }
 

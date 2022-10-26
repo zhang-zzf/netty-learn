@@ -1,6 +1,5 @@
 package org.example.mqtt.broker.cluster.bootstrap;
 
-import com.alibaba.fastjson.JSON;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
@@ -51,7 +50,7 @@ public class BrokerBootstrap {
         if (anotherNode != null) {
             log.info("startBroker try to connect to another Node-> Node: {}", anotherNode);
             cluster.join(anotherNode);
-            log.info("startBroker Cluster.Nodes-> Cluster: {}", JSON.toJSONString(cluster.nodes()));
+            log.debug("startBroker Cluster.Nodes-> Cluster: {}", cluster.nodes());
         }
         log.info("startBroker success-> nodeId: {}", clusterBroker.nodeId());
     }

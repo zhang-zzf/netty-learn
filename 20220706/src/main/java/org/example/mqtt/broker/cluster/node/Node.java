@@ -8,9 +8,12 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toSet;
 
 @Slf4j
@@ -26,6 +29,7 @@ public class Node implements AutoCloseable {
     @Getter
     private final String address;
 
+    private final AtomicLong clientIdentifierCounter = new AtomicLong(0);
     // thread safe
     private final CopyOnWriteArrayList<NodeClient> nodeClients = new CopyOnWriteArrayList<>();
     /**
@@ -38,6 +42,9 @@ public class Node implements AutoCloseable {
      * 连接失败次数统计
      */
     private final AtomicInteger connectFailCnt = new AtomicInteger();
+
+
+    private final AtomicBoolean updating = new AtomicBoolean(false);
 
     public Node(String id, String address) {
         this.id = id;
@@ -105,10 +112,9 @@ public class Node implements AutoCloseable {
         log.debug("trySubscribeClusterMessage-> cur: {}", clusterMessageClient.get());
         if (clusterMessageClient.compareAndSet(null, nodeClient)) {
             log.debug("trySubscribeClusterMessage new NodeClient-> NodeClient: {}", nodeClient);
-            try {
-                nodeClient.subscribeClusterMessage();
-            } catch (Exception e) {
-                log.error("trySubscribeClusterMessage failed-> NodeClient: {}, exception: {}", nodeClient, e);
+            boolean subscribed = nodeClient.subscribeClusterMessage();
+            if (!subscribed) {
+                log.error("trySubscribeClusterMessage failed-> NodeClient: {}", nodeClient);
                 clusterMessageClient.compareAndSet(nodeClient, null);
             }
         }
@@ -159,6 +165,9 @@ public class Node implements AutoCloseable {
             }
             sb.append(',');
         }
+        if (clusterMessageClient.get() != null) {
+            sb.append("\"clusterMessageClient\":").append(clusterMessageClient.get()).append(",");
+        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
@@ -170,6 +179,23 @@ public class Node implements AutoCloseable {
 
     public int connectFailed() {
         return connectFailCnt.incrementAndGet();
+    }
+
+    public long newClientNum() {
+        return clientIdentifierCounter.getAndIncrement();
+    }
+
+    public boolean markUpdating() {
+        return updating.compareAndSet(false, true);
+    }
+
+    public void clearUpdating() {
+        updating.set(false);
+    }
+
+    public NodeClient cmClient() {
+        return ofNullable(clusterMessageClient.get())
+                .orElse(null);
     }
 
 }

@@ -7,6 +7,7 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
+import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Publish;
@@ -14,10 +15,8 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.text.SimpleDateFormat;
+import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,6 +47,7 @@ public class Cluster implements AutoCloseable {
      * <p>Example: Node2 会发布集群变动消息到 $SYS/cluster/node2/node</p>
      */
     public static final String $_SYS_NODE_PUBLISH_TOPIC = "$SYS/cluster/nodes/%s/%s";
+    public static final String $_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER = "$SYS/cluster/nodes/+/+";
     public static final String $_SYS_TOPIC = "$SYS";
 
     public static final int CONNECT_FAILED_THRESHOLD = 100;
@@ -60,7 +60,7 @@ public class Cluster implements AutoCloseable {
      */
     private final ConcurrentMap<String, Set<String>> channelsToOtherNodes = new ConcurrentHashMap<>();
 
-    private ClusterBroker nodeBroker;
+    private ClusterBroker clusterBroker;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private ScheduledThreadPoolExecutor scheduledExecutorService;
@@ -86,7 +86,7 @@ public class Cluster implements AutoCloseable {
     }
 
     public static String clusterNodeId(String nodeName) {
-        return nodeName + "@" + System.currentTimeMillis();
+        return nodeName + "@" + new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
     }
 
     public static String[] idToNodeNameAndTimestamp(String nodeId) {
@@ -108,9 +108,10 @@ public class Cluster implements AutoCloseable {
     private void updateNode(String nodeId, String remoteAddress) {
         Node firstJoinedNode = nodes.get(NODE_ID_UNKNOWN);
         if (firstJoinedNode != null && firstJoinedNode.address().equals(remoteAddress)) {
-            log.debug("Cluster receive first joined Node's nodeId->{}", nodeId);
+            log.info("Cluster receive first joined Node's nodeId-> remoteNodeId: {}", nodeId);
             if (nodes.remove(NODE_ID_UNKNOWN, firstJoinedNode)) {
                 nodes.put(nodeId, firstJoinedNode.nodeId(nodeId));
+                log.info("Cluster.Nodes-> num: {}, nodes: {}", nodes.size(), nodes.values());
             }
             // sync Cluster.Nodes immediately.
             publishClusterNodes();
@@ -146,11 +147,11 @@ public class Cluster implements AutoCloseable {
             log.warn("Cluster add Node failed, may be other Thread add it->{}, {}", nodeId, remoteAddress);
             return true;
         }
-        log.info("Cluster now try to connect to new Node->{}", nn);
+        log.debug("Cluster now try to connect to new Node->{}", nn);
         // try to connect the Node
         // 与 Broker 建立 n 个 NodeClient，用于接受从 Broker 转发的 Publish 消息
         buildChannelsToNode(nn);
-        log.info("Cluster buildChannelsToNode-> Node: {}", nn);
+        log.debug("Cluster buildChannelsToNode-> Node: {}", nn);
         if (nn.nodeClient() == null) {
             // wait for next update
             nodes.remove(nodeId, nn);
@@ -176,13 +177,22 @@ public class Cluster implements AutoCloseable {
         // 性能问题。与 Broker 建立一条 tcp(nc) 可以处理的数据量有限，影响 Publish 消息在集群中转发的效率（增加了消息的延时）
         // 不要使用以下形式的循环，存在并发问题，i 在循环初始化时只赋值了一次
         // for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
-        for (; nn.nodeClientsCnt() < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; ) {
-            log.info("Cluster try to build new Channel to Node-> remoteNode: {}", nn.id());
-            NodeClient nc = buildChannelToNode(nn);
-            if (nc != null) {
-                nn.addNodeClient(nc);
-                log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}", nc, nn.id());
+        try {
+            // 可以把节点设置成更新中
+            if (!nn.markUpdating()) {
+                return;
             }
+            // 同一时间只有一个线程更新 Node 中的数据
+            for (; nn.nodeClientsCnt() < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; ) {
+                log.debug("Cluster try to build new Channel to Node-> remoteNode: {}, {}", nn.id(), nn.address());
+                NodeClient nc = buildChannelToNode(nn);
+                if (nc != null) {
+                    nn.addNodeClient(nc);
+                    log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}, {}", nc, nn.id(), nn.address());
+                }
+            }
+        } finally {
+            nn.clearUpdating();
         }
     }
 
@@ -240,28 +250,64 @@ public class Cluster implements AutoCloseable {
     private void publishClusterNodes() {
         for (Node n : nodes.values()) {
             buildChannelsToNode(n);
+            // todo null check
+            // n.cmClient().subscribeClusterMessage();
         }
         Set<NodeMessage.NodeInfo> state = nodes.values().stream()
                 // filter out the UNKNOWN_NODE
                 .filter(n -> !n.getId().equals(NODE_ID_UNKNOWN))
-                .map(this::toNodeInfo).collect(toSet());
+                .map(n -> toNodeInfo(n, channelsToOtherNodes)).collect(toSet());
         // 广播我的集群状态
         String publishTopic = clusterNodeChangePublishTopic(nodeId());
         log.debug("Cluster.publishClusterNodes() Cluster.Nodes-> nodes: {}, topic: {}", state, publishTopic);
         NodeMessage nm = wrapClusterNodes(nodeId(), state);
         Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
-        nodeBroker.nodeBroker().forward(publish);
+        int cnt = clusterBroker.nodeBroker().forward(publish);
+        if (cnt != nodes.size() - 1) {
+            Optional<Topic> topic = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
+            log.warn("Cluster.publishClusterNodes() failed-> " +
+                    "curNodesNum: {}, published: {}, topic: {}", nodes.size(), cnt, topic);
+        }
+        logNodeMetrics();
     }
 
-    private NodeMessage.NodeInfo toNodeInfo(Node n) {
+    private void logNodeMetrics() {
+        try {
+            for (Map.Entry<String, Node> e : nodes.entrySet()) {
+                String remoteNode = e.getKey();
+                Node node = e.getValue();
+                // broker.cluster.node.nodes
+                MetricUtil.gauge("broker.cluster.node.clients", node.nodeClientsCnt(),
+                        "node", nodeId(), "remoteNode", remoteNode);
+                MetricUtil.gauge("broker.cluster.node.clients.cm", node.cmClient() == null ? 0 : 1,
+                        "node", nodeId(), "remoteNode", remoteNode);
+                Set<String> subscribers = channelsToOtherNodes.get(remoteNode);
+                MetricUtil.gauge("broker.cluster.node.subscribers",
+                        subscribers == null ? 0 : subscribers.size(),
+                        "node", nodeId(), "remoteNode", remoteNode);
+                // 集群消息主题的订阅
+                Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
+                MetricUtil.gauge("broker.cluster.node.topic.cm",
+                        topicOpt.isPresent() ? topicOpt.get().subscribers().size() : 0,
+                        "node", nodeId());
+            }
+        } catch (Throwable e) {
+            log.error("unExpected Exception", e);
+        }
+    }
+
+    private NodeMessage.NodeInfo toNodeInfo(Node n, ConcurrentMap<String, Set<String>> channelsToOtherNodes) {
         return new NodeMessage.NodeInfo()
                 .setId(n.getId())
                 .setAddress(n.getAddress())
-                .setNodeClientIds(n.nodeClientIdSet());
+                .setNodeClientIds(n.nodeClientIdSet())
+                .setCmNodeClientId(n.cmClient().getClientIdentifier())
+                .setSubscribers(channelsToOtherNodes.get(n.getId()))
+                ;
     }
 
     private String nodeId() {
-        return nodeBroker.nodeId();
+        return clusterBroker.nodeId();
     }
 
     @Override
@@ -297,7 +343,7 @@ public class Cluster implements AutoCloseable {
     }
 
     public ClusterBroker broker() {
-        return nodeBroker;
+        return clusterBroker;
     }
 
     @SneakyThrows
@@ -322,13 +368,13 @@ public class Cluster implements AutoCloseable {
             throw new IllegalStateException("Cluster does not have a LocalNode, use join to add Local ClusterBroker");
         }
         return new HashSet<NodeMessage.NodeInfo>() {{
-            add(toNodeInfo(localNode));
+            add(toNodeInfo(localNode, channelsToOtherNodes));
         }};
     }
 
     public Cluster bind(ClusterBroker clusterBroker) {
         clusterBroker.join(this);
-        this.nodeBroker = clusterBroker;
+        this.clusterBroker = clusterBroker;
         return this;
     }
 
@@ -350,6 +396,7 @@ public class Cluster implements AutoCloseable {
         log.info("Cluster remove Node->{}", node);
         log.info("Cluster.Nodes before remove->{}", nodes.values());
         nodes.remove(node.id(), node);
+        channelsToOtherNodes.remove(node.id());
         log.info("Cluster.Nodes after remove->{}", nodes.values());
     }
 
@@ -363,10 +410,6 @@ public class Cluster implements AutoCloseable {
 
     public static String nodePublishTopic(String localNodeId, String type) {
         return String.format($_SYS_NODE_PUBLISH_TOPIC, localNodeId, type);
-    }
-
-    public static String subscribeAllNode() {
-        return String.format($_SYS_NODE_PUBLISH_TOPIC, "+", "+");
     }
 
     private final ConcurrentMap<String, Long> nodeMayOffline = new ConcurrentHashMap<>();

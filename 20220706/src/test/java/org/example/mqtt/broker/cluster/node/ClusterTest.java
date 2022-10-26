@@ -6,6 +6,8 @@ import org.example.mqtt.broker.cluster.ClusterDbRepo;
 import org.example.mqtt.broker.node.DefaultBroker;
 import org.junit.jupiter.api.Test;
 
+import java.text.SimpleDateFormat;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -34,7 +36,8 @@ class ClusterTest {
         String nodeId = Cluster.clusterNodeId(nodeName);
         String[] nameAndTime = Cluster.idToNodeNameAndTimestamp(nodeId);
         then(nameAndTime[0]).isEqualTo(nodeName);
-        then(Long.valueOf(nameAndTime[1])).isLessThanOrEqualTo(System.currentTimeMillis());
+        String now = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
+        then(Long.valueOf(nameAndTime[1])).isLessThanOrEqualTo(Long.valueOf(now));
     }
 
 }

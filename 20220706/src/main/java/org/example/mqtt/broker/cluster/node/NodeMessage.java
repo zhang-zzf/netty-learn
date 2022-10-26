@@ -14,11 +14,13 @@ import static io.netty.buffer.ByteBufUtil.getBytes;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 @Data
+@Accessors(chain = true)
 public class NodeMessage {
 
     public static final String ACTION_PUBLISH_FORWARD = "Publish.forward";
     public static final String ACTION_SESSION_CLOSE = "Session.Close";
     public static final String ACTION_BROKER_CLOSE = "Broker.Close";
+    public static final String ACTION_TOPIC_QUERY = "Topic.Query";
     public static final String INFO_CLUSTER_NODES = "Cluster.Nodes";
     public static final String INFO_CLIENT_CONNECT = "Client.Connect";
     private String nodeId;
@@ -103,6 +105,8 @@ public class NodeMessage {
         private String id;
         private String address;
         private Set<String> nodeClientIds;
+        private String cmNodeClientId;
+        private Set<String> subscribers;
 
         @Override
         public String toString() {
@@ -118,6 +122,22 @@ public class NodeMessage {
                 if (!(nodeClientIds).isEmpty()) {
                     sb.append("[");
                     for (Object collectionValue : nodeClientIds) {
+                        sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
+                    }
+                    sb.replace(sb.length() - 1, sb.length(), "]");
+                } else {
+                    sb.append("[]");
+                }
+                sb.append(',');
+            }
+            if (cmNodeClientId != null) {
+                sb.append("\"cmNodeClientId\":\"").append(cmNodeClientId).append('\"').append(',');
+            }
+            if (subscribers != null) {
+                sb.append("\"subscribers\":");
+                if (!(subscribers).isEmpty()) {
+                    sb.append("[");
+                    for (Object collectionValue : subscribers) {
                         sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
                     }
                     sb.replace(sb.length() - 1, sb.length(), "]");

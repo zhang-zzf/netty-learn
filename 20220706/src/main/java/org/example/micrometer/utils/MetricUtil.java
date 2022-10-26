@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MetricUtil {
 
@@ -17,7 +18,8 @@ public class MetricUtil {
 
     }
 
-    public static final ConcurrentMap<String, Timer> timers = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, Timer> timers = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<String, AtomicLong> gauges = new ConcurrentHashMap<>();
 
     /**
      * Timer 监控
@@ -86,6 +88,20 @@ public class MetricUtil {
             return;
         }
         Metrics.gauge(metricName, map, Map::size);
+    }
+
+    public static final void gauge(String metricName, long val, String... tags) {
+        if (!metricOn) {
+            return;
+        }
+        String id = id(metricName, tags);
+        AtomicLong gauge = gauges.get(id);
+        if (gauge == null) {
+            AtomicLong atomicLong = Metrics.gauge(metricName, new AtomicLong(0));
+            gauges.putIfAbsent(id, atomicLong);
+            gauge = gauges.get(id);
+        }
+        gauge.set(val);
     }
 
 }

@@ -30,8 +30,7 @@ import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
-import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
-import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
 import static org.example.mqtt.broker.node.DefaultBroker.qoS;
 import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
@@ -71,6 +70,12 @@ public class ClusterBrokerImpl implements ClusterBroker {
 
     static {
         String nodeName = System.getProperty("mqtt.server.cluster.nodeName", "node");
+        log.info("nodeName-> {}", nodeName);
+        if (nodeName.indexOf("/") > 0) {
+            log.info("nodeName contains '/', now replace it with '_'");
+            nodeName = nodeName.replaceAll("/", "_");
+            log.info("nodeName-> {}", nodeName);
+        }
         nodeId = Cluster.clusterNodeId(nodeName);
         log.info("Broker.nodeId->{}", nodeId);
     }
@@ -370,6 +375,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
         BrokerBootstrap.shutdownServer();
         log.info("Broker now try to shutdown ClusterDbRepo");
         clusterDbRepo.close();
+        // shutdown the nodeBroker
+        nodeBroker.close();
         closeStatus.compareAndSet(1, 2);
         log.info("Broker is closed.");
     }
@@ -427,9 +434,40 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 log.info("Broker receive shutdown Instruction");
                 shutdownGracefully();
                 break;
+            case ACTION_SESSION_CLOSE:
+                doHandleActionSessionClose(m);
+                break;
+            case ACTION_TOPIC_QUERY:
+                doHandleActionTopicQuery(m);
+                break;
             default:
                 log.error("Broker receive Unknown Instruction->{}, {}", m, ByteBufUtil.prettyHexDump(packet.payload()));
-                throw new UnsupportedOperationException();
+        }
+    }
+
+    private void doHandleActionTopicQuery(NodeMessage m) {
+        String topicFilter = m.unwrapSessionClose();
+        Optional<Topic> topic = nodeBroker.topic(topicFilter);
+        log.info("ClusterBroker receive Topic.Query-> tf: {}, topic: {}", topicFilter, topic);
+        if (topic.isPresent()) {
+            // $SYS/cluster/nodes/%s/%s
+            String publishTopic = "$SYS/cluster/nodes/" + nodeId + "/query/result";
+            NodeMessage nm = new NodeMessage().setNodeId(nodeId()).setPacket("Topic.Query.Result")
+                    .setPayload(topic.get().toString());
+            Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
+            forward(publish);
+        }
+    }
+
+    private void doHandleActionSessionClose(NodeMessage m) {
+        String clientIdentifier = m.unwrapSessionClose();
+        ServerSession session = nodeBroker.session(clientIdentifier);
+        log.info("ClusterBroker receive Session.Closed-> cId: {}, session: {}", clientIdentifier, session);
+        if (session != null) {
+            session.close();
+            log.info("NodeClient Session.Closed->{}", clientIdentifier);
+        } else {
+            log.warn("NodeClient does not exist Session({})", clientIdentifier);
         }
     }
 

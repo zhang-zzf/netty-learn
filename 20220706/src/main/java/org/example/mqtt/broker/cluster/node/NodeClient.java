@@ -18,10 +18,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicLong;
 
-import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_TOPIC;
-import static org.example.mqtt.broker.cluster.node.Cluster.subscribeAllNode;
+import static org.example.mqtt.broker.cluster.node.Cluster.*;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 
 @Slf4j
@@ -32,23 +30,32 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final Node remoteNode;
     @Getter
     private final String clientIdentifier;
-    private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
     public NodeClient(Node remoteNode, EventLoopGroup clientEventLoopGroup, Cluster cluster) {
         this.clientIdentifier = String.format($_SYS_NODE_TOPIC,
-                cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
+                cluster.broker().nodeId(), remoteNode.newClientNum());
         this.remoteNode = remoteNode;
         this.cluster = cluster;
         this.client = new Client(clientIdentifier, remoteNode.address(), clientEventLoopGroup, this);
         subscribeMyClientIdentifier();
     }
 
-    public void subscribeClusterMessage() {
-        Subscribe.Subscription clusterNodes =
-                new Subscribe.Subscription(subscribeAllNode(), Publish.AT_LEAST_ONCE);
-        List<Subscribe.Subscription> sub = Arrays.asList(clusterNodes);
-        log.info("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
-        client.syncSubscribe(sub);
+    public boolean subscribeClusterMessage() {
+        try {
+            Subscribe.Subscription clusterNodes =
+                    new Subscribe.Subscription($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER, Publish.AT_LEAST_ONCE);
+            List<Subscribe.Subscription> sub = Arrays.asList(clusterNodes);
+            client.syncSubscribe(sub);
+            log.info("NodeClient subscribe cluster message-> client: {}, remoteBroker: {}, Topic: {}",
+                    clientIdentifier, remoteNode.id(), sub);
+            return true;
+        } catch (Exception e) {
+            log.error("NodeClient subscribe cluster message failed-> client: {}, remoteBroker: {}, exception: {}",
+                    clientIdentifier, remoteNode.id(), e);
+            // 订阅失败后关闭 NodeClient
+            close();
+            return false;
+        }
     }
 
     private void subscribeMyClientIdentifier() {
@@ -107,7 +114,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
                 doHandleClientConnect(m);
                 break;
             default:
-                throw new IllegalArgumentException();
+                log.warn("NodeClient receive unknown NodeMessage-> packetType: {}", m);
         }
     }
 
@@ -157,7 +164,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
 
     @Override
     public void clientClosed() {
-        log.info("NodeClient({}) clientClosed", this);
+        log.info("NodeClient clientClosed-> {}-->{},{}", clientIdentifier, remoteNode.id(), remoteNode.address());
         boolean removed = remoteNode.removeNodeClient(this);
         if (!removed) {
             log.error("NodeClient remove from Node failed-> client:{}, Node: {}", this, remoteNode);
@@ -170,7 +177,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     @Override
-    public void close() throws Exception {
+    public void close() {
         log.info("NodeClient({}) now try to close", this);
         client.close();
     }

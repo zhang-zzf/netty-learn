@@ -49,11 +49,11 @@ public class BrokerBootstrap {
         cluster.bind(clusterBroker).start();
         String anotherNode = System.getProperty("mqtt.server.cluster.join");
         if (anotherNode != null) {
-            log.info("Cluster try to connect to another Node->{}", anotherNode);
+            log.info("startBroker try to connect to another Node-> Node: {}", anotherNode);
             cluster.join(anotherNode);
-            log.info("Cluster.Nodes->{}", JSON.toJSONString(cluster.nodes()));
+            log.info("startBroker Cluster.Nodes-> Cluster: {}", JSON.toJSONString(cluster.nodes()));
         }
-        log.info("Node({}) start success", clusterBroker.nodeId());
+        log.info("startBroker success-> nodeId: {}", clusterBroker.nodeId());
     }
 
     private static ClusterDbRepo redisClusterDbRepo() {

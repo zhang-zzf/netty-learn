@@ -14,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +58,7 @@ public class Cluster implements AutoCloseable {
      * Broker <--- NodeClient(another Broker)
      * <p>其他节点到本节点的通道，用于本节点向其他节点发送消息（如 forward Publish）</p>
      */
-    private final ConcurrentMap<String, CopyOnWriteArraySet<String>> channelsToOtherNodes = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, Set<String>> channelsToOtherNodes = new ConcurrentHashMap<>();
 
     private ClusterBroker nodeBroker;
 
@@ -127,6 +128,7 @@ public class Cluster implements AutoCloseable {
                 log.error("Cluster add Node failed, same nodeId with different remoteAddress->{}, {}", nodeId, remoteAddress);
                 return false;
             }
+            log.debug("Cluster add Node-> exist same Node: {}", nodeId);
             return true;
         }
         // node.address Check
@@ -172,17 +174,20 @@ public class Cluster implements AutoCloseable {
         }
         // Why？why not just use a single NodeClient?
         // 性能问题。与 Broker 建立一条 tcp(nc) 可以处理的数据量有限，影响 Publish 消息在集群中转发的效率（增加了消息的延时）
-        for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
+        // 不要使用以下形式的循环，存在并发问题，i 在循环初始化时只赋值了一次
+        // for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
+        for (; nn.nodeClientsCnt() < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; ) {
+            log.info("Cluster try to build new Channel to Node-> remoteNode: {}", nn.id());
             NodeClient nc = buildChannelToNode(nn);
             if (nc != null) {
                 nn.addNodeClient(nc);
-                log.info("Cluster built new Channel to Node->{}", nc);
+                log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}", nc, nn.id());
             }
         }
     }
 
     public void updateNodes(String remoteNodeId, Set<NodeMessage.NodeInfo> nodeInfos) {
-        log.debug("Cluster before update-> nodes: {}, channels: ", nodes, channelsToOtherNodes);
+        log.debug("Cluster before update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
         for (NodeMessage.NodeInfo node : nodeInfos) {
             // update Node Info
             updateNode(node.getId(), node.getAddress());
@@ -192,26 +197,15 @@ public class Cluster implements AutoCloseable {
     }
 
     private void updateChannels(String remoteNodeId, NodeMessage.NodeInfo node) {
+        // 只关心其他节点到我自己节点的连接信息
         if (!node.getId().equals(nodeId())) {
             return;
         }
         if (node.getNodeClientIds() == null) {
             return;
         }
-        CopyOnWriteArraySet<String> set = channelsToOtherNodes.get(remoteNodeId);
-        if (set == null) {
-            channelsToOtherNodes.putIfAbsent(remoteNodeId, new CopyOnWriteArraySet<>());
-            set = channelsToOtherNodes.get(remoteNodeId);
-        }
-        for (String nodeClientId : node.getNodeClientIds()) {
-            if (set.contains(nodeClientId)) {
-                continue;
-            }
-            boolean added = set.add(nodeClientId);
-            if (added) {
-                log.info("Cluster added channelToOtherNode-> remoteNode: {}, NodeClientId: {}", remoteNodeId, nodeClientId);
-            }
-        }
+        // 直接使用对方广播给我的信息
+        channelsToOtherNodes.put(remoteNodeId, Collections.unmodifiableSet(node.getNodeClientIds()));
     }
 
     private NodeClient buildChannelToNode(Node remoteNode) {
@@ -247,7 +241,10 @@ public class Cluster implements AutoCloseable {
         for (Node n : nodes.values()) {
             buildChannelsToNode(n);
         }
-        Set<NodeMessage.NodeInfo> state = nodes.values().stream().map(this::toNodeInfo).collect(toSet());
+        Set<NodeMessage.NodeInfo> state = nodes.values().stream()
+                // filter out the UNKNOWN_NODE
+                .filter(n -> !n.getId().equals(NODE_ID_UNKNOWN))
+                .map(this::toNodeInfo).collect(toSet());
         // 广播我的集群状态
         String publishTopic = clusterNodeChangePublishTopic(nodeId());
         log.debug("Cluster.publishClusterNodes() Cluster.Nodes-> nodes: {}, topic: {}", state, publishTopic);
@@ -409,7 +406,7 @@ public class Cluster implements AutoCloseable {
 
     @Nullable
     public String pickOneChannelToNode(String targetNodeId) {
-        CopyOnWriteArraySet<String> set = channelsToOtherNodes.get(targetNodeId);
+        Set<String> set = channelsToOtherNodes.get(targetNodeId);
         if (set == null) {
             return null;
         }
@@ -432,7 +429,7 @@ public class Cluster implements AutoCloseable {
 
     @NotNull
     public Set<String> channelsToNode(String targetNodeId) {
-        return ofNullable((Set<String>) channelsToOtherNodes.get(targetNodeId)).orElse(emptySet());
+        return ofNullable(channelsToOtherNodes.get(targetNodeId)).orElse(emptySet());
     }
 
 }

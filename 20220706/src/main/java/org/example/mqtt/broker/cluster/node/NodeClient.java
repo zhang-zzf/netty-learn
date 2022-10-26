@@ -55,7 +55,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         Subscribe.Subscription nodeSubscription =
                 new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
         List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription);
-        log.info("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
+        log.debug("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
         client.syncSubscribe(sub);
     }
 
@@ -74,7 +74,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
             // binary protocol Publish NodeMessage
             m = new NodePublish(payload);
         }
-        log.debug("NodeClient receive message->{}", m);
+        log.debug("NodeClient receive message-> ncId:{}, msg: {}", m);
         doHandleNodeMessageWithMetric(m);
     }
 
@@ -125,7 +125,8 @@ public class NodeClient implements MessageHandler, AutoCloseable {
 
     private void doHandleInfoClusterNodes(NodeMessage m) {
         Set<NodeInfo> state = m.unwrapClusterNodes();
-        log.debug("NodeClient receive Cluster.Nodes: {}", state);
+        log.debug("NodeClient receive Cluster.Nodes-> ncId: {}, remote: {}, remoteState: {}",
+                clientIdentifier, m.getNodeId(), state);
         cluster.updateNodes(m.getNodeId(), state);
     }
 

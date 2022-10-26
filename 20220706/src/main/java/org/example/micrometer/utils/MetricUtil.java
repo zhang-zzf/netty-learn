@@ -1,6 +1,7 @@
 package org.example.micrometer.utils;
 
 import io.micrometer.core.instrument.Metrics;
+import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 
 import java.time.Duration;
@@ -97,7 +98,7 @@ public class MetricUtil {
         String id = id(metricName, tags);
         AtomicLong gauge = gauges.get(id);
         if (gauge == null) {
-            AtomicLong atomicLong = Metrics.gauge(metricName, new AtomicLong(0));
+            AtomicLong atomicLong = Metrics.gauge(metricName, Tags.of(tags), new AtomicLong(0));
             gauges.putIfAbsent(id, atomicLong);
             gauge = gauges.get(id);
         }

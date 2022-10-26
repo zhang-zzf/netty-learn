@@ -274,6 +274,9 @@ public class Cluster implements AutoCloseable {
     private void logNodeMetrics() {
         try {
             for (Map.Entry<String, Node> e : nodes.entrySet()) {
+                if (NODE_ID_UNKNOWN.equals(e.getKey()) || nodeId().equals(e.getKey())) {
+                    continue;
+                }
                 String remoteNode = e.getKey();
                 Node node = e.getValue();
                 // broker.cluster.node.nodes
@@ -285,12 +288,12 @@ public class Cluster implements AutoCloseable {
                 MetricUtil.gauge("broker.cluster.node.subscribers",
                         subscribers == null ? 0 : subscribers.size(),
                         "node", nodeId(), "remoteNode", remoteNode);
-                // 集群消息主题的订阅
-                Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
-                MetricUtil.gauge("broker.cluster.node.topic.cm",
-                        topicOpt.isPresent() ? topicOpt.get().subscribers().size() : 0,
-                        "node", nodeId());
             }
+            // 集群消息主题的订阅
+            Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
+            MetricUtil.gauge("broker.cluster.node.topic.cm",
+                    topicOpt.isPresent() ? topicOpt.get().subscribers().size() : 0,
+                    "node", nodeId());
         } catch (Throwable e) {
             log.error("unExpected Exception", e);
         }

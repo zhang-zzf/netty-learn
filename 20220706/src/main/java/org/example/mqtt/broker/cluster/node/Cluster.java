@@ -301,7 +301,7 @@ public class Cluster implements AutoCloseable {
                 .setId(n.getId())
                 .setAddress(n.getAddress())
                 .setNodeClientIds(n.nodeClientIdSet())
-                .setCmNodeClientId(n.cmClient().getClientIdentifier())
+                .setCmNodeClientId(ofNullable(n.cmClient()).map(NodeClient::getClientIdentifier).orElse(null))
                 .setSubscribers(channelsToOtherNodes.get(n.getId()))
                 ;
     }

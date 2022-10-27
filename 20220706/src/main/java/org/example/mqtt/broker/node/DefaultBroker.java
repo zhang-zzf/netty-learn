@@ -135,7 +135,11 @@ public class DefaultBroker implements Broker {
     @Override
     public void connect(ServerSession session) {
         // sync wait
-        brokerState.connect(session).get();
+        ServerSession previous = brokerState.connect(session).get();
+        if (previous != null) {
+            previous.close();
+            log.warn("DefaultBroker#connect close exist Session-> {}", previous);
+        }
     }
 
     private void retain(Publish publish) {

@@ -115,12 +115,12 @@ public class DefaultBrokerState {
 
     public Future<ServerSession> connect(ServerSession session) {
         Callable task = () -> {
-            sessionMap.put(session.clientIdentifier(), session);
+            ServerSession previous = sessionMap.put(session.clientIdentifier(), session);
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
             for (Subscribe.Subscription sub : subscriptions) {
                 doSubscribe(session, sub);
             }
-            return null;
+            return previous;
         };
         return executorService.submit(task);
 

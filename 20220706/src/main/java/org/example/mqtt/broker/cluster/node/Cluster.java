@@ -7,6 +7,7 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
@@ -215,7 +216,14 @@ public class Cluster implements AutoCloseable {
             return;
         }
         // 直接使用对方广播给我的信息
-        channelsToOtherNodes.put(remoteNodeId, Collections.unmodifiableSet(node.getNodeClientIds()));
+        channelsToOtherNodes.put(remoteNodeId, node.getNodeClientIds());
+        // check Session exist
+        for (String nodeClientId : node.getNodeClientIds()) {
+            ServerSession session = clusterBroker.nodeBroker().session(nodeClientId);
+            if (session == null) {
+                log.error("Cluster updateChannel, No Session-> cId: {}", nodeClientId);
+            }
+        }
     }
 
     private NodeClient buildChannelToNode(Node remoteNode) {

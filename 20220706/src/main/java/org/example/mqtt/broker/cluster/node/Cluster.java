@@ -215,6 +215,10 @@ public class Cluster implements AutoCloseable {
     }
 
     public void updateNodes(String remoteNodeId, Set<NodeMessage.NodeInfo> nodeInfos) {
+        if (broker().closed()) {
+            log.debug("Broker was closed, ignore updateNodes");
+            return;
+        }
         executorService.submit(() -> {
             log.debug("Cluster before update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
             for (NodeMessage.NodeInfo node : nodeInfos) {
@@ -277,6 +281,9 @@ public class Cluster implements AutoCloseable {
     @SneakyThrows
     private void publishClusterNodes() {
         // 把本地状态更新到最新后发布本地状态到集群
+        if (broker().closed()) {
+            return;
+        }
         executorService.submit(() -> {
             for (Node n : nodes.values()) {
                 buildChannelsToNode(n);
@@ -308,17 +315,8 @@ public class Cluster implements AutoCloseable {
                 if (NODE_ID_UNKNOWN.equals(e.getKey()) || nodeId().equals(e.getKey())) {
                     continue;
                 }
-                String remoteNode = e.getKey();
-                Node node = e.getValue();
                 // broker.cluster.node.nodes
-                MetricUtil.gauge("broker.cluster.node.clients", node.nodeClientsCnt(),
-                        "node", nodeId(), "remoteNode", remoteNode);
-                MetricUtil.gauge("broker.cluster.node.clients.cm", node.cmClient() == null ? 0 : 1,
-                        "node", nodeId(), "remoteNode", remoteNode);
-                Set<String> subscribers = channelsToOtherNodes.get(remoteNode);
-                MetricUtil.gauge("broker.cluster.node.subscribers",
-                        subscribers == null ? 0 : subscribers.size(),
-                        "node", nodeId(), "remoteNode", remoteNode);
+                logNodeMetric(e.getValue());
             }
             // 集群消息主题的订阅
             Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
@@ -328,6 +326,18 @@ public class Cluster implements AutoCloseable {
         } catch (Throwable e) {
             log.error("unExpected Exception", e);
         }
+    }
+
+    private void logNodeMetric(Node node) {
+        String remoteNode = node.id();
+        MetricUtil.gauge("broker.cluster.node.clients", node.nodeClientsCnt(),
+                "node", nodeId(), "remoteNode", remoteNode);
+        MetricUtil.gauge("broker.cluster.node.clients.cm", node.cmClient() == null ? 0 : 1,
+                "node", nodeId(), "remoteNode", remoteNode);
+        Set<String> subscribers = channelsToOtherNodes.get(remoteNode);
+        MetricUtil.gauge("broker.cluster.node.subscribers",
+                subscribers == null ? 0 : subscribers.size(),
+                "node", nodeId(), "remoteNode", remoteNode);
     }
 
     private NodeMessage.NodeInfo toNodeInfo(Node n, ConcurrentMap<String, Set<String>> channelsToOtherNodes) {
@@ -438,6 +448,7 @@ public class Cluster implements AutoCloseable {
             nodes.remove(node.id(), node);
             channelsToOtherNodes.remove(node.id());
             log.info("Cluster.Nodes after remove->{}", nodes.values());
+            logNodeMetric(node);
         });
     }
 

@@ -371,7 +371,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.info("Broker now try to shutdown Cluster");
         cluster.close();
         // shutdown Broker
-        log.info("Broker now try to shutdown Broker");
+        log.info("Broker now try to shutdown Bootstrap");
         BrokerBootstrap.shutdownServer();
         log.info("Broker now try to shutdown ClusterDbRepo");
         clusterDbRepo.close();

@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.EventLoopGroup;
 import lombok.Getter;
+import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
@@ -17,9 +18,10 @@ import org.example.mqtt.model.Subscribe;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicLong;
 
-import static org.example.mqtt.broker.cluster.node.Cluster.*;
+import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER;
+import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_TOPIC;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 
 @Slf4j
@@ -30,10 +32,12 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     private final Node remoteNode;
     @Getter
     private final String clientIdentifier;
+    // 集群级别 clientIdentifier 不重名
+    private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
     public NodeClient(Node remoteNode, EventLoopGroup clientEventLoopGroup, Cluster cluster) {
         this.clientIdentifier = String.format($_SYS_NODE_TOPIC,
-                cluster.broker().nodeId(), remoteNode.newClientNum());
+                cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
         this.remoteNode = remoteNode;
         this.cluster = cluster;
         this.client = new Client(clientIdentifier, remoteNode.address(), clientEventLoopGroup, this);
@@ -191,7 +195,8 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public void syncSend(int qos, String topic, ByteBuf payload) throws ExecutionException, InterruptedException {
+    @SneakyThrows
+    public void syncSend(int qos, String topic, ByteBuf payload) {
         client.syncSend(qos, topic, payload);
     }
 

@@ -135,7 +135,7 @@ public class Client implements AutoCloseable {
             URI uri = new URI(remoteAddress);
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
             ChannelFuture future = bootstrap.connect(address);
-            // just wait 3 seconds
+            // just wait 1 seconds
             if (!future.await(1, TimeUnit.SECONDS)) {
                 throw new TimeoutException("Client.connectToBroker() timeout.");
             }
@@ -213,7 +213,7 @@ public class Client implements AutoCloseable {
      * Client 连接断开回调
      */
     public void disconnected() {
-        log.info("Client disconnected from remote Broker-> {}", cId());
+        log.debug("Client disconnected from remote Broker-> {}", cId());
         handler.clientClosed();
     }
 

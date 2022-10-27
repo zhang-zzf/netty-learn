@@ -64,10 +64,24 @@ public class Cluster implements AutoCloseable {
     private ClusterBroker clusterBroker;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
+    /**
+     * 集群同步定时任务
+     */
     private ScheduledThreadPoolExecutor scheduledExecutorService;
     private volatile ScheduledFuture<?> syncJob;
-
     private int publishClusterNodesPeriod = Integer.getInteger("mqtt.server.cluster.node.sync.period", 1);
+
+    /**
+     * 单线程处理 Cluster 更新
+     */
+    private final ExecutorService executorService = new ThreadPoolExecutor(1, 1,
+            60, TimeUnit.SECONDS,
+            // 使用无界队列
+            new LinkedBlockingDeque<>(),
+            (r) -> new Thread(r, "cluster-update"),
+            new ThreadPoolExecutor.AbortPolicy()
+    );
+
     private static final int MQTT_CLUSTER_CLIENT_CHANNEL_NUM;
 
     static {
@@ -122,7 +136,7 @@ public class Cluster implements AutoCloseable {
     }
 
     @SneakyThrows
-    public boolean addNode(String nodeId, String remoteAddress) {
+    private boolean addNode(String nodeId, String remoteAddress) {
         // node.nodeId Check
         Node node = nodes.get(nodeId);
         if (node != null) {
@@ -148,7 +162,7 @@ public class Cluster implements AutoCloseable {
             log.warn("Cluster add Node failed, may be other Thread add it->{}, {}", nodeId, remoteAddress);
             return true;
         }
-        log.debug("Cluster now try to connect to new Node->{}", nn);
+        log.info("Cluster now try to connect to new Node->{}", nn);
         // try to connect the Node
         // 与 Broker 建立 n 个 NodeClient，用于接受从 Broker 转发的 Publish 消息
         buildChannelsToNode(nn);
@@ -190,6 +204,9 @@ public class Cluster implements AutoCloseable {
                 if (nc != null) {
                     nn.addNodeClient(nc);
                     log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}, {}", nc, nn.id(), nn.address());
+                } else {
+                    // 判断已建立的连接是否可用
+                    nn.checkNodeClientAvailable();
                 }
             }
         } finally {
@@ -198,13 +215,15 @@ public class Cluster implements AutoCloseable {
     }
 
     public void updateNodes(String remoteNodeId, Set<NodeMessage.NodeInfo> nodeInfos) {
-        log.debug("Cluster before update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
-        for (NodeMessage.NodeInfo node : nodeInfos) {
-            // update Node Info
-            updateNode(node.getId(), node.getAddress());
-            updateChannels(remoteNodeId, node);
-        }
-        log.debug("Cluster after update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
+        executorService.submit(() -> {
+            log.debug("Cluster before update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
+            for (NodeMessage.NodeInfo node : nodeInfos) {
+                // update Node Info
+                updateNode(node.getId(), node.getAddress());
+                updateChannels(remoteNodeId, node);
+            }
+            log.debug("Cluster after update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
+        });
     }
 
     private void updateChannels(String remoteNodeId, NodeMessage.NodeInfo node) {
@@ -230,12 +249,12 @@ public class Cluster implements AutoCloseable {
         try {
             return new NodeClient(remoteNode, clientEventLoopGroup, this);
         } catch (Exception e) {
-            log.error("Cluster connect to another node failed-> remoteNode: {}", remoteNode);
-            log.error("Cluster connect to another node failed", e);
+            log.error("Cluster buildChannelToNode failed-> remoteNode: {}", remoteNode);
+            log.error("Cluster buildChannelToNode failed", e);
             // 连接节点失败，添加统计
             if (remoteNode.connectFailed() > CONNECT_FAILED_THRESHOLD) {
-                log.error("Cluster connect to another node failed more than {}times, " +
-                        "now offline it-> Node: {}", CONNECT_FAILED_THRESHOLD, remoteNode);
+                log.error("Cluster buildChannelToNode failed more than {} times, " +
+                        "now remove it from Cluster-> Node: {}", CONNECT_FAILED_THRESHOLD, remoteNode);
                 boolean removed = nodes.remove(remoteNode.id(), remoteNode);
                 if (!removed) {
                     log.error("Cluster remove Node failed-> Node: {}, Cluster: {}", remoteNode, JSON.toJSON(nodes));
@@ -255,18 +274,22 @@ public class Cluster implements AutoCloseable {
                 publishClusterNodesPeriod, publishClusterNodesPeriod, TimeUnit.SECONDS);
     }
 
+    @SneakyThrows
     private void publishClusterNodes() {
-        for (Node n : nodes.values()) {
-            buildChannelsToNode(n);
-            // todo null check
-            // n.cmClient().subscribeClusterMessage();
-        }
+        // 把本地状态更新到最新后发布本地状态到集群
+        executorService.submit(() -> {
+            for (Node n : nodes.values()) {
+                buildChannelsToNode(n);
+            }
+        });
         Set<NodeMessage.NodeInfo> state = nodes.values().stream()
                 // filter out the UNKNOWN_NODE
-                .filter(n -> !n.getId().equals(NODE_ID_UNKNOWN))
+                .filter(n -> !n.id().equals(NODE_ID_UNKNOWN))
+                // filter out unhealthy node
+                .filter(n -> n.id().equals(nodeId()) || n.nodeClientsCnt() == MQTT_CLUSTER_CLIENT_CHANNEL_NUM)
                 .map(n -> toNodeInfo(n, channelsToOtherNodes)).collect(toSet());
         // 广播我的集群状态
-        String publishTopic = clusterNodeChangePublishTopic(nodeId());
+        String publishTopic = nodePublishTopic(nodeId(), "node");
         log.debug("Cluster.publishClusterNodes() Cluster.Nodes-> nodes: {}, topic: {}", state, publishTopic);
         NodeMessage nm = wrapClusterNodes(nodeId(), state);
         Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
@@ -326,6 +349,7 @@ public class Cluster implements AutoCloseable {
         log.info("Cluster.close()");
         cancelSyncJob();
         closeAllClient();
+        executorService.shutdownNow();
     }
 
     private void cancelSyncJob() {
@@ -362,15 +386,18 @@ public class Cluster implements AutoCloseable {
         if (!started.get()) {
             throw new IllegalStateException("Cluster is not started yet.");
         }
-        boolean nodeAdded = addNode(NODE_ID_UNKNOWN, anotherNodeAddress);
-        if (nodeAdded) {
-            Set<NodeMessage.NodeInfo> localNode = localNodeInfo();
-            log.info("Cluster start sync Local Node with remote Node-> local: {}, remote: {}", localNode, anotherNodeAddress);
-            NodeMessage nm = wrapClusterNodes(broker().nodeId(), localNode);
-            nodes.get(NODE_ID_UNKNOWN).nodeClient()
-                    .syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
-            log.info("Cluster sync done");
-        }
+        // 更新 Cluster 内部数据的操作交给单线程处理
+        executorService.submit(() -> {
+            boolean nodeAdded = addNode(NODE_ID_UNKNOWN, anotherNodeAddress);
+            if (nodeAdded) {
+                Set<NodeMessage.NodeInfo> localNode = localNodeInfo();
+                log.info("Cluster start sync Local Node with remote Node-> local: {}, remote: {}", localNode, anotherNodeAddress);
+                NodeMessage nm = wrapClusterNodes(broker().nodeId(), localNode);
+                nodes.get(NODE_ID_UNKNOWN).nodeClient()
+                        .syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
+                log.info("Cluster sync done");
+            }
+        }).get();
     }
 
     private HashSet<NodeMessage.NodeInfo> localNodeInfo() {
@@ -404,19 +431,17 @@ public class Cluster implements AutoCloseable {
     }
 
     public void removeNode(Node node) {
-        log.info("Cluster remove Node->{}", node);
-        log.info("Cluster.Nodes before remove->{}", nodes.values());
-        nodes.remove(node.id(), node);
-        channelsToOtherNodes.remove(node.id());
-        log.info("Cluster.Nodes after remove->{}", nodes.values());
+        executorService.submit(() -> {
+            log.info("Cluster remove Node->{}", node);
+            log.info("Cluster.Nodes before remove->{}", nodes.values());
+            nodes.remove(node.id(), node);
+            channelsToOtherNodes.remove(node.id());
+            log.info("Cluster.Nodes after remove->{}", nodes.values());
+        });
     }
 
     public static String sessionChangePublishTopic(String localNodeId) {
         return nodePublishTopic(localNodeId, "session");
-    }
-
-    public static String clusterNodeChangePublishTopic(String localNodeId) {
-        return nodePublishTopic(localNodeId, "node");
     }
 
     public static String nodePublishTopic(String localNodeId, String type) {

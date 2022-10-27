@@ -10,7 +10,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Optional.ofNullable;
@@ -29,7 +28,6 @@ public class Node implements AutoCloseable {
     @Getter
     private final String address;
 
-    private final AtomicLong clientIdentifierCounter = new AtomicLong(0);
     // thread safe
     private final CopyOnWriteArrayList<NodeClient> nodeClients = new CopyOnWriteArrayList<>();
     /**
@@ -102,7 +100,7 @@ public class Node implements AutoCloseable {
             }
         }
         if (clusterMessageClientRemoved && !nodeClients.isEmpty()) {
-            log.debug("removeNodeClient trySubscribeClusterMessage-> NodeClient: {}", nc);
+            log.debug("removeNodeClient trySubscribeClusterMessage");
             trySubscribeClusterMessage(nodeClients.get(0));
         }
         return removed;
@@ -181,10 +179,6 @@ public class Node implements AutoCloseable {
         return connectFailCnt.incrementAndGet();
     }
 
-    public long newClientNum() {
-        return clientIdentifierCounter.getAndIncrement();
-    }
-
     public boolean markUpdating() {
         return updating.compareAndSet(false, true);
     }
@@ -196,6 +190,12 @@ public class Node implements AutoCloseable {
     public NodeClient cmClient() {
         return ofNullable(clusterMessageClient.get())
                 .orElse(null);
+    }
+
+    public void checkNodeClientAvailable() {
+        for (NodeClient nc : nodeClients) {
+           // todo
+        }
     }
 
 }

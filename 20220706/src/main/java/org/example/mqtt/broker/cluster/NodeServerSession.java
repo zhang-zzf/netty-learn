@@ -47,7 +47,7 @@ public class NodeServerSession extends DefaultServerSession {
         if (!topicCleared) {
             executorService.submit(() -> {
                 broker().removeNodeFromTopic(subscriptions());
-                log.info("NodeServerSession#channelClosed-> subscriptions: {}", subscriptions);
+                log.info("NodeServerSession#channelClosed-> cId: {}, subs removed: {}", cId(), subscriptions);
             });
             topicCleared = true;
         }

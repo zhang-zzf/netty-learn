@@ -393,8 +393,9 @@ public class Cluster implements AutoCloseable {
                 Set<NodeMessage.NodeInfo> localNode = localNodeInfo();
                 log.info("Cluster start sync Local Node with remote Node-> local: {}, remote: {}", localNode, anotherNodeAddress);
                 NodeMessage nm = wrapClusterNodes(broker().nodeId(), localNode);
+                // no need to wait for ack
                 nodes.get(NODE_ID_UNKNOWN).nodeClient()
-                        .syncSend(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
+                        .sendAsync(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
                 log.info("Cluster sync done");
             }
         }).get();

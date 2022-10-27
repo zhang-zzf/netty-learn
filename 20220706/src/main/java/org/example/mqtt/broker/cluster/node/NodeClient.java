@@ -4,7 +4,6 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.EventLoopGroup;
 import lombok.Getter;
-import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
@@ -13,13 +12,15 @@ import org.example.mqtt.broker.cluster.ClusterServerSession;
 import org.example.mqtt.client.Client;
 import org.example.mqtt.client.MessageHandler;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
 import org.example.mqtt.model.Subscribe;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static java.util.Collections.singletonList;
 import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER;
 import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_TOPIC;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
@@ -44,30 +45,32 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         subscribeMyClientIdentifier();
     }
 
-    public boolean subscribeClusterMessage() {
-        try {
-            Subscribe.Subscription clusterNodes =
-                    new Subscribe.Subscription($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER, Publish.AT_LEAST_ONCE);
-            List<Subscribe.Subscription> sub = Arrays.asList(clusterNodes);
-            client.syncSubscribe(sub);
-            log.info("NodeClient subscribe cluster message-> client: {}, remoteBroker: {}, Topic: {}",
+    public CompletableFuture<SubAck> subscribeClusterMessage() {
+        Subscribe.Subscription clusterNodes =
+                new Subscribe.Subscription($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER, Publish.AT_LEAST_ONCE);
+        List<Subscribe.Subscription> sub = singletonList(clusterNodes);
+        return client.subscribeAsync(sub).whenComplete((resp, e) -> {
+            if (e != null) {
+                logAndClose(e);
+                return;
+            }
+            log.info("NodeClient subscribed cluster message-> client: {}, remoteBroker: {}, Topic: {}",
                     clientIdentifier, remoteNode.id(), sub);
-            return true;
-        } catch (Exception e) {
-            log.error("NodeClient subscribe cluster message failed-> client: {}, remoteBroker: {}, exception: {}",
-                    clientIdentifier, remoteNode.id(), e);
-            // 订阅失败后关闭 NodeClient
-            close();
-            return false;
-        }
+        });
     }
 
     private void subscribeMyClientIdentifier() {
         Subscribe.Subscription nodeSubscription =
                 new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
-        List<Subscribe.Subscription> sub = Arrays.asList(nodeSubscription);
+        List<Subscribe.Subscription> sub = singletonList(nodeSubscription);
         log.debug("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
-        client.syncSubscribe(sub);
+        client.subscribeAsync(sub).whenComplete((r, e) -> {
+            if (e != null) {
+                logAndClose(e);
+                return;
+            }
+            log.debug("NodeClient subscribed-> client: {}, Topic: {}", clientIdentifier, sub);
+        });
     }
 
     private ClusterBroker broker() {
@@ -195,9 +198,19 @@ public class NodeClient implements MessageHandler, AutoCloseable {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    @SneakyThrows
-    public void syncSend(int qos, String topic, ByteBuf payload) {
-        client.syncSend(qos, topic, payload);
+    private void logAndClose(Throwable e) {
+        log.error("unExpected Exception", e);
+        close();
+    }
+
+    public CompletableFuture<Void> sendAsync(int qos, String topic, ByteBuf payload) {
+        return client.sendAsync(qos, topic, payload)
+                // 出现异常时关闭 NodeClient
+                .exceptionally(e -> {
+                    logAndClose(e);
+                    return null;
+                })
+                ;
     }
 
 }

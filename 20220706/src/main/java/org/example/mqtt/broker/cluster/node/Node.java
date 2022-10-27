@@ -110,11 +110,11 @@ public class Node implements AutoCloseable {
         log.debug("trySubscribeClusterMessage-> cur: {}", clusterMessageClient.get());
         if (clusterMessageClient.compareAndSet(null, nodeClient)) {
             log.debug("trySubscribeClusterMessage new NodeClient-> NodeClient: {}", nodeClient);
-            boolean subscribed = nodeClient.subscribeClusterMessage();
-            if (!subscribed) {
+            nodeClient.subscribeClusterMessage().exceptionally(e -> {
                 log.error("trySubscribeClusterMessage failed-> NodeClient: {}", nodeClient);
                 clusterMessageClient.compareAndSet(nodeClient, null);
-            }
+                return null;
+            });
         }
     }
 
@@ -194,7 +194,7 @@ public class Node implements AutoCloseable {
 
     public void checkNodeClientAvailable() {
         for (NodeClient nc : nodeClients) {
-           // todo
+            // todo
         }
     }
 

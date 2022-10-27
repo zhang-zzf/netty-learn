@@ -25,19 +25,21 @@ import static org.example.mqtt.client.ClientSessionHandler.HANDLER_NAME;
 @Slf4j
 public class Client implements AutoCloseable {
 
-    private final ConcurrentMap<Short, SyncFuture<Object>> requestMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Short, CompletableFutureWrapper<Object>> requestMap = new ConcurrentHashMap<>();
     private final String clientIdentifier;
     private final ClientSession session;
     /**
      * mqtt://host:port
      */
     private final String remoteAddress;
-    private final EventLoopGroup eventLoop;
     public static final short KEEP_ALIVE = 8;
 
     private volatile ChannelPromise connAck;
 
     private final MessageHandler handler;
+
+    // 3s
+    private final int timeout = 3;
 
     public Client(String clientIdentifier, String remoteAddress, MessageHandler handler) {
         this(clientIdentifier, remoteAddress, eventLoopGroup(clientIdentifier), handler);
@@ -48,28 +50,28 @@ public class Client implements AutoCloseable {
     }
 
     @SneakyThrows
-    public Client(String clientIdentifier, String remoteAddress, EventLoopGroup eventLoop, MessageHandler handler) {
+    public Client(String clientIdentifier, String remoteAddress, EventLoopGroup eventLoopGroup, MessageHandler handler) {
         this.clientIdentifier = clientIdentifier;
         this.remoteAddress = remoteAddress;
-        this.eventLoop = eventLoop;
         this.session = new DefaultClientSession(this);
         this.handler = handler;
-        connectToBroker(this.remoteAddress);
+        connectToBroker(this.remoteAddress, eventLoopGroup);
     }
 
     public String clientIdentifier() {
         return clientIdentifier;
     }
 
-    public void syncSend(int qos, String topicName, ByteBuf payload) throws ExecutionException, InterruptedException {
-        send(qos, topicName, payload).get();
+    public void send(int qos, String topicName, ByteBuf payload)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        sendAsync(qos, topicName, payload).get(timeout, TimeUnit.SECONDS);
     }
 
-    public Future<Void> send(int qos, String topicName, ByteBuf payload) {
+    public CompletableFuture<Void> sendAsync(int qos, String topicName, ByteBuf payload) {
         if (qos == Publish.AT_MOST_ONCE) {
             session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload));
             // no need to wait
-            return SyncFuture.completedFuture(null);
+            return CompletableFuture.completedFuture(null);
         } else {
             short packetIdentifier = session.nextPacketIdentifier();
             session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload));
@@ -77,14 +79,14 @@ public class Client implements AutoCloseable {
         }
     }
 
-    @SneakyThrows
-    public List<Subscribe.Subscription> syncSubscribe(List<Subscribe.Subscription> sub) {
-        SubAck subAck = subscribe(sub).get();
+    public List<Subscribe.Subscription> subscribe(List<Subscribe.Subscription> sub)
+            throws ExecutionException, InterruptedException, TimeoutException {
+        SubAck subAck = subscribeAsync(sub).get(timeout, TimeUnit.SECONDS);
         log.debug("Client({}) subAck: {}", cId(), subAck);
         return subAck.subscriptions();
     }
 
-    public Future<SubAck> subscribe(List<Subscribe.Subscription> sub) {
+    public CompletableFuture<SubAck> subscribeAsync(List<Subscribe.Subscription> sub) {
         log.debug("Client({}) subscribe: {}", cId(), sub);
         if (sub == null || sub.isEmpty()) {
             throw new IllegalArgumentException();
@@ -95,26 +97,20 @@ public class Client implements AutoCloseable {
         return cacheRequest(packetIdentifier);
     }
 
-    private SyncFuture cacheRequest(short packetIdentifier) {
-        SyncFuture future = new SyncFuture<>();
+    private <T> CompletableFuture<T> cacheRequest(short packetIdentifier) {
+        CompletableFutureWrapper future = new CompletableFutureWrapper<>(packetIdentifier);
         if (requestMap.putIfAbsent(packetIdentifier, future) != null) {
             throw new IllegalStateException();
         }
-        return future;
+        return future.cf;
     }
 
     private String cId() {
         return clientIdentifier + "-->" + remoteAddress;
     }
 
-    @SneakyThrows
-    public void syncUnsubscribe(List<Subscribe.Subscription> unsub) throws ExecutionException, InterruptedException {
-        UnsubAck unsubAck = unsubscribe(unsub).get();
-        log.debug("Client({}) unsubAck: {}", cId(), unsubAck);
-    }
-
-    public Future<UnsubAck> unsubscribe(List<Subscribe.Subscription> unsub) {
-        log.info("Client({}) unsubscribe: {}", cId(), unsub);
+    public CompletableFuture<UnsubAck> unsubscribeAsync(List<Subscribe.Subscription> unsub) {
+        log.debug("Client({}) unsubscribe: {}", cId(), unsub);
         if (unsub == null || unsub.isEmpty()) {
             throw new IllegalArgumentException();
         }
@@ -129,40 +125,45 @@ public class Client implements AutoCloseable {
         session.close();
     }
 
-    private void connectToBroker(String remoteAddress) {
+    private void connectToBroker(String remoteAddress, EventLoopGroup eventLoopGroup) {
         try {
-            Bootstrap bootstrap = bootstrap(eventLoop, session);
+            Bootstrap bootstrap = bootstrap(eventLoopGroup, session);
             URI uri = new URI(remoteAddress);
             InetSocketAddress address = new InetSocketAddress(uri.getHost(), uri.getPort());
             ChannelFuture future = bootstrap.connect(address);
+            // bind Channel with Session
+            final Channel channel = future.channel();
+            session.bind(channel);
             // just wait 1 seconds
             if (!future.await(1, TimeUnit.SECONDS)) {
                 throw new TimeoutException("Client.connectToBroker() timeout.");
             }
-            Channel channel = future.channel();
             if (!channel.isActive()) {
                 throw new IllegalStateException("Client.connectToBroker channel is not ACTIVE.");
             }
             log.debug("Client({}) Channel connected to remote broker", cId());
-            // bind Channel with Session
-            session.bind(channel);
-            mqttConnect(channel);
+            mqttProtocolConnect();
             channel.closeFuture().addListener(f -> {
                 log.debug("Client({}) Channel was closed.", cId());
             });
         } catch (Exception e) {
             log.info("Client(" + cId() + ") Channel connect to remote broker exception. ", e);
+            close();
             throw new RuntimeException(e);
         }
     }
 
-    private void mqttConnect(Channel channel) throws InterruptedException {
+    private void mqttProtocolConnect() throws InterruptedException, TimeoutException {
         log.debug("Client({}) try send Connect", cId());
         // send Connect
-        connAck = channel.newPromise();
+        connAck = session.channel().newPromise();
         session.send(Connect.from(clientIdentifier, KEEP_ALIVE));
-        // wait for ConnAck
-        connAck.sync();
+        // careful: can not use sync to wait forever.
+        // wait for 3 seconds
+        boolean connected = connAck.await(timeout, TimeUnit.SECONDS);
+        if (!connected) {
+            throw new TimeoutException("ConnAck timeout after 3s");
+        }
         log.debug("Client({}) received ConnAck", cId());
     }
 
@@ -182,11 +183,11 @@ public class Client implements AutoCloseable {
     }
 
     public void completeRequest(short packetIdentifier, ControlPacket packet) {
-        SyncFuture<Object> syncFuture = requestMap.get(packetIdentifier);
-        if (syncFuture != null) {
-            syncFuture.complete(packet);
+        CompletableFutureWrapper<Object> future = requestMap.remove(Short.valueOf(packetIdentifier));
+        if (future != null) {
+            future.complete(packet);
         } else {
-            log.error("Client({}) receive *Ack [没有对应的请求]: {}", cId(), packet);
+            log.warn("Client receive *Ack [没有对应的请求]-> cId: {}, pId: {}, packet: {}", cId(), packetIdentifier, packet);
         }
     }
 
@@ -217,55 +218,30 @@ public class Client implements AutoCloseable {
         handler.clientClosed();
     }
 
-    public static class SyncFuture<V> implements Future<V> {
+    public class CompletableFutureWrapper<T> {
 
-        private volatile V response;
-        private final CountDownLatch latch = new CountDownLatch(1);
+        final CompletableFuture<T> cf = new CompletableFuture<>();
+        private final Future timeoutTask;
 
-        public SyncFuture() {
+        public CompletableFutureWrapper(short id) {
+            Runnable task = () -> {
+                if (requestMap.remove(Short.valueOf(id), cf)) {
+                    log.warn("Client request timeout-> cId: {}, pId: {}", cId(), id);
+                    cf.completeExceptionally(new TimeoutException());
+                }
+            };
+            this.timeoutTask = clientBoundEventLoop().schedule(task, timeout, TimeUnit.SECONDS);
         }
 
-        @Override
-        public boolean cancel(boolean mayInterruptIfRunning) {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isCancelled() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public boolean isDone() {
-            return latch.getCount() == 0;
-        }
-
-        @Override
-        public V get() throws InterruptedException {
-            latch.await();
-            return this.response;
-        }
-
-        @Override
-        public V get(long timeout, TimeUnit unit) throws InterruptedException {
-            if (latch.await(timeout, unit)) {
-                return this.response;
-            }
-            return null;
-        }
-
-        public void complete(V response) {
-            this.response = response;
-            latch.countDown();
-        }
-
-        public static <T> SyncFuture<T> completedFuture(T response) {
-            SyncFuture<T> f = new SyncFuture<>();
-            f.complete(response);
-            return f;
+        public boolean complete(T value) {
+            timeoutTask.cancel(true);
+            return cf.complete(value);
         }
 
     }
 
+    private EventLoop clientBoundEventLoop() {
+        return session.channel().eventLoop();
+    }
 
 }

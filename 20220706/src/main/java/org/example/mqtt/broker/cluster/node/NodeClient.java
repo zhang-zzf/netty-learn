@@ -172,15 +172,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     @Override
     public void clientClosed() {
         log.info("NodeClient clientClosed-> {}-->{},{}", clientIdentifier, remoteNode.id(), remoteNode.address());
-        boolean removed = remoteNode.removeNodeClient(this);
-        if (!removed) {
-            log.error("NodeClient remove from Node failed-> client:{}, Node: {}", this, remoteNode);
-            return;
-        }
-        log.info("NodeClient removed from Node-> client:{}, Node: {}", this, remoteNode);
-        if (remoteNode.nodeClientsCnt() == 0) {
-            cluster.removeNode(remoteNode);
-        }
+        cluster.removeNodeClientFromNode(this, remoteNode);
     }
 
     @Override

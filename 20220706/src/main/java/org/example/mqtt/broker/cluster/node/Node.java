@@ -15,6 +15,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import static java.util.Optional.ofNullable;
 import static java.util.stream.Collectors.toSet;
 
+/**
+ * Node 归属 Cluster， 由 Cluster 单线程更新 Node 状态
+ */
 @Slf4j
 public class Node implements AutoCloseable {
 
@@ -57,7 +60,7 @@ public class Node implements AutoCloseable {
         return address;
     }
 
-    public int nodeClientsCnt() {
+    int nodeClientsCnt() {
         return nodeClients.size();
     }
 
@@ -66,14 +69,14 @@ public class Node implements AutoCloseable {
      * <p>当且仅当 NodeClient 不存在时，返回 null</p>
      */
     @Nullable
-    public NodeClient nodeClient() {
+    NodeClient nodeClient() {
         if (nodeClients.isEmpty()) {
             return null;
         }
         return nodeClients.get(ThreadLocalRandom.current().nextInt(nodeClients.size()));
     }
 
-    public Node addNodeClient(NodeClient nodeClient) {
+    Node addNodeClient(NodeClient nodeClient) {
         nodeClients.add(nodeClient);
         trySubscribeClusterMessage(nodeClient);
         // 添加新节点， Node 是可达的
@@ -81,15 +84,13 @@ public class Node implements AutoCloseable {
         return this;
     }
 
-    public boolean removeNodeClient(NodeClient nc) {
+    void removeNodeClient(NodeClient nc) {
         log.debug("removeNodeClient-> NodeClient: {}", nc);
-        boolean removed = false;
         boolean clusterMessageClientRemoved = false;
         for (int i = 0; i < nodeClients.size(); i++) {
             if (nodeClients.get(i).getClientIdentifier().equals(nc.getClientIdentifier())) {
                 nodeClients.remove(i);
                 log.debug("removeNodeClient removed-> NodeClient: {}", nc);
-                removed = true;
                 if (clusterMessageClient.get() == nc) {
                     log.debug("removeNodeClient clusterMessageClient removed-> NodeClient: {}", nc);
                     // 移除的是订阅集群广播消息的客户端
@@ -103,7 +104,6 @@ public class Node implements AutoCloseable {
             log.debug("removeNodeClient trySubscribeClusterMessage");
             trySubscribeClusterMessage(nodeClients.get(0));
         }
-        return removed;
     }
 
     private void trySubscribeClusterMessage(NodeClient nodeClient) {
@@ -169,30 +169,22 @@ public class Node implements AutoCloseable {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public Set<String> nodeClientIdSet() {
+    Set<String> nodeClientIdSet() {
         return nodeClients.stream()
                 .map(NodeClient::getClientIdentifier)
                 .collect(toSet());
     }
 
-    public int connectFailed() {
+    int connectFailed() {
         return connectFailCnt.incrementAndGet();
     }
 
-    public boolean markUpdating() {
-        return updating.compareAndSet(false, true);
-    }
-
-    public void clearUpdating() {
-        updating.set(false);
-    }
-
-    public NodeClient cmClient() {
+    NodeClient cmClient() {
         return ofNullable(clusterMessageClient.get())
                 .orElse(null);
     }
 
-    public void checkNodeClientAvailable() {
+    void checkNodeClientAvailable() {
         for (NodeClient nc : nodeClients) {
             // todo
         }

@@ -190,27 +190,17 @@ public class Cluster implements AutoCloseable {
         }
         // Why？why not just use a single NodeClient?
         // 性能问题。与 Broker 建立一条 tcp(nc) 可以处理的数据量有限，影响 Publish 消息在集群中转发的效率（增加了消息的延时）
-        // 不要使用以下形式的循环，存在并发问题，i 在循环初始化时只赋值了一次
-        // for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
-        try {
-            // 可以把节点设置成更新中
-            if (!nn.markUpdating()) {
-                return;
+        // 同一时间只有一个线程更新 Node 中的数据
+        for (int i = nn.nodeClientsCnt(); i < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; i++) {
+            log.debug("Cluster try to build new Channel to Node-> remoteNode: {}, {}", nn.id(), nn.address());
+            NodeClient nc = buildChannelToNode(nn);
+            if (nc != null) {
+                nn.addNodeClient(nc);
+                log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}, {}", nc, nn.id(), nn.address());
+            } else {
+                // 判断已建立的连接是否可用
+                nn.checkNodeClientAvailable();
             }
-            // 同一时间只有一个线程更新 Node 中的数据
-            for (; nn.nodeClientsCnt() < MQTT_CLUSTER_CLIENT_CHANNEL_NUM; ) {
-                log.debug("Cluster try to build new Channel to Node-> remoteNode: {}, {}", nn.id(), nn.address());
-                NodeClient nc = buildChannelToNode(nn);
-                if (nc != null) {
-                    nn.addNodeClient(nc);
-                    log.info("Cluster built new Channel to Node-> local: {}, remoteNode: {}, {}", nc, nn.id(), nn.address());
-                } else {
-                    // 判断已建立的连接是否可用
-                    nn.checkNodeClientAvailable();
-                }
-            }
-        } finally {
-            nn.clearUpdating();
         }
     }
 
@@ -521,6 +511,18 @@ public class Cluster implements AutoCloseable {
     @NotNull
     public Set<String> channelsToNode(String targetNodeId) {
         return ofNullable(channelsToOtherNodes.get(targetNodeId)).orElse(emptySet());
+    }
+
+    public void removeNodeClientFromNode(NodeClient nodeClient, Node remoteNode) {
+        Runnable task = () -> {
+            remoteNode.removeNodeClient(nodeClient);
+            log.info("NodeClient was removed from Node-> client: {}, Node: {}", this, remoteNode);
+            if (remoteNode.nodeClientsCnt() == 0) {
+                removeNode(remoteNode);
+            }
+        };
+        // 单线程处理 Cluster 集群状态
+        executorService.submit(task);
     }
 
 }

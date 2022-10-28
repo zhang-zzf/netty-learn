@@ -29,15 +29,16 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
-import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.decodePacketIdentifier;
-import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.encodePacketIdentifier;
+import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.*;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import static org.redisson.api.RScript.Mode.READ_ONLY;
 import static org.redisson.api.RScript.Mode.READ_WRITE;
@@ -209,14 +210,11 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         redisson.getBucket(redisKey, SESSION_CODEC).delete();
     }
 
+    @SneakyThrows
     @Override
     public void addNodeToTopic(String nodeId, List<String> tfSet) {
-        for (String tf : tfSet) {
-            String redisKey = toTopicFilterRedisKey(tf);
-            log.debug("addNodeToTopic req-> {}", redisKey, nodeId);
-            List<Integer> resp = rScript.eval(READ_WRITE, LUA_SUBSCRIBE, MULTI, asList(redisKey), nodeId);
-            log.debug("addNodeToTopic resp-> {}", resp);
-        }
+        // redis 有超时机制，这里可以直接 get
+        addNodeToTopicAsync(nodeId, tfSet).get();
     }
 
     static String toTopicFilterRedisKey(String tf) {
@@ -228,22 +226,21 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
         return StringUtils.join(split, "/");
     }
 
+    @SneakyThrows
     @Override
     public void removeNodeFromTopic(String nodeId, List<String> tfSet) {
-        unsubscribeTopic(nodeId, tfSet, false);
-    }
-
-    private void unsubscribeTopic(String nodeId, List<String> tfSet, boolean force) {
-        for (String tf : tfSet) {
-            String redisKey = toTopicFilterRedisKey(tf);
-            log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
-            rScript.eval(READ_WRITE, LUA_UNSUBSCRIBE, INTEGER, asList(redisKey), nodeId, force);
-        }
+        removeNodeFromTopicAsync(nodeId, tfSet, false).get();
     }
 
     @Override
+    public CompletableFuture<Void> removeNodeFromTopicAsync(String nodeId, List<String> tfSet) {
+        return removeNodeFromTopicAsync(nodeId, tfSet, false);
+    }
+
+    @SneakyThrows
+    @Override
     public void removeTopic(List<String> tfSet) {
-        unsubscribeTopic("", tfSet, true);
+        removeNodeFromTopicAsync("", tfSet, true).get();
     }
 
     @Override
@@ -271,6 +268,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
             return toClusterTopicDomain(resp);
         });
     }
+
     private String singleLevelWildCardTopic(String topicName) {
         String[] split = topicName.split("/");
         split[0] = "+";
@@ -335,6 +333,38 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     private static String getStringFromClasspathFile(String classpathFileName) {
         InputStream input = ClassLoader.getSystemResourceAsStream(classpathFileName);
         return CharStreams.toString(new InputStreamReader(input, StandardCharsets.UTF_8));
+    }
+
+    private CompletableFuture<Void> removeNodeFromTopicAsync(String nodeId, List<String> tfSet, boolean force) {
+        List<CompletionStage<Void>> redisFutures = new ArrayList<>(tfSet.size());
+        for (String tf : tfSet) {
+            String redisKey = toTopicFilterRedisKey(tf);
+            log.debug("unsubscribeTopic req-> reddKey:{}, nodeId: {}, force: {}", redisKey, nodeId, force);
+            RFuture<Void> future = rScript
+                    .evalAsync(READ_WRITE, LUA_UNSUBSCRIBE, INTEGER, asList(redisKey), nodeId, force);
+            redisFutures.add(future);
+        }
+        return CompletableFuture.allOf(redisFutures.stream()
+                .map(CompletionStage::toCompletableFuture)
+                .toArray(CompletableFuture[]::new));
+    }
+
+    @Override
+    public CompletableFuture<Void> addNodeToTopicAsync(String nodeId, List<String> tfSet) {
+        List<CompletionStage<List<Integer>>> redisFutures = new ArrayList<>(tfSet.size());
+        for (String tf : tfSet) {
+            String redisKey = toTopicFilterRedisKey(tf);
+            log.debug("addNodeToTopic req-> {}, {}", nodeId, redisKey);
+            CompletionStage<List<Integer>> f =
+                    rScript.evalAsync(READ_WRITE, LUA_SUBSCRIBE, MULTI, asList(redisKey), nodeId);
+            f.thenAccept(resp -> {
+                log.debug("addNodeToTopic resp-> {}, {}", nodeId, resp);
+            });
+            redisFutures.add(f);
+        }
+        return CompletableFuture.allOf(redisFutures.stream()
+                .map(CompletionStage::toCompletableFuture)
+                .toArray(CompletableFuture[]::new));
     }
 
 }

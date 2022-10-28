@@ -3,7 +3,6 @@ package org.example.mqtt.broker.cluster;
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.util.concurrent.DefaultThreadFactory;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import lombok.var;
@@ -23,7 +22,7 @@ import org.springframework.stereotype.Component;
 
 import javax.annotation.Nullable;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static java.util.Collections.singletonList;
@@ -43,16 +42,6 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private final ClusterDbRepo clusterDbRepo;
     private final Broker nodeBroker;
     private Cluster cluster;
-
-    private static final int CPU_NUM = Runtime.getRuntime().availableProcessors();
-
-    private ExecutorService executorService = new ThreadPoolExecutor(
-            1, CPU_NUM, 60, TimeUnit.SECONDS,
-            new LinkedBlockingDeque<>(CPU_NUM),
-            new DefaultThreadFactory(ClusterBrokerImpl.class.getSimpleName(), true),
-            // just discard the task, wait for the next check
-            new ThreadPoolExecutor.DiscardPolicy()
-    );
 
     /**
      * <pre>
@@ -168,8 +157,13 @@ public class ClusterBrokerImpl implements ClusterBroker {
         List<Subscribe.Subscription> subscriptions = nodeBroker.subscribe(session, subscribe);
         log.debug("Node({}) Session({}) permitted Subscribe: {}", nodeId(), session.clientIdentifier(), subscriptions);
         Set<String> tfSet = subscriptions.stream().map(Subscribe.Subscription::topicFilter).collect(toSet());
-        // super.subscribe 成功，但是 cluster 操作失败（抛出异常）。-> Session.close()
-        clusterDbRepo.addNodeToTopic(nodeId(), new ArrayList<>(tfSet));
+        clusterDbRepo.addNodeToTopicAsync(nodeId(), new ArrayList<>(tfSet))
+                // 异步执行完成后若有异常直接关闭 session
+                .exceptionally(e -> {
+                    log.error("unExpected Exception", e);
+                    session.close();
+                    return null;
+                });
         return subscriptions;
     }
 
@@ -177,20 +171,22 @@ public class ClusterBrokerImpl implements ClusterBroker {
     public void unsubscribe(ServerSession session, Unsubscribe packet) {
         log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
         nodeBroker.unsubscribe(session, packet);
-        removeNodeFromTopic(new HashSet<>(packet.subscriptions()));
-        log.debug("Node({}) Session({}) unsubscribe done", nodeId(), session.clientIdentifier());
+        // 清理结果不重要，即使清理失败，不影响流程
+        removeNodeFromTopicAsync(session, new HashSet<>(packet.subscriptions()));
     }
 
     /**
      * 清理路由表
+     * <p>异步清理</p>
+     * <p>即使清理失败也可以接受，{@link ClusterBrokerImpl#forward(Publish)}中有兜底清理策略</p>
      */
     @Override
-    public void removeNodeFromTopic(Set<Subscribe.Subscription> subscriptions) {
+    public CompletableFuture<Void> removeNodeFromTopicAsync(ServerSession session, Set<Subscribe.Subscription> subscriptions) {
         List<String> topicToRemove = subscriptions.stream()
                 .map(Subscribe.Subscription::topicFilter)
                 .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
                 .collect(toList());
-        clusterDbRepo.removeNodeFromTopic(nodeId(), topicToRemove);
+        return clusterDbRepo.removeNodeFromTopicAsync(nodeId(), topicToRemove);
     }
 
     @Override
@@ -276,7 +272,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
             }
         }
         if (!forwarded) {
-            asyncRemoveNodeFromTopic(ct, targetNodeId);
+            removeNodeFromTopicIfNodeOffline(ct, targetNodeId);
         }
     }
 
@@ -300,16 +296,12 @@ public class ClusterBrokerImpl implements ClusterBroker {
         }
     }
 
-    private void asyncRemoveNodeFromTopic(ClusterTopic ct, String targetNodeId) {
-        executorService.submit(() -> removeNodeFromTopic(ct, targetNodeId));
-    }
-
-    private void removeNodeFromTopic(ClusterTopic ct, String targetNodeId) {
+    private void removeNodeFromTopicIfNodeOffline(ClusterTopic ct, String targetNodeId) {
         // target node may be permanently closed or temporary offline
         if (!cluster.checkNodeOnline(targetNodeId)) {
             log.info("removeNodeFromTopic->nodeId: {}, topic: {}, curCluster: {}", targetNodeId, ct.topicFilter(), cluster.nodes().values());
             // 移除路由表
-            clusterDbRepo.removeNodeFromTopic(targetNodeId, singletonList(ct.topicFilter()));
+            clusterDbRepo.removeNodeFromTopicAsync(targetNodeId, singletonList(ct.topicFilter()));
         }
     }
 
@@ -508,7 +500,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
         nodeBroker().destroySession(session);
         // 2.1 清理路由表
-        removeNodeFromTopic(session.subscriptions());
+        removeNodeFromTopicAsync(session, session.subscriptions());
     }
 
 }

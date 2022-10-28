@@ -137,7 +137,6 @@ class ClusterDbRepoImplTest {
         dbRepo.removeNodeFromTopic("nod3", asList(topic1));
     }
 
-    @Test
     @Disabled
     void given_whenPressure_then() {
         List<String> nodes = new ArrayList<>(64);

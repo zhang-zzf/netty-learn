@@ -7,6 +7,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
 public interface ClusterDbRepo {
@@ -42,9 +43,13 @@ public interface ClusterDbRepo {
      */
     boolean deleteCpx(ClusterControlPacketContext cpx);
 
+    CompletableFuture<Void> addNodeToTopicAsync(String nodeId, List<String> tfSet);
+
     void addNodeToTopic(String nodeId, List<String> tfSet);
 
     void removeNodeFromTopic(String nodeId, List<String> tfSet);
+
+    CompletableFuture<Void> removeNodeFromTopicAsync(String nodeId, List<String> tfSet);
 
     void removeTopic(List<String> tfSet);
 

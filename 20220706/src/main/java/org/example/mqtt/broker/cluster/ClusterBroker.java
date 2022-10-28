@@ -1,10 +1,12 @@
 package org.example.mqtt.broker.cluster;
 
 import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.model.Subscribe;
 
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public interface ClusterBroker extends Broker {
 
@@ -21,6 +23,6 @@ public interface ClusterBroker extends Broker {
 
     void disconnectSessionFromNode(ClusterServerSession session);
 
-    void removeNodeFromTopic(Set<Subscribe.Subscription> subscriptions);
+    CompletableFuture<Void> removeNodeFromTopicAsync(ServerSession session, Set<Subscribe.Subscription> subscriptions);
 
 }

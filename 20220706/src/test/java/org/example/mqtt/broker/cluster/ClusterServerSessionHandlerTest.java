@@ -62,6 +62,8 @@ class ClusterServerSessionHandlerTest {
                 .setOfflineSessions(new HashMap<>(0));
         given(dbRepo.matchTopic(any())).willReturn(singletonList(any));
         given(dbRepo.matchTopicAsync(any())).willReturn(new CompletableFuture<>());
+        given(dbRepo.addNodeToTopicAsync(any(), any())).willReturn(new CompletableFuture<>());
+        given(dbRepo.removeNodeFromTopicAsync(any(), any())).willReturn(new CompletableFuture<>());
     }
 
     /**

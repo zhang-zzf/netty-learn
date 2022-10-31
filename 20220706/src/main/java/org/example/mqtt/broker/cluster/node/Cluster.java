@@ -516,7 +516,7 @@ public class Cluster implements AutoCloseable {
     public void removeNodeClientFromNode(NodeClient nodeClient, Node remoteNode) {
         Runnable task = () -> {
             remoteNode.removeNodeClient(nodeClient);
-            log.info("NodeClient was removed from Node-> client: {}, Node: {}", this, remoteNode);
+            log.info("NodeClient was removed from Node-> client: {}, Node: {}", nodeClient, remoteNode);
             if (remoteNode.nodeClientsCnt() == 0) {
                 removeNode(remoteNode);
             }

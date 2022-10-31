@@ -218,6 +218,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
                     packet.content().release();
                     if (t != null) {
                         log.error("forward Publish failed-> Publish: {}", packet);
+                        log.error("unExpected Exception", t);
                     }
                 });
         return times;
@@ -299,7 +300,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     private void removeNodeFromTopicIfNodeOffline(ClusterTopic ct, String targetNodeId) {
         // target node may be permanently closed or temporary offline
         if (!cluster.checkNodeOnline(targetNodeId)) {
-            log.info("removeNodeFromTopic->nodeId: {}, topic: {}, curCluster: {}", targetNodeId, ct.topicFilter(), cluster.nodes().values());
+            // 注意 cluster.nodes 打印 log 时可能非常庞大。Example: 13 Node * 64 Channel = 832 个 NodeClient
+            log.info("removeNodeFromTopic->nodeId: {}, topic: {}, curCluster: {}", targetNodeId, ct.topicFilter(), cluster.nodes().keySet());
             // 移除路由表
             clusterDbRepo.removeNodeFromTopicAsync(targetNodeId, singletonList(ct.topicFilter()));
         }

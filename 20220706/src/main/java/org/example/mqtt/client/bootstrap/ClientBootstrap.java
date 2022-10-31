@@ -211,7 +211,7 @@ public class ClientBootstrap {
             // client_127.0.0.1_51324
             String clientIdentifier = "client_" + ipAndPort[0] + "_" + ipAndPort[1];
             // 监听的 topic 是下一个client
-            listenedTopicFilter = "client_" + ipAndPort[0] + "_" + (Integer.valueOf(ipAndPort[1]) + 1) + "/#";
+            listenedTopicFilter = "client_" + ipAndPort[0] + "_" + (Integer.valueOf(ipAndPort[1]) + 1) + "/+";
             session = new ClientTestSession(clientIdentifier);
             // bind the channel
             session.bind(ctx.channel());
@@ -258,7 +258,12 @@ public class ClientBootstrap {
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);
                     // topic -> client_127.0.0.1_51322/publish
-                    String topic = session.clientIdentifier() + "/publish";
+                    String topic;
+                    if (Boolean.getBoolean("mqtt.client.server.only")) {
+                        topic = session.clientIdentifier() + "/server/publish";
+                    } else {
+                        topic = session.clientIdentifier() + "/publish";
+                    }
                     session.send(Publish.outgoing(false, sendQos, false, topic,
                             session.nextPacketIdentifier(), packet));
                 }, period, period, TimeUnit.MILLISECONDS);

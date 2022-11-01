@@ -36,7 +36,8 @@ public class Publish extends ControlPacket {
     }
 
     private void initMetricMetaData() {
-        addMeta(META_P_RECEIVE, System.currentTimeMillis());
+        addMeta(META_P_RECEIVE_NANO, System.nanoTime());
+        addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }
 
     /**
@@ -290,11 +291,11 @@ public class Publish extends ControlPacket {
      */
     private Map<String, Object> meta;
 
+    public static final String META_P_RECEIVE_NANO = "p_receive_nano";
     /**
      * Publish Receive time
-     * <p>just from client</p>
      */
-    public static final String META_P_RECEIVE = "p_receive";
+    public static final String META_P_RECEIVE_MILLIS = "p_receive_millis";
     public static final String META_P_SOURCE = "p_source";
     public static final String META_P_SOURCE_BROKER = "broker";
     public static final String META_NM_WRAP = "nm_wrap";
@@ -307,8 +308,7 @@ public class Publish extends ControlPacket {
 
     public void addMeta(String n, Object v) {
         if (meta == null) {
-            // total 4 meta for now
-            meta = new HashMap<>(6);
+            meta = new HashMap<>(4);
         }
         meta.put(n, v);
     }

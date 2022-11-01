@@ -274,17 +274,21 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             return;
         }
         long now = System.currentTimeMillis();
-        Long pReceive = (Long) meta.get(META_P_RECEIVE);
+        Long pReceive = (Long) meta.get(META_P_RECEIVE_MILLIS);
         if (META_P_SOURCE_BROKER.equals(meta.get(META_P_SOURCE))) {
             // Publish may come from another Broker
             Long nmWrap = (Long) meta.get(META_NM_WRAP);
             Long nmReceive = (Long) meta.get(META_NM_RECEIVE);
-            MetricUtil.time(METRIC_NAME, nmWrap - pReceive, "phase", "packetReceive->nmWrap");
+            // packetReceive->nmWrap 和 packetReceive->.->packetSent 使用同样的流程，不再重复打点
+            // MetricUtil.time(METRIC_NAME, nmWrap - pReceive, "phase", "packetReceive->nmWrap");
             MetricUtil.time(METRIC_NAME, nmReceive - nmWrap, "phase", "nmWrap->nmReceive");
-            MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
+            // nmReceive->packetSent 和 packetReceive->.->packetSent 使用同样的流程，不再重复打点
+            // MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
             MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->nm->packetSent");
         } else {
-            MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->.->packetSent");
+            long nanoTime = System.nanoTime();
+            long pReceiveInNano = (long) meta.get(META_P_RECEIVE_NANO);
+            MetricUtil.nanoTime(METRIC_NAME, nanoTime - pReceiveInNano, "phase", "packetReceive->.->packetSent");
         }
         // Public come from Client directly or through another Broker
         // the whole time between Publish.Receive from Client and forward to another Client.

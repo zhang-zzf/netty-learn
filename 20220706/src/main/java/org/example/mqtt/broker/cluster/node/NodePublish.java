@@ -72,7 +72,7 @@ public class NodePublish extends NodeMessage {
 
     private static void metaData(NodePublish nm, Publish packet) {
         if (packet.meta() != null) {
-            nm.metaPReceive = (long) packet.meta().get(META_P_RECEIVE);
+            nm.metaPReceive = (long) packet.meta().get(META_P_RECEIVE_MILLIS);
         }
         nm.metaNmWrap = System.currentTimeMillis();
     }
@@ -85,7 +85,7 @@ public class NodePublish extends NodeMessage {
     }
 
     private void metricMeta(Publish publish) {
-        publish.addMeta(META_P_RECEIVE, metaPReceive);
+        publish.addMeta(META_P_RECEIVE_MILLIS, metaPReceive);
         publish.addMeta(META_NM_WRAP, metaNmWrap);
         publish.addMeta(META_NM_RECEIVE, metaNmReceive);
         // mark source

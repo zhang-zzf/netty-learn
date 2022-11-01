@@ -26,6 +26,31 @@ public class MetricUtil {
      * Timer 监控
      *
      * @param metricName "指标名"
+     * @param value 要记录的 count 值，默认单位 TimeUnit.NANOSECONDS
+     * @param tags 对应业务监控中的 "字段"。可以为空。
+     */
+    public static final void nanoTime(String metricName, long value, String... tags) {
+        if (!metricOn) {
+            return;
+        }
+        String id = id(metricName, tags);
+        Timer timer = timers.get(id);
+        if (timer == null) {
+            timers.putIfAbsent(id, Timer.builder(metricName)
+                    .tags(tags)
+                    .publishPercentileHistogram()
+                    .minimumExpectedValue(Duration.ofNanos(1))
+                    .maximumExpectedValue(Duration.ofSeconds(4))
+                    .register(Metrics.globalRegistry));
+            timer = timers.get(id);
+        }
+        timer.record(value, TimeUnit.NANOSECONDS);
+    }
+
+    /**
+     * Timer 监控
+     *
+     * @param metricName "指标名"
      * @param value 要记录的 count 值，默认单位 TimeUnit.MILLISECONDS
      * @param tags 对应业务监控中的 "字段"。可以为空。
      */

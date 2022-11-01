@@ -134,13 +134,13 @@ public class ClientBootstrap {
                 .tag("type", "received")
                 .publishPercentileHistogram()
                 // 1μs
-                .minimumExpectedValue(Duration.ofMillis(1))
+                .minimumExpectedValue(Duration.ofNanos(1))
                 .maximumExpectedValue(Duration.ofSeconds(8))
                 .register(Metrics.globalRegistry);
         final Timer onPublish = Timer.builder("com.github.zzf.netty.client.msg")
                 .tag("type", "in")
                 .publishPercentileHistogram()
-                .minimumExpectedValue(Duration.ofMillis(1))
+                .minimumExpectedValue(Duration.ofNanos(1))
                 .maximumExpectedValue(Duration.ofSeconds(10))
                 .register(Metrics.globalRegistry);
 
@@ -153,9 +153,9 @@ public class ClientBootstrap {
             ByteBuf payload = packet.payload();
             // retain the payload that will be release by publishReceived() method
             payload.retain();
-            long timeInMills = payload.getLong(0);
-            long useTime = System.currentTimeMillis() - timeInMills;
-            onPublish.record(useTime, TimeUnit.MILLISECONDS);
+            long timeInNano = payload.getLong(0);
+            long useTime = System.nanoTime() - timeInNano;
+            onPublish.record(useTime, TimeUnit.NANOSECONDS);
             log.debug("client sent -> server handle -> client onPublish: {}ns", useTime);
             return true;
         }
@@ -163,10 +163,10 @@ public class ClientBootstrap {
         @Override
         protected void publishReceivedComplete(ControlPacketContext cpx) {
             ByteBuf payload = cpx.packet().payload();
-            long timeInMills = payload.getLong(0);
-            long useTime = System.currentTimeMillis() - timeInMills;
-            publishReceived.record(useTime, TimeUnit.MILLISECONDS);
-            log.debug("client sent -> server handle -> client publishReceived: {}ms", useTime);
+            long timeInNano = payload.getLong(0);
+            long useTimeInNano = System.nanoTime() - timeInNano;
+            publishReceived.record(useTimeInNano, TimeUnit.NANOSECONDS);
+            log.debug("client sent -> server handle -> client publishReceived: {}ns", useTimeInNano);
             // release the payload that retained by onPublish
             payload.release();
             super.publishReceivedComplete(cpx);
@@ -253,7 +253,7 @@ public class ClientBootstrap {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleAtFixedRate(() -> {
                     ByteBuf timestamp = Unpooled.buffer(16)
-                            .writeLong(System.currentTimeMillis())
+                            .writeLong(System.nanoTime())
                             .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
                             .addComponents(true, timestamp, this.payload);

@@ -75,13 +75,10 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     private void closeSession(ChannelHandlerContext ctx) {
-        if (existSession()) {
-            if (session.isBound()) {
-                session.close();
-            }
-        } else {
-            ctx.channel().close();
+        if (session != null) {
+            broker.closeSession(session);
         }
+        ctx.channel().close();
     }
 
     private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
@@ -89,7 +86,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
-            closeSession(ctx);
+            ctx.channel().close();
             return;
         }
         // the first Connect Packet
@@ -97,7 +94,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // A Client can only send the CONNECT Packet once over a Network Connection.
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
-            if (existSession()) {
+            if (session != null) {
                 log.error("Client({}) send Connect packet more than once, now close session.", csci());
                 closeSession(ctx);
                 return;
@@ -147,37 +144,38 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     protected ConnAck doHandleConnect(Connect connect) {
         ConnAck connAck = ConnAck.accepted();
-        String cCId = connect.clientIdentifier();
-        ServerSession preSession = broker.session(cCId);
+        String cId = connect.clientIdentifier();
+        ServerSession preSession = broker.session(cId);
         if (preSession != null && preSession.isBound()) {
-            log.debug("Client({}) exist bound Session: {}", cCId, preSession);
+            log.debug("Client({}) exist bound Session: {}", cId, preSession);
             //  If the ClientId represents a Client already connected to the Server then the Server MUST
             //  disconnect the existing Client
-            preSession.close();
+            // preSession.close();
+            preSession.channel().close();
+            broker.closeSession(preSession);
             // query again
-            preSession = broker.session(cCId);
-            log.debug("Client({}) close exist bound Session: {}", cCId, preSession);
+            preSession = broker.session(cId);
+            log.debug("Client({}) close exist bound Session: {}", cId, preSession);
         }
         if (connect.cleanSession()) {
-            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cCId, preSession);
+            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cId, preSession);
             if (preSession != null) {
-                preSession.close();
-                // 强制清理 Broker 中的 ServerSession
-                broker.destroySession(preSession);
-                preSession = broker.session(cCId);
-                log.debug("Client({}) closed the old Session, Broker now has Session: {}", cCId, preSession);
+                broker.closeSession(preSession);
+                if (log.isDebugEnabled()) {
+                    log.debug("Client({}) closed the old Session, Broker now has Session: {}", cId, broker.session(cId));
+                }
             }
             this.session = broker.createSession(connect);
-            log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cCId, this.session);
+            log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cId, this.session);
         } else {
-            log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cCId, preSession);
+            log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, preSession);
             if (preSession == null) {
                 this.session = broker.createSession(connect);
-                log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cCId);
+                log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
             } else {
                 connAck = ConnAck.acceptedWithStoredSession();
                 this.session = ((DefaultServerSession) preSession).reInitWith(connect);
-                log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cCId, this.session);
+                log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cId, this.session);
             }
         }
         return connAck;
@@ -210,20 +208,16 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel-> channel: {}", ctx.channel());
+        log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel -> channel: {}", ctx.channel());
         log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
         closeSession(ctx);
-    }
-
-    private boolean existSession() {
-        return session != null;
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Client({}) channelInactive", csci());
-        if (existSession()) {
-            session.channelClosed();
+        if (session != null) {
+            broker.closeSession(session);
         }
         super.channelInactive(ctx);
     }

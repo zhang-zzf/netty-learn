@@ -67,4 +67,5 @@ public interface Broker extends AutoCloseable {
 
     boolean block(Publish packet);
 
+    void closeSession(ServerSession session);
 }

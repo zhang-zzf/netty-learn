@@ -212,6 +212,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
+    public void onSessionClose() {
+        // send will message
+        if (willMessage != null) {
+            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
+            onPublish(willMessage);
+            willMessage = null;
+        }
+    }
+
+    @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");

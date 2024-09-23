@@ -21,6 +21,7 @@ public interface Session extends AutoCloseable {
 
     /**
      * send a message to peer
+     * <p>Sender send a message to Receiver</p>
      *
      * @param message message
      */
@@ -28,6 +29,7 @@ public interface Session extends AutoCloseable {
 
     /**
      * receive a message from peer
+     * <p>Receiver receive a message from Sender</p>
      *
      * @param message message
      */
@@ -57,7 +59,7 @@ public interface Session extends AutoCloseable {
     /**
      * the Subscribe that the session was registered
      *
-     * @return List<Subscription>
+     * @return Set<Subscription>
      */
     Set<Subscribe.Subscription> subscriptions();
 
@@ -84,5 +86,7 @@ public interface Session extends AutoCloseable {
      * will be called after Channel was closed
      */
     void channelClosed();
+
+    void onSessionClose();
 
 }

@@ -115,6 +115,23 @@ public class DefaultBroker implements Broker {
         return !blockedTopicFilter.match(packet.topicName()).isEmpty();
     }
 
+    @Override
+    public void closeSession(ServerSession session) {
+        // close channel
+        if (session.isBound()) {
+            session.channel().close();
+        }
+        if (session.cleanSession()) {
+            String cId = session.clientIdentifier();
+            log.debug("Broker({}) now try to close Session({})", this, cId);
+            // broker clear session state
+            destroySession(session);
+            log.debug("Broker closed Session({})", cId);
+        }
+        // session close callback
+        session.onSessionClose();
+    }
+
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {
         // todo decide qos
         int qos = sub.qos();

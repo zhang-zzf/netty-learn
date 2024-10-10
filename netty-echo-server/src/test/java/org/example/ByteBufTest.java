@@ -1,5 +1,10 @@
 package org.example;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.BDDAssertions.then;
+
+import io.netty.buffer.AbstractDerivedByteBuf;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
@@ -7,12 +12,6 @@ import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.base64.Base64;
 import io.netty.util.IllegalReferenceCountException;
 import org.junit.jupiter.api.Test;
-
-import java.nio.charset.StandardCharsets;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.assertj.core.api.BDDAssertions.then;
 
 /**
  * @author zhanfeng.zhang
@@ -208,7 +207,7 @@ class ByteBufTest {
         then(directBuffer.refCnt()).isEqualTo(1);
         directBuffer.writeLong(Integer.MAX_VALUE);
         //
-        // will increase the source bufffer's refCnt
+        // will increase the source buffer's refCnt
         ByteBuf retainedSlice = directBuffer.retainedSlice();
         then(directBuffer.refCnt()).isEqualTo(2);
         // slice buf.refCnt() == 1
@@ -227,7 +226,7 @@ class ByteBufTest {
         then(directBuffer.refCnt()).isEqualTo(1);
         directBuffer.writeLong(Integer.MAX_VALUE);
         //
-        // will increase the source bufffer's refCnt
+        // will increase the source buffer's refCnt
         ByteBuf retainedSlice = directBuffer.retainedSlice();
         then(directBuffer.refCnt()).isEqualTo(2);
         then(retainedSlice.refCnt()).isEqualTo(2);
@@ -241,12 +240,13 @@ class ByteBufTest {
     @Test
     void givenByteBuf_whenSliceAndRetain_then() {
         // 使用 PoolByteBufAllocator
-        ByteBuf directBuffer = PooledByteBufAllocator.DEFAULT.directBuffer();
-        then(directBuffer.refCnt()).isEqualTo(1);
-        directBuffer.writeLong(Integer.MAX_VALUE);
-        // will increase the source bufffer's refCnt
-        ByteBuf slice = directBuffer.slice().retain();
-        then(directBuffer.refCnt()).isEqualTo(2);
+        ByteBuf pooledBuf = PooledByteBufAllocator.DEFAULT.directBuffer();
+        then(pooledBuf.refCnt()).isEqualTo(1);
+        pooledBuf.writeLong(Integer.MAX_VALUE);
+        // will increase the source buffer's refCnt
+        ByteBuf slice = pooledBuf.slice();
+        slice.retain();
+        then(pooledBuf.refCnt()).isEqualTo(2);
         then(slice.refCnt()).isEqualTo(2);
         // 使用 Unpooled ByteBuf
         ByteBuf unpooled = Unpooled.buffer();
@@ -309,7 +309,7 @@ class ByteBufTest {
         then(directBuffer.refCnt()).isEqualTo(1);
         directBuffer.writeLong(Integer.MAX_VALUE);
         //
-        // will increase the source bufffer's refCnt
+        // will increase the source buffer's refCnt
         ByteBuf retainedSlice = directBuffer.readRetainedSlice(8);
         then(directBuffer.refCnt()).isEqualTo(2);
         // slice buf.refCnt() == 1
@@ -346,8 +346,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, body);
+            .addComponent(true, header)
+            .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // release CompositeByteBuf 会 release 底层的每个 ByteBuf
         then(req.release()).isTrue();
@@ -355,6 +355,7 @@ class ByteBufTest {
         then(header.refCnt()).isEqualTo(1);
         then(catchThrowable(req::readInt)).isNotNull();
         //
+        then(catchThrowable(body::readLong)).isNotNull();
         then(catchThrowable(header::readInt)).isNull();
     }
 
@@ -368,8 +369,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, body);
+            .addComponent(true, header)
+            .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // release CompositeByteBuf 会 release 底层的每个 ByteBuf
         then(req.release()).isTrue();
@@ -390,8 +391,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, body);
+            .addComponent(true, header)
+            .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // retain the CompositeByteBuf
         req.retain();
@@ -422,8 +423,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, body);
+            .addComponent(true, header)
+            .addComponent(true, body);
         // 释放底层 Component
         then(header.release()).isTrue();
         then(req.refCnt()).isEqualTo(1);
@@ -437,8 +438,8 @@ class ByteBufTest {
      */
     @Test
     void given中文_whenUTF8_then() {
-        //你好，世界。！unicode          =>  \u4f60\u597d\uff0c\u4e16\u754c\u3002\uff01 共7个字符
-        //你好，世界。！UTF_8            =>  E4BDA0,E5A5BD,EFBC8C,E4B896,E7958C,E38082,EFBC81 共21个字节
+        // 你好，世界。！unicode          =>  \u4f60\u597d\uff0c\u4e16\u754c\u3002\uff01 共7个字符
+        // 你好，世界。！UTF_8            =>  E4BDA0,E5A5BD,EFBC8C,E4B896,E7958C,E38082,EFBC81 共21个字节
         // 'Hello, World!\n' unicode  => 'Hello, World!\n'  共 14 个字符
         // 'Hello, World!\n' utf_8    => 48,65,6C,6C,6F,2C,20,57,6F,72,6C,64,21,0A 共14个字节
         String str = "Hello, World!\n你好，世界。！";

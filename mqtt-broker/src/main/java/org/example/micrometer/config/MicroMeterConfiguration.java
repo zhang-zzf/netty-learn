@@ -39,6 +39,7 @@ public class MicroMeterConfiguration {
                 .build();
         log.info("MicroMeterConfiguration registerPrometheusToConsul service: {}", service);
         AgentClient agentClient = Consul.builder()
+                .withUrl("http://10.0.9.18:8500")
                 .withConnectionPool(new ConnectionPool())
                 .build()
                 .agentClient();

@@ -1,22 +1,23 @@
 package org.example;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.assertj.core.api.Assertions.catchThrowable;
-import static org.assertj.core.api.BDDAssertions.then;
-
-import io.netty.buffer.AbstractDerivedByteBuf;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.handler.codec.base64.Base64;
 import io.netty.util.IllegalReferenceCountException;
+import lombok.extern.slf4j.Slf4j;
 import org.junit.jupiter.api.Test;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.BDDAssertions.then;
 
 /**
  * @author zhanfeng.zhang
  * @date 2022/06/02
  */
+@Slf4j
 class ByteBufTest {
 
     /**
@@ -37,6 +38,7 @@ class ByteBufTest {
         final ByteBuf buffer = Unpooled.directBuffer(4, 8);
         then(buffer.capacity()).isEqualTo(4);
         then(buffer.maxCapacity()).isEqualTo(8);
+        then(buffer.release()).isTrue();
     }
 
     /**
@@ -402,12 +404,12 @@ class ByteBufTest {
         then(body.refCnt()).isEqualTo(1);
         // 把 Composite 的 ref-=1
         // 若 Composite.ref>0，不操作底层的 Component.refCnt
-        req.release();
+        then(req.release()).isFalse();
         then(req.refCnt()).isEqualTo(1);
         then(header.refCnt()).isEqualTo(1);
         then(body.refCnt()).isEqualTo(1);
         // 若 Composite.ref=0，release all its Component
-        req.release();
+        then(req.release()).isTrue();
         then(req.refCnt()).isEqualTo(0);
         then(header.refCnt()).isEqualTo(0);
         then(body.refCnt()).isEqualTo(0);
@@ -433,6 +435,51 @@ class ByteBufTest {
     }
 
     /**
+     * unicode 可以表示所有的汉字， but
+     * <pre>
+     *         基本汉字	        20902字	    4E00-9FA5
+     *         基本汉字补充	    90字	    9FA6-9FFF
+     *         扩展A	            6592字	    3400-4DBF
+     *         汉字结构	        16字	    2FF0-2FFF
+     *         汉语注音	        43字	    3105-312F
+     *         康熙部首	        214字	    2F00-2FD5
+     *         部首扩展	        115字①	    2E80-2EF3
+     *         兼容汉字	        472字②	    F900-FAD9
+     *         // 以上汉字,只占一个字符，也就是一个char，也就是2字节，也就是16位
+     *
+     *
+     *          * 扩展B	42720字	20000-2A6DF
+     *          * 扩展C	4154字	2A700-2B739
+     *          * 扩展D	222字	2B740-2B81D
+     *          * 扩展E	5762字	2B820-2CEA1
+     *          * 扩展F	7473字	2CEB0-2EBE0
+     *          * 扩展G	4939字	30000-3134A
+     *          * 扩展H	4192字	31350-323AF
+     *          * 扩展I	622字	2EBF0-2EE5D
+     *          * 以上汉字需使用 2 个 char 表示，也即是 4 个字节
+     *          * 这些汉字无法赋值给 char 类型的变量
+     *
+     * </pre>
+     */
+    @Test
+    void given中文_when_then() {
+        //Unicode编码:4E00
+        then("一".length()).isEqualTo(1);
+        then("一".toCharArray()).contains('一');
+        //Unicode编码:9FA5
+        then("龥".length()).isEqualTo(1);
+        then("龥".toCharArray()).contains('龥');
+        // Unicode编码:2B739 `𫜹` 占两个 unicode 字符，也就是两个 char，也就是4字节，也就是32位
+        // char c = '𫜹';//当我们设置一个占多字符的汉字给char的时候，编译器会报错
+        // Too many characters in character literal
+        String oneWordUseTwoChar = "\uD86D\uDF39";
+        log.info("Unicode 2B739 -> `{}`", oneWordUseTwoChar);
+        then(oneWordUseTwoChar.length()).isEqualTo(2);
+        then(oneWordUseTwoChar.toCharArray()).contains('\uD86D', '\uDF39');
+        then(oneWordUseTwoChar.getBytes(UTF_8)).hasSize(4);
+    }
+
+    /**
      * 系统支持 Unicode, 每个中文算一个 char
      * <p>Java 中每个 char 占用 2 个 byte，如何表示 ? 中国：U+4E2DU+56FD</p>
      */
@@ -447,8 +494,7 @@ class ByteBufTest {
         char[] chars = str.toCharArray();
         then(chars.length).isEqualTo(str.length());
         //
-        String fromChars = new String(chars);
-        then(fromChars).isEqualTo(str);
+        then(new String(chars)).isEqualTo(str);
         byte[] bytes = str.getBytes(UTF_8);
         then(bytes.length).isEqualTo(21 + 14);
     }
@@ -502,10 +548,8 @@ class ByteBufTest {
         buf.writeCharSequence(str, UTF_8);
         int strUtf8Length = buf.writerIndex() - marked - 2;
         buf.setShort(marked, strUtf8Length);
-        ByteBuf base64Encoded = Base64.encode(buf);
-        String base64Str = base64Encoded.toString(UTF_8);
-        ByteBuf base64ByteBuf = Unpooled.copiedBuffer(base64Str, UTF_8);
-        ByteBuf base64Decoded = Base64.decode(base64ByteBuf);
+        String base64Str = Base64.encode(buf).toString(UTF_8);
+        ByteBuf base64Decoded = Base64.decode(Unpooled.copiedBuffer(base64Str, UTF_8));
         CharSequence actual = base64Decoded.readCharSequence(base64Decoded.readShort(), UTF_8);
         then(actual).isEqualTo(str);
     }

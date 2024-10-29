@@ -20,8 +20,13 @@ public class EchoChannelHandler extends ChannelInboundHandlerAdapter {
         ByteBuf buf = (ByteBuf) msg;
         log.info("utf8: {}", buf.toString(StandardCharsets.UTF_8));
         log.info("hex:\n{}", ByteBufUtil.prettyHexDump(buf));
-        ctx.writeAndFlush(buf);
+        ByteBuf _16kBytes = ctx.alloc().directBuffer(16 * 1024);
+        _16kBytes.writeZero(_16kBytes.writableBytes());
+        ctx.write(_16kBytes);
     }
 
-
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) throws Exception {
+        super.channelWritabilityChanged(ctx);
+    }
 }

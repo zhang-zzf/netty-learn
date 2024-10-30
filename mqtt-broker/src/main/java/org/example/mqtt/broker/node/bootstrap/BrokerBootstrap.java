@@ -210,7 +210,7 @@ public class BrokerBootstrap {
 
     private static Channel mqttServer(InetSocketAddress address,
                                       Supplier<DefaultServerSessionHandler> handlerSupplier) {
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss");
+        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss", false, Thread.MAX_PRIORITY);
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtt-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
@@ -221,7 +221,9 @@ public class BrokerBootstrap {
                     .channel(NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new MqttServerInitializer(handlerSupplier))
-                    .bind(address).sync().addListener(f -> log.info("MQTT server listened at {}", address))
+                    .bind(address)
+                    .sync()
+                    .addListener(f -> log.info("MQTT server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();

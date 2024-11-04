@@ -879,14 +879,14 @@ class ServerSessionHandlerTest {
         publish1.writeInbound(retain.toByteBuf());
         // receiver1 接受 Publish
         // 正常 forward 路由的 Publish
-        then(new Publish(receiver1.readOutbound()).retain()).isFalse();
+        then(new Publish(receiver1.readOutbound()).retainFlag()).isFalse();
         //
         // 后续订阅
         Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(), singletonList(new Subscribe.Subscription("retain/1", 0)));
         receiver1.writeInbound(sub2.toByteBuf());
         then(new SubAck(receiver1.readOutbound())).isNotNull();
         // 收到 retain 消息
-        then(new Publish(receiver1.readOutbound()).retain()).isTrue();
+        then(new Publish(receiver1.readOutbound()).retainFlag()).isTrue();
     }
 
     /**
@@ -913,7 +913,7 @@ class ServerSessionHandlerTest {
         then(new SubAck(receiver1.readOutbound())).isNotNull();
         // 收到 retain 消息
         then(new Publish(receiver1.readOutbound()))
-                .returns(true, Publish::retain)
+                .returns(true, Publish::retainFlag)
                 .returns(retain2Payload, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 

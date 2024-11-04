@@ -314,7 +314,7 @@ class ClusterDbRepoImplTest {
                 .returns((short) 1, x -> x.nextPacketIdentifier())
                 .returns(clientIdentifier, x -> x.clientIdentifier())
                 .returns(payload, x -> x.packet().payload().toString(UTF_8))
-                .returns(false, x -> x.packet().retain())
+                .returns(false, x -> x.packet().retainFlag())
                 .returns(2, x -> x.packet().qos())
                 .returns(false, x -> x.packet().dup())
                 .returns("topic/abc/de", x -> x.packet().topicName())

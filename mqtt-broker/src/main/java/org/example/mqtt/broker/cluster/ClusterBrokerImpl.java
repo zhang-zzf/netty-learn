@@ -207,7 +207,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     @Override
     public int forward(Publish packet) {
         // must set retain to false before forward the PublishPacket
-        packet.retain(false);
+        packet.retainFlag(false);
         int times = nodeBroker.forward(packet);
         // must retain the Publish.packet for async callback
         packet.content().retain();
@@ -407,7 +407,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
             return;
         }
         // retain message
-        if (packet.retain()) {
+        if (packet.retainFlag()) {
             // todo
             throw new UnsupportedOperationException();
         }

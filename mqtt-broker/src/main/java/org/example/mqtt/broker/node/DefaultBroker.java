@@ -64,7 +64,7 @@ public class DefaultBroker implements Broker {
     public int forward(Publish packet) {
         int times = 0;
         // must set retain to false before forward the PublishPacket
-        packet.retain(false);
+        packet.retainFlag(false);
         for (Topic topic : brokerState.match(packet.topicName())) {
             for (Map.Entry<ServerSession, Integer> e : topic.subscribers().entrySet()) {
                 ServerSession session = e.getKey();
@@ -160,7 +160,7 @@ public class DefaultBroker implements Broker {
     }
 
     private void retain(Publish publish) {
-        if (!publish.retain()) {
+        if (!publish.retainFlag()) {
             throw new IllegalArgumentException();
         }
         Publish packet = publish.copy();
@@ -184,7 +184,7 @@ public class DefaultBroker implements Broker {
     @Override
     public void handlePublish(Publish packet) {
         // retain message
-        if (packet.retain()) {
+        if (packet.retainFlag()) {
             retain(packet);
         }
         // Broker forward Publish to relative topic after receive a PublishPacket

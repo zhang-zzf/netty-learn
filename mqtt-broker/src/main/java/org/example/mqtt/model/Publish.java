@@ -48,7 +48,7 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
-        Publish ret = outgoing(origin.retain(), qos, false, topicName, packetIdentifier, origin.payload);
+        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload);
         // metric meta
         ret.copyMeta(origin);
         return ret;
@@ -66,7 +66,7 @@ public class Publish extends ControlPacket {
      * @return a new Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, boolean dup, byte qos, short packetIdentifier) {
-        return outgoing(origin.retain(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
+        return outgoing(origin.retainFlag(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
     }
 
     public static Publish outgoing(int qos, String topicName, ByteBuf payload) {
@@ -167,7 +167,7 @@ public class Publish extends ControlPacket {
         return (this.byte0 & 0x06) >> 1;
     }
 
-    public boolean retain() {
+    public boolean retainFlag() {
         return (byte0 & 0x01) != 0;
     }
 
@@ -247,7 +247,7 @@ public class Publish extends ControlPacket {
         }
         sb.append("\"qos\":").append(qos()).append(",");
         sb.append("\"dup\":").append(dup()).append(",");
-        sb.append("\"retain\":").append(retain()).append(",");
+        sb.append("\"retain\":").append(retainFlag()).append(",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
@@ -271,10 +271,10 @@ public class Publish extends ControlPacket {
      */
     public Publish copy() {
         ByteBuf payload = Unpooled.copiedBuffer(payload());
-        return Publish.outgoing(retain(), (byte) qos(), dup(), topicName(), (short) 0, payload);
+        return Publish.outgoing(retainFlag(), (byte) qos(), dup(), topicName(), (short) 0, payload);
     }
 
-    public Publish retain(boolean flag) {
+    public Publish retainFlag(boolean flag) {
         if (flag) {
             byte0 |= 0x01;
         } else {

@@ -29,7 +29,7 @@ class PublishTest {
         Publish in = (Publish) Publish.from(buf);
         then(in.packetValidate()).isTrue();
         then(in.atLeastOnce()).isTrue();
-        then(in.retain()).isFalse();
+        then(in.retainFlag()).isFalse();
         then(in.dup()).isFalse();
         then(in.topicName()).isEqualTo(topicName);
         then(in.payload().readableBytes()).isEqualTo(3 * 8);
@@ -76,9 +76,9 @@ class PublishTest {
     @Test
     void given_whenSetRetainFlag_then() {
         Publish publish = Publish.outgoing(false, (byte) 0, false, "", (short) 0, Unpooled.buffer());
-        then(publish.retain()).isFalse();
-        then(publish.retain(true).retain()).isTrue();
-        then(publish.retain(false).retain()).isFalse();
+        then(publish.retainFlag()).isFalse();
+        then(publish.retainFlag(true).retainFlag()).isTrue();
+        then(publish.retainFlag(false).retainFlag()).isFalse();
     }
 
 

@@ -19,7 +19,7 @@ public class TopicFilterTree {
 
     }
 
-    public static final TopicFilterTree from(Set<String> topicFilters) {
+    public static TopicFilterTree from(Set<String> topicFilters) {
         TopicFilterTree tft = new TopicFilterTree();
         for (String topicFilter : topicFilters) {
             tft.addTopicFilter(topicFilter);

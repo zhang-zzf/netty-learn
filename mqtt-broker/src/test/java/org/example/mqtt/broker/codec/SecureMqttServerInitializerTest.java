@@ -12,7 +12,7 @@ class SecureMqttServerInitializerTest {
     @Test
     void givenSupplier_whenGet_then() {
         AtomicInteger atomicInteger = new AtomicInteger(0);
-        Supplier<Integer> supplier = () -> atomicInteger.getAndIncrement();
+        Supplier<Integer> supplier = atomicInteger::getAndIncrement;
         then(supplier.get()).isEqualTo(0);
         then(supplier.get()).isEqualTo(1);
     }

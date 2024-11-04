@@ -210,12 +210,12 @@ public class ClusterBrokerImpl implements ClusterBroker {
         packet.retainFlag(false);
         int times = nodeBroker.forward(packet);
         // must retain the Publish.packet for async callback
-        packet.content().retain();
+        packet.retain();
         clusterDbRepo.matchTopicAsync(packet.topicName())
                 .thenAccept((topics) -> forwardToBrokerAndOfflineSession(packet, topics))
                 .whenComplete((v, t) -> {
                     // must release PublishPacket anyway
-                    packet.content().release();
+                    packet.release();
                     if (t != null) {
                         log.error("forward Publish failed-> Publish: {}", packet);
                         log.error("unExpected Exception", t);
@@ -489,6 +489,11 @@ public class ClusterBrokerImpl implements ClusterBroker {
     @Override
     public boolean block(Publish packet) {
         return nodeBroker.block(packet);
+    }
+
+    @Override
+    public void closeSession(ServerSession session) {
+        // todo
     }
 
     @Override

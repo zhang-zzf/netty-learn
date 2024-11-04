@@ -93,12 +93,12 @@ public class NodePublish extends NodeMessage {
     }
 
     public NodePublish retainPublishPacket() {
-        publishPacket.content().retain();
+        publishPacket.retain();
         return this;
     }
 
     public NodePublish releasePublishPacket() {
-        publishPacket.content().release();
+        publishPacket.release();
         return this;
     }
 

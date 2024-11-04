@@ -1047,7 +1047,11 @@ class ServerSessionHandlerTest {
             return null;
         }
 
-    }
+        @Override
+        public void onSessionClose() {
+            // todo
+        }
 
+    }
 
 }

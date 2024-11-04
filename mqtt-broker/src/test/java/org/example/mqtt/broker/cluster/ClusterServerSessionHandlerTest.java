@@ -637,6 +637,11 @@ class ClusterServerSessionHandlerTest {
             return null;
         }
 
+        @Override
+        public void onSessionClose() {
+            // todo
+        }
+
     }
 
 }

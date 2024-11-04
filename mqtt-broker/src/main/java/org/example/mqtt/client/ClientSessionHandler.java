@@ -1,6 +1,5 @@
 package org.example.mqtt.client;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleState;
@@ -8,13 +7,10 @@ import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.PingReq;
 import org.example.mqtt.model.PingResp;
-
-import java.util.List;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -28,23 +24,19 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
         if (msg instanceof ControlPacket) {
             ControlPacket cp = (ControlPacket) msg;
-            try {
-                if (cp instanceof PingResp) {
-                    log.debug("Client({}) receive PingResp", session.clientIdentifier());
-                    return;
-                }
-                if (cp instanceof ConnAck && ((ConnAck) cp).connectionAccepted()) {
-                    addKeepAliveIdleStateHandler(ctx);
-                }
-                session.onPacket(cp);
-            } finally {
-                /**
-                 * release the ByteBuf retained from
-                 * {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
-                 */
-                cp.content().release();
+            if (cp instanceof PingResp) {
+                log.debug("Client({}) receive PingResp", session.clientIdentifier());
+                return;
             }
-        } else {
+            if (cp instanceof ConnAck && ((ConnAck) cp).connectionAccepted()) {
+                addKeepAliveIdleStateHandler(ctx);
+            }
+            session.onPacket(cp);
+            // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
+            // will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
+            ctx.fireChannelRead(cp);
+        }
+        else {
             super.channelRead(ctx, msg);
         }
     }
@@ -75,7 +67,8 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
             IdleStateEvent e = (IdleStateEvent) evt;
             if (e.state() == IdleState.READER_IDLE) {
                 ctx.close();
-            } else if (e.state() == IdleState.WRITER_IDLE) {
+            }
+            else if (e.state() == IdleState.WRITER_IDLE) {
                 // send ping
                 log.debug("Client({}) send PingReq", session.clientIdentifier());
                 ctx.writeAndFlush(PingReq.from());

@@ -1,6 +1,8 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.*;
+import io.netty.util.AbstractReferenceCounted;
+import io.netty.util.ReferenceCounted;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -8,7 +10,7 @@ import lombok.extern.slf4j.Slf4j;
  * @date 2022/6/24
  */
 @Slf4j
-public abstract class ControlPacket {
+public abstract class ControlPacket extends AbstractReferenceCounted {
 
     public static final int _0_BYTE_LENGTH = 1;
     public static final int MIN_PACKET_LENGTH = 2;
@@ -30,7 +32,7 @@ public abstract class ControlPacket {
 
     protected byte byte0;
     protected int remainingLength;
-    private ByteBuf packet;
+    protected ByteBuf packet;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -233,5 +235,41 @@ public abstract class ControlPacket {
         return Integer.valueOf(hexPId.substring(2), 16).shortValue();
     }
 
+
+    @Override
+    public int refCnt() {
+        return this.packet.refCnt();
+    }
+
+    @Override
+    public ReferenceCounted retain() {
+        return this.packet.retain();
+    }
+
+    @Override
+    public ReferenceCounted retain(int increment) {
+        return this.packet.retain(increment);
+    }
+
+    @Override
+    public boolean release() {
+        return this.packet.release();
+    }
+
+    @Override
+    public boolean release(int decrement) {
+        return this.packet.release(decrement);
+    }
+
+    @Override
+    protected void deallocate() {
+        // help GC
+        this.packet = null;
+    }
+
+    @Override
+    public ReferenceCounted touch(Object hint) {
+        return this;
+    }
 }
 

@@ -71,7 +71,7 @@ public class Subscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = content();
+        final ByteBuf buf = packet;
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
         while (buf.isReadable()) {

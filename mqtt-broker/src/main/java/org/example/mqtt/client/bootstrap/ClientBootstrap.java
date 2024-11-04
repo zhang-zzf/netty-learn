@@ -1,5 +1,7 @@
 package org.example.mqtt.client.bootstrap;
 
+import static java.util.Collections.singletonList;
+
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Timer;
@@ -14,23 +16,29 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.ScheduledFuture;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.codec.MqttCodec;
-import org.example.mqtt.model.*;
-import org.example.mqtt.session.AbstractSession;
-import org.example.mqtt.session.ControlPacketContext;
-import org.example.mqtt.session.Session;
-
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Objects;
+import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.singletonList;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.codec.MqttCodec;
+import org.example.mqtt.model.ConnAck;
+import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
+import org.example.mqtt.session.Session;
 
 /**
  * @author zhanfeng.zhang
@@ -58,18 +66,18 @@ public class ClientBootstrap {
         final NioEventLoopGroup nioEventLoopGroup = new NioEventLoopGroup(threadNum);
         // 配置 bootstrap
         final Bootstrap bootstrap = new Bootstrap()
-                .group(nioEventLoopGroup)
-                // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioSocketChannel.class)
-                .handler(new ChannelInitializer<NioSocketChannel>() {
-                    @Override
-                    protected void initChannel(NioSocketChannel ch) {
-                        ch.pipeline()
-                                .addLast(new MqttCodec())
-                                .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue(), period))
-                        ;
-                    }
-                });
+            .group(nioEventLoopGroup)
+            // 设置 Channel 类型，通过反射创建 Channel 对象
+            .channel(NioSocketChannel.class)
+            .handler(new ChannelInitializer<NioSocketChannel>() {
+                @Override
+                protected void initChannel(NioSocketChannel ch) {
+                    ch.pipeline()
+                        .addLast(new MqttCodec())
+                        .addLast(new ClientSessionHandler(payload, sendQos.byteValue(), topicQos.byteValue(), period))
+                    ;
+                }
+            });
         try {
             AtomicInteger clientCnt = new AtomicInteger(0);
             while (!Thread.currentThread().isInterrupted()) {
@@ -116,8 +124,8 @@ public class ClientBootstrap {
 
     private static List<InetSocketAddress> parseRemoteAddress(String[] remote) {
         return Arrays.stream(remote)
-                .map(ClientBootstrap::toSocketAddress).filter(Objects::nonNull)
-                .collect(Collectors.toList());
+            .map(ClientBootstrap::toSocketAddress).filter(Objects::nonNull)
+            .collect(Collectors.toList());
     }
 
     @SneakyThrows
@@ -131,18 +139,18 @@ public class ClientBootstrap {
         final Counter counter = Metrics.counter("com.github.zzf.netty.client.msg.out");
 
         final Timer publishReceived = Timer.builder("com.github.zzf.netty.client.msg")
-                .tag("type", "received")
-                .publishPercentileHistogram()
-                // 1μs
-                .minimumExpectedValue(Duration.ofNanos(1))
-                .maximumExpectedValue(Duration.ofSeconds(8))
-                .register(Metrics.globalRegistry);
+            .tag("type", "received")
+            .publishPercentileHistogram()
+            // 1μs
+            .minimumExpectedValue(Duration.ofNanos(1))
+            .maximumExpectedValue(Duration.ofSeconds(8))
+            .register(Metrics.globalRegistry);
         final Timer onPublish = Timer.builder("com.github.zzf.netty.client.msg")
-                .tag("type", "in")
-                .publishPercentileHistogram()
-                .minimumExpectedValue(Duration.ofNanos(1))
-                .maximumExpectedValue(Duration.ofSeconds(10))
-                .register(Metrics.globalRegistry);
+            .tag("type", "in")
+            .publishPercentileHistogram()
+            .minimumExpectedValue(Duration.ofNanos(1))
+            .maximumExpectedValue(Duration.ofSeconds(10))
+            .register(Metrics.globalRegistry);
 
         protected ClientTestSession(String clientIdentifier) {
             super(clientIdentifier);
@@ -181,6 +189,11 @@ public class ClientBootstrap {
         @Override
         public Set<Subscribe.Subscription> subscriptions() {
             return null;
+        }
+
+        @Override
+        public void onSessionClose() {
+            // todo
         }
 
     }
@@ -227,16 +240,12 @@ public class ClientBootstrap {
         public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
             if (msg instanceof ControlPacket) {
                 ControlPacket cp = (ControlPacket) msg;
-                try {
-                    channelRead0(ctx, cp);
-                } finally {
-                    /**
-                     * release the ByteBuf retained from
-                     * {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
-                     */
-                    cp.content().release();
-                }
-            } else {
+                channelRead0(ctx, cp);
+                // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
+                // will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
+                ctx.fireChannelRead(cp);
+            }
+            else {
                 super.channelRead(ctx, msg);
             }
         }
@@ -248,26 +257,29 @@ public class ClientBootstrap {
                 // clientIdentifier -> client_127.0.0.1/51324
                 // topicFilters -> client_127.0.0.1/51325
                 ctx.writeAndFlush(Subscribe.from(session.nextPacketIdentifier(),
-                        singletonList(new Subscribe.Subscription(listenedTopicFilter, topicQos))));
-            } else if (cp instanceof SubAck) {
+                    singletonList(new Subscribe.Subscription(listenedTopicFilter, topicQos))));
+            }
+            else if (cp instanceof SubAck) {
                 // 开启定时任务发送 Publish
                 publishSendTask = ctx.executor().scheduleAtFixedRate(() -> {
                     ByteBuf timestamp = Unpooled.buffer(16)
-                            .writeLong(System.nanoTime())
-                            .writeLong(System.currentTimeMillis());
+                        .writeLong(System.nanoTime())
+                        .writeLong(System.currentTimeMillis());
                     CompositeByteBuf packet = Unpooled.compositeBuffer()
-                            .addComponents(true, timestamp, this.payload);
+                        .addComponents(true, timestamp, this.payload);
                     // topic -> client_127.0.0.1_51322/publish
                     String topic;
                     if (Boolean.getBoolean("mqtt.client.server.only")) {
                         topic = session.clientIdentifier() + "/server/publish";
-                    } else {
+                    }
+                    else {
                         topic = session.clientIdentifier() + "/publish";
                     }
                     session.send(Publish.outgoing(false, sendQos, false, topic,
-                            session.nextPacketIdentifier(), packet));
+                        session.nextPacketIdentifier(), packet));
                 }, period, period, TimeUnit.MILLISECONDS);
-            } else {
+            }
+            else {
                 session.onPacket(cp);
             }
         }

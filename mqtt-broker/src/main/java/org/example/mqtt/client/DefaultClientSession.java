@@ -105,4 +105,9 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
         }
     }
 
+    @Override
+    public void onSessionClose() {
+        // todo
+    }
+
 }

@@ -16,7 +16,7 @@ public class UnsubAck extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = content().readShort();
+        this.packetIdentifier = packet.readShort();
     }
 
     public static UnsubAck from(short packetIdentifier) {

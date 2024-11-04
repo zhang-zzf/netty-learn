@@ -1,24 +1,24 @@
 package org.example.mqtt.broker.node;
 
-import io.netty.buffer.ByteBuf;
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
+
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import java.util.Optional;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
-import org.example.mqtt.broker.codec.MqttCodec;
-import org.example.mqtt.model.*;
+import org.example.mqtt.model.ConnAck;
+import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.PingReq;
+import org.example.mqtt.model.PingResp;
 import org.example.mqtt.session.Session;
-
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
-import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
 /**
  * @author zhanfeng.zhang
@@ -62,16 +62,11 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         ControlPacket cp = (ControlPacket) msg;
-        try {
-            channelRead0(ctx, cp);
-            // fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
-            ctx.fireChannelRead(cp);
-        } finally {
-            /**
-             * release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
-             */
-            cp.content().release();
-        }
+        channelRead0(ctx, cp);
+        // fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
+        // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
+        // will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
+        ctx.fireChannelRead(cp);
     }
 
     private void closeSession(ChannelHandlerContext ctx) {
@@ -126,17 +121,19 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
             ConnAck connAck = doHandleConnect(connect);
             ctx.writeAndFlush(connAck)
-                    .addListener(LOG_ON_FAILURE)
-                    .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                    .addListener(f -> {
-                        this.session.open(ctx.channel(), broker);
-                        log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
-                    })
+                .addListener(LOG_ON_FAILURE)
+                .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                .addListener(f -> {
+                    this.session.open(ctx.channel(), broker);
+                    log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
+                })
             ;
-        } else if (cp instanceof PingReq) {
+        }
+        else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
             ctx.writeAndFlush(PingResp.from());
-        } else {
+        }
+        else {
             // let the session handle the packet
             session.onPacket(cp);
         }
@@ -167,12 +164,14 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
             this.session = broker.createSession(connect);
             log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cId, this.session);
-        } else {
+        }
+        else {
             log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, preSession);
             if (preSession == null) {
                 this.session = broker.createSession(connect);
                 log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
-            } else {
+            }
+            else {
                 connAck = ConnAck.acceptedWithStoredSession();
                 this.session = ((DefaultServerSession) preSession).reInitWith(connect);
                 log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cId, this.session);

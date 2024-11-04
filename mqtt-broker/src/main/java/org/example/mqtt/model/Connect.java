@@ -232,7 +232,7 @@ public class Connect extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        ByteBuf buf = content();
+        ByteBuf buf = packet;
         protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         protocolLevel = buf.readByte();
         connectFlags = buf.readByte();

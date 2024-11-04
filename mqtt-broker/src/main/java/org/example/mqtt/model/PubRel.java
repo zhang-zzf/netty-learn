@@ -37,7 +37,7 @@ public class PubRel extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = content().readShort();
+        this.packetIdentifier = packet.readShort();
     }
 
     public short packetIdentifier() {

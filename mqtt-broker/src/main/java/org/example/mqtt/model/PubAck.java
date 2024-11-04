@@ -32,7 +32,7 @@ public class PubAck extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.packetIdentifier = content().readShort();
+        this.packetIdentifier = packet.readShort();
     }
 
     @Override

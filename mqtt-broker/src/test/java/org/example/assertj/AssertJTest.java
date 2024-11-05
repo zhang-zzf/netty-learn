@@ -20,7 +20,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/04/10
  */
 public class AssertJTest {

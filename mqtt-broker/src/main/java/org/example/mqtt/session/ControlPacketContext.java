@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.example.mqtt.session.ControlPacketContext.Status.*;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/06/26
  */
 @Slf4j

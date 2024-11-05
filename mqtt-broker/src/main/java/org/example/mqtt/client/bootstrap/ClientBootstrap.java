@@ -41,7 +41,7 @@ import org.example.mqtt.session.ControlPacketContext;
 import org.example.mqtt.session.Session;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/07/06
  */
 @Slf4j

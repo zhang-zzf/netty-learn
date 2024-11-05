@@ -11,7 +11,7 @@ import java.util.List;
 import static org.assertj.core.api.BDDAssertions.then;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/07/01
  */
 class SubscribeTest {

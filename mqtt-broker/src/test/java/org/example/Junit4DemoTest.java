@@ -6,7 +6,7 @@ import org.junit.Test;
 import static org.junit.Assert.fail;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/04/10
  */
 public class Junit4DemoTest {

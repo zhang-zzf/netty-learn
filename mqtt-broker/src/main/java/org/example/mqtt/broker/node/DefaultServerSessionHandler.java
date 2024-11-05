@@ -21,7 +21,7 @@ import org.example.mqtt.model.PingResp;
 import org.example.mqtt.session.Session;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/06/28
  */
 @Slf4j

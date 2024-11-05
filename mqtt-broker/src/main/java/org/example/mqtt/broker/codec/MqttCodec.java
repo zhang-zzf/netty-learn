@@ -8,8 +8,8 @@ import org.example.mqtt.model.ControlPacket;
 import java.util.List;
 
 /**
- * @author zhanfeng.zhang
- * @date 2022/06/22
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-05
  */
 public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 

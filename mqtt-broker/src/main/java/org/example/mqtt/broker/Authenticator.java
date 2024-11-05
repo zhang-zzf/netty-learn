@@ -3,7 +3,7 @@ package org.example.mqtt.broker;
 import org.example.mqtt.model.Connect;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/06/28
  */
 public interface Authenticator {

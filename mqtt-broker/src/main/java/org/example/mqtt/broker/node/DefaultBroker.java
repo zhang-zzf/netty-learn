@@ -22,7 +22,7 @@ import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
 import static org.example.mqtt.model.Publish.needAck;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/06/28
  */
 @Slf4j

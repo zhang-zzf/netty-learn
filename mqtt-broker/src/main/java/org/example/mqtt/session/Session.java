@@ -7,7 +7,7 @@ import org.example.mqtt.model.Subscribe;
 import java.util.Set;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/06/23
  */
 public interface Session extends AutoCloseable {

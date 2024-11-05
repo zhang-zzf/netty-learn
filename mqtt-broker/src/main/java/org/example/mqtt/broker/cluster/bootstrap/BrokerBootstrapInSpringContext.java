@@ -15,7 +15,7 @@ import org.springframework.context.annotation.Configuration;
 import static org.example.mqtt.broker.cluster.bootstrap.BrokerBootstrap.startBroker;
 
 /**
- * @author zhanfeng.zhang
+ * @author zhanfeng.zhang@icloud.com
  * @date 2022/07/01
  */
 @Slf4j

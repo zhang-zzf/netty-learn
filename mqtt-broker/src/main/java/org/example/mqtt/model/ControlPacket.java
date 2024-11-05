@@ -238,27 +238,27 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
 
     @Override
     public int refCnt() {
-        return this.packet.refCnt();
+        return packet.refCnt();
     }
 
     @Override
-    public ReferenceCounted retain() {
-        return this.packet.retain();
+    public ByteBuf retain() {
+        return packet.retain();
     }
 
     @Override
-    public ReferenceCounted retain(int increment) {
-        return this.packet.retain(increment);
+    public ByteBuf retain(int increment) {
+        return packet.retain(increment);
     }
 
     @Override
     public boolean release() {
-        return this.packet.release();
+        return packet.release();
     }
 
     @Override
     public boolean release(int decrement) {
-        return this.packet.release(decrement);
+        return packet.release(decrement);
     }
 
     @Override
@@ -268,7 +268,7 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
     }
 
     @Override
-    public ReferenceCounted touch(Object hint) {
+    public ControlPacket touch(Object hint) {
         return this;
     }
 }

@@ -3,7 +3,6 @@ package org.example.mqtt.broker.cluster;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.var;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
@@ -19,9 +18,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
 
     private final Cluster cluster;
 
-    public ClusterServerSessionHandler(Authenticator authenticator,
-                                       int activeIdleTimeoutSecond,
-                                       Cluster cluster) {
+    public ClusterServerSessionHandler(Authenticator authenticator, int activeIdleTimeoutSecond, Cluster cluster) {
         super(cluster.broker(), authenticator, activeIdleTimeoutSecond);
         this.cluster = cluster;
     }
@@ -40,7 +37,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
      * @return DefaultServerSession for cleanSession=1 or ClusterServerSession for cleanSession=0
      */
     @Override
-    protected ConnAck doHandleConnect(Connect connect) {
+    protected ConnAck doHandleConnect(Connect connect, ChannelHandlerContext ctx) {
         ConnAck connAck = ConnAck.accepted();
         String ccId = connect.clientIdentifier();
         if (connect.cleanSession()) {
@@ -50,10 +47,10 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {
                 // apply for DefaultServerSession and ClusterServerSession
-                preSession.close();
-                broker().destroySession(preSession);
+                broker().detachSession(preSession, false);
                 log.debug("Client({}) Node closed the exist preSession", ccId);
-            } else {
+            }
+            else {
                 // check if there is a Session in the Cluster
                 var css = (ClusterServerSession) broker().session(ccId);
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
@@ -63,13 +60,14 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                         // online Session on the Node, rare case
                         closeServerSessionOnOtherNode(css);
                     }
-                    broker().destroySession(css);
+                    broker().detachSession(css, false);
                 }
             }
             // build a new one (just local Node Session)
-            this.session = broker().createSession(connect);
+            this.session = broker().createSession(connect, ctx.channel());
             log.debug("Client({}) Node created a new Session: {}", ccId, session);
-        } else {
+        }
+        else {
             // need a CleanSession=0 cluster level Session
             log.debug("Client({}) need a (cleanSession=0) Session", ccId);
             // Just get Session from local Node(Broker)
@@ -77,7 +75,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {
                 log.debug("Client({}) Node now try to close Session: {}", ccId, preSession);
-                preSession.close();
+                broker().detachSession(preSession,false);
                 if (preSession instanceof ClusterServerSession) {
                     // get Session from the Cluster, it should be set to offline mode
                     var css = (ClusterServerSession) broker().session(ccId);
@@ -88,21 +86,25 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                     this.session = css.reInitWith(connect);
                     connAck = ConnAck.acceptedWithStoredSession();
                     log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", ccId, this.session);
-                } else if (preSession instanceof DefaultServerSession) {
-                    this.session = broker().createSession(connect);
+                }
+                else if (preSession instanceof DefaultServerSession) {
+                    this.session = broker().createSession(connect, ctx.channel());
                     log.debug("Client({}) Node created a new Session: {}", ccId, session);
-                } else {
+                }
+                else {
                     throw new IllegalArgumentException();
                 }
-            } else {
+            }
+            else {
                 // check if there have a Session in the Cluster
                 var css = (ClusterServerSession) broker().session(ccId);
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
                 if (css == null) {
                     // no Exist Session
-                    this.session = broker().createSession(connect);
+                    this.session = broker().createSession(connect, ctx.channel());
                     log.debug("Client({}) Node created a new Session: {}", ccId, session);
-                } else {
+                }
+                else {
                     if (css.isOnline()) {
                         log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node->{}", ccId, css);
                         // online Session on the Node, rare case
@@ -130,7 +132,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 log.info("Client({}) Cluster closeServerSessionOnOtherNode, other Node offline ", css.clientIdentifier());
                 // Node was dead.
                 break;
-            } else {
+            }
+            else {
                 // 定向 Node 发送消息
                 String topicName = cluster.pickOneChannelToNode(sessionNodeId);
                 NodeMessage nm = NodeMessage.wrapSessionClose(broker().nodeId(), css.clientIdentifier());

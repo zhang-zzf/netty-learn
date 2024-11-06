@@ -16,16 +16,4 @@ public interface ServerSession extends Session {
      */
     Broker broker();
 
-    /**
-     * whether the Session is registered with a Broker.
-     *
-     * @return Returns {@code true} if the {@link Session} is registered with a {@link Broker}.
-     */
-    boolean isRegistered();
-
-    /**
-     * register from Broker and bind to the Channel
-     */
-    void open(Channel ch, Broker broker);
-
 }

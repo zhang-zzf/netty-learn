@@ -1,18 +1,16 @@
 package org.example.mqtt.broker;
 
-import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 
-import javax.annotation.Nullable;
 import java.util.*;
 
 /**
  * @author zhanfeng.zhang@icloud.com
- * @date 2022/06/24
+ * @date 2024-11-05
  */
-public interface Broker extends AutoCloseable {
+public interface Broker {
 
     /**
      * onward message
@@ -20,8 +18,6 @@ public interface Broker extends AutoCloseable {
      * @param packet data
      */
     int forward(Publish packet);
-
-    void connect(ServerSession session);
 
     /**
      * register a subscription between the session and the topic
@@ -52,14 +48,15 @@ public interface Broker extends AutoCloseable {
      */
     void handlePublish(Publish packet);
 
-    ServerSession createSession(Connect connect);
+    void attachSession(ServerSession session);
 
-    @Nullable
+    void detachSession(ServerSession session, boolean force);
+
     ServerSession session(String clientIdentifier);
 
     Map<String, ServerSession> sessionMap();
 
-    void destroySession(ServerSession session);
+    void close() throws Exception;
 
     default boolean closed() {
         return false;
@@ -67,5 +64,4 @@ public interface Broker extends AutoCloseable {
 
     boolean block(Publish packet);
 
-    void closeSession(ServerSession session);
 }

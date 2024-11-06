@@ -1,11 +1,33 @@
 package org.example.mqtt.broker.cluster;
 
+import static java.util.Collections.singletonList;
+import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
+import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_SESSION_CLOSE;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.ACTION_TOPIC_QUERY;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
+import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
+import static org.example.mqtt.broker.node.DefaultBroker.qoS;
+import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
+import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
+
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.Channel;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import lombok.var;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
@@ -13,27 +35,13 @@ import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
 import org.example.mqtt.broker.cluster.node.NodePublish;
+import org.example.mqtt.broker.node.DefaultServerSession;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
 import org.springframework.stereotype.Component;
-
-import javax.annotation.Nullable;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import static java.util.Collections.singletonList;
-import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
-import static org.example.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
-import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
-import static org.example.mqtt.broker.node.DefaultBroker.packetIdentifier;
-import static org.example.mqtt.broker.node.DefaultBroker.qoS;
-import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
-import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
 @Slf4j
 @Component
@@ -72,6 +80,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
     public ClusterBrokerImpl(ClusterDbRepo clusterDbRepo, Broker nodeBroker) {
         this.clusterDbRepo = clusterDbRepo;
         this.nodeBroker = nodeBroker;
+        // todo
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
                 shutdownGracefully();
@@ -115,18 +124,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public void destroySession(ServerSession session) {
-        log.debug("ClusterBroker try to destroySession->{}", session);
-        if (session instanceof ClusterServerSession) {
-            ClusterServerSession css = (ClusterServerSession) session;
-            // 清除 cluster leven Session
-            clusterDbRepo.deleteSession(css);
-            log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
-        } else if (session instanceof NodeServerSession) {
-            nodeBroker.destroySession(session);
-        } else {
-            throw new UnsupportedOperationException();
-        }
+    public void attachSession(ServerSession session) {
+        nodeBroker().attachSession(session);
     }
 
     @Override
@@ -158,12 +157,12 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.debug("Node({}) Session({}) permitted Subscribe: {}", nodeId(), session.clientIdentifier(), subscriptions);
         Set<String> tfSet = subscriptions.stream().map(Subscribe.Subscription::topicFilter).collect(toSet());
         clusterDbRepo.addNodeToTopicAsync(nodeId(), new ArrayList<>(tfSet))
-                // 异步执行完成后若有异常直接关闭 session
-                .exceptionally(e -> {
-                    log.error("unExpected Exception", e);
-                    session.close();
-                    return null;
-                });
+            // 异步执行完成后若有异常直接关闭 session
+            .exceptionally(e -> {
+                log.error("unExpected Exception", e);
+                session.close();
+                return null;
+            });
         return subscriptions;
     }
 
@@ -183,9 +182,9 @@ public class ClusterBrokerImpl implements ClusterBroker {
     @Override
     public CompletableFuture<Void> removeNodeFromTopicAsync(ServerSession session, Set<Subscribe.Subscription> subscriptions) {
         List<String> topicToRemove = subscriptions.stream()
-                .map(Subscribe.Subscription::topicFilter)
-                .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
-                .collect(toList());
+            .map(Subscribe.Subscription::topicFilter)
+            .filter(topicFilter -> !nodeBroker.topic(topicFilter).isPresent())
+            .collect(toList());
         return clusterDbRepo.removeNodeFromTopicAsync(nodeId(), topicToRemove);
     }
 
@@ -212,15 +211,15 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // must retain the Publish.packet for async callback
         packet.retain();
         clusterDbRepo.matchTopicAsync(packet.topicName())
-                .thenAccept((topics) -> forwardToBrokerAndOfflineSession(packet, topics))
-                .whenComplete((v, t) -> {
-                    // must release PublishPacket anyway
-                    packet.release();
-                    if (t != null) {
-                        log.error("forward Publish failed-> Publish: {}", packet);
-                        log.error("unExpected Exception", t);
-                    }
-                });
+            .thenAccept((topics) -> forwardToBrokerAndOfflineSession(packet, topics))
+            .whenComplete((v, t) -> {
+                // must release PublishPacket anyway
+                packet.release();
+                if (t != null) {
+                    log.error("forward Publish failed-> Publish: {}", packet);
+                    log.error("unExpected Exception", t);
+                }
+            });
         return times;
     }
 
@@ -242,7 +241,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
                 if (nodeId().equals(targetNodeId)) {
                     // Node local forward
                     // times += nodeBroker.forward(packet);
-                } else {
+                }
+                else {
                     forwardToOtherNode(packet, ct, targetNodeId);
                 }
             }
@@ -313,9 +313,9 @@ public class ClusterBrokerImpl implements ClusterBroker {
         try {
             // Publish.Receive <-> forward to another Broker
             MetricUtil.count(METRIC_NAME, 1,
-                    "phase", "packetReceive->forwardToBroker",
-                    "source", nodeId(),
-                    "target", targetNodeId
+                "phase", "packetReceive->forwardToBroker",
+                "source", nodeId(),
+                "target", targetNodeId
             );
         } catch (Exception e) {
             log.error("unExpected Exception", e);
@@ -341,7 +341,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // use a shadow copy of the origin Publish
         Publish outgoing = Publish.outgoing(packet, tf, (byte) qos, packetIdentifier(s, qos));
         ClusterControlPacketContext cpx =
-                new ClusterControlPacketContext(clusterDbRepo, cId, OUT, outgoing, INIT, null);
+            new ClusterControlPacketContext(clusterDbRepo, cId, OUT, outgoing, INIT, null);
         clusterDbRepo.offerCpx(null, cpx);
     }
 
@@ -419,23 +419,18 @@ public class ClusterBrokerImpl implements ClusterBroker {
         log.info("Broker receive SysPublish->{}", packet);
         NodeMessage m = NodeMessage.fromBytes(packet.payload());
         switch (m.getPacket()) {
-            case INFO_CLUSTER_NODES:
+            case INFO_CLUSTER_NODES -> {
                 Set<NodeMessage.NodeInfo> state = m.unwrapClusterNodes();
                 log.info("Broker receive Cluster.Nodes->{}", state);
                 cluster.updateNodes(m.getNodeId(), state);
-                break;
-            case ACTION_BROKER_CLOSE:
+            }
+            case ACTION_BROKER_CLOSE -> {
                 log.info("Broker receive shutdown Instruction");
                 shutdownGracefully();
-                break;
-            case ACTION_SESSION_CLOSE:
-                doHandleActionSessionClose(m);
-                break;
-            case ACTION_TOPIC_QUERY:
-                doHandleActionTopicQuery(m);
-                break;
-            default:
-                log.error("Broker receive Unknown Instruction->{}, {}", m, ByteBufUtil.prettyHexDump(packet.payload()));
+            }
+            case ACTION_SESSION_CLOSE -> doHandleActionSessionClose(m);
+            case ACTION_TOPIC_QUERY -> doHandleActionTopicQuery(m);
+            default -> log.error("Broker receive Unknown Instruction->{}, {}", m, ByteBufUtil.prettyHexDump(packet.payload()));
         }
     }
 
@@ -447,7 +442,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
             // $SYS/cluster/nodes/%s/%s
             String publishTopic = "$SYS/cluster/nodes/" + nodeId + "/query/result";
             NodeMessage nm = new NodeMessage().setNodeId(nodeId()).setPacket("Topic.Query.Result")
-                    .setPayload(topic.get().toString());
+                .setPayload(topic.get().toString());
             Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
             forward(publish);
         }
@@ -460,7 +455,8 @@ public class ClusterBrokerImpl implements ClusterBroker {
         if (session != null) {
             session.close();
             log.info("NodeClient Session.Closed->{}", clientIdentifier);
-        } else {
+        }
+        else {
             log.warn("NodeClient does not exist Session({})", clientIdentifier);
         }
     }
@@ -471,15 +467,93 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public ServerSession createSession(Connect connect) {
+    public DefaultServerSession createSession(Connect connect, Channel channel) {
+        String ccId = connect.clientIdentifier();
+        //
+        nodeBroker().createSession(connect, channel);
+
+
         if (connect.cleanSession()) {
+                log.debug("Client({}) need a (cleanSession=1) Session", ccId);
+                // Just get Session from local Node(Broker)
+                var preSession = nodeBroker().session(ccId);
+                log.debug("Client({}) Node now has Session: {}", ccId, preSession);
+                if (preSession != null) {
+                    // apply for DefaultServerSession and ClusterServerSession
+                    detachSession(preSession, false);
+                    log.debug("Client({}) Node closed the exist preSession", ccId);
+                }
+                else {
+                    // check if there is a Session in the Cluster
+                    var css = (ClusterServerSession) session(ccId);
+                    log.debug("Client({}) Cluster now has Session: {}", ccId, css);
+                    if (css != null) {
+                        if (css.isOnline()) {
+                            log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node->{}", ccId, css);
+                            // online Session on the Node, rare case
+                            closeServerSessionOnOtherNode(css);
+                        }
+                        detachSession(css, false);
+                    }
+                }
+                // build a new one (just local Node Session)
             log.debug("Broker now try create a new NodeServerSession");
-            return NodeServerSession.from(connect);
-        } else {
+            NodeServerSession nss = new NodeServerSession(connect.clientIdentifier(), channel, this);
+            ServerSession previous = connect(session).get();
+
+            log.debug("Client({}) Node created a new Session: {}", ccId, nss);
+            return nss;
+
+
+
+        }
+        else {
             log.debug("Broker now try create a new ClusterServerSession");
-            return ClusterServerSession.from(connect);
+            ClusterServerSession css = new ClusterServerSession(connect.clientIdentifier(), channel, this);
+            // 1. 注册成功,绑定信息保存到 DB
+            clusterDbRepo.saveSession(css.nodeId(nodeId()));
+            // 2.从集群的订阅树中移除 Session 的离线订阅
+            clusterDbRepo.removeOfflineSessionFromTopic(css.clientIdentifier(), css.subscriptions());
+            // publish Connect to Cluster
+            publishConnectToCluster(css.clientIdentifier());
+            return css;
         }
     }
+
+
+    @SneakyThrows
+    private void closeServerSessionOnOtherNode(ClusterServerSession css) {
+        String sessionNodeId = css.nodeId();
+        int count = 0;
+        while (true) {
+            // Session is bound to a Node of the Cluster
+            if (cluster.node(sessionNodeId) == null) {
+                log.info("Client({}) Cluster closeServerSessionOnOtherNode, other Node offline ", css.clientIdentifier());
+                // Node was dead.
+                break;
+            }
+            else {
+                // 定向 Node 发送消息
+                String topicName = cluster.pickOneChannelToNode(sessionNodeId);
+                NodeMessage nm = NodeMessage.wrapSessionClose(nodeId(), css.clientIdentifier());
+                Publish outgoing = Publish.outgoing(Publish.AT_LEAST_ONCE, topicName, nm.toByteBuf());
+                // async notify
+                nodeBroker().forward(outgoing);
+                // 等待 100 ms
+                Thread.sleep(100);
+                css = (ClusterServerSession) session(css.clientIdentifier());
+                if (!css.isOnline()) {
+                    log.info("Client({}) Cluster closeServerSessionOnOtherNode, ClusterServerSession now is offline", css.clientIdentifier());
+                    break;
+                }
+            }
+            if (++count > 10) {
+                throw new IllegalStateException("Session 异常，不知道如何处理了");
+            }
+        }
+    }
+
+
 
     @Override
     public boolean closed() {
@@ -492,8 +566,21 @@ public class ClusterBrokerImpl implements ClusterBroker {
     }
 
     @Override
-    public void closeSession(ServerSession session) {
+    public void detachSession(ServerSession session, boolean force) {
         // todo
+        log.debug("ClusterBroker try to closeSession->{}", session);
+        nodeBroker.detachSession(session, false);
+        if (session instanceof ClusterServerSession css) {
+            // 清除 cluster leven Session
+            clusterDbRepo.deleteSession(css);
+            log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
+        }
+        else if (session instanceof NodeServerSession) {
+            nodeBroker.detachSession(session, false);
+        }
+        else {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -505,7 +592,7 @@ public class ClusterBrokerImpl implements ClusterBroker {
         // 1. Session离线，继续订阅主题
         clusterDbRepo.addOfflineSessionToTopic(session.clientIdentifier(), session.subscriptions());
         // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
-        nodeBroker().destroySession(session);
+        nodeBroker().detachSession(session, true);
         // 2.1 清理路由表
         removeNodeFromTopicAsync(session, session.subscriptions());
     }

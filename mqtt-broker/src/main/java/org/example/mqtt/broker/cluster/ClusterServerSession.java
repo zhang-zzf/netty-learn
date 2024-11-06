@@ -1,26 +1,30 @@
 package org.example.mqtt.broker.cluster;
 
-import io.netty.channel.Channel;
-import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.broker.Broker;
-import org.example.mqtt.broker.node.DefaultServerSession;
-import org.example.mqtt.model.Connect;
-import org.example.mqtt.model.Publish;
-import org.example.mqtt.model.Subscribe;
-import org.example.mqtt.session.ControlPacketContext;
+import static org.example.mqtt.session.ControlPacketContext.Type.IN;
+import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
+import io.netty.channel.Channel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Queue;
 import java.util.Set;
-
-import static org.example.mqtt.session.ControlPacketContext.Type.IN;
-import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.Broker;
+import org.example.mqtt.broker.node.DefaultServerSession;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.Subscribe.Subscription;
+import org.example.mqtt.session.ControlPacketContext;
 
 /**
- * Session 的生命周期由 Broker 控制
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-05
+ *
+ * <p> Session 的生命周期由 Broker 控制 </p>
  */
 @Slf4j
+// todo 不继承 DefaultServerSession
 public class ClusterServerSession extends DefaultServerSession {
 
     private volatile String nodeId;
@@ -29,25 +33,25 @@ public class ClusterServerSession extends DefaultServerSession {
      */
     private volatile Short outQueuePacketIdentifier;
 
-    public ClusterServerSession(String clientIdentifier) {
-        super(clientIdentifier);
-        super.cleanSession(false);
+    public ClusterServerSession(String clientIdentifier, Channel channel, Broker broker) {
+        super(clientIdentifier, false, channel, broker);
+        this.outQueuePacketIdentifier = null;
     }
 
-    public static ClusterServerSession from(String clientIdentifier, String nodeId,
-                                            Set<Subscribe.Subscription> subscriptions,
-                                            Short outQueuePacketIdentifier) {
-        ClusterServerSession s = new ClusterServerSession(clientIdentifier);
+    public static ClusterServerSession from(String clientIdentifier,
+        String nodeId,
+        Set<Subscribe.Subscription> subscriptions,
+        Short outQueuePacketIdentifier) {
+        // todo
+        ClusterServerSession s = new ClusterServerSession(clientIdentifier, mockOne(), null);
         s.subscriptions = subscriptions == null ? new HashSet<>(4) : subscriptions;
         s.nodeId = nodeId;
         s.outQueuePacketIdentifier(outQueuePacketIdentifier);
         return s;
     }
 
-    public static ClusterServerSession from(Connect connect) {
-        ClusterServerSession s = new ClusterServerSession(connect.clientIdentifier());
-        s.reInitWith(connect);
-        return s;
+    private static Channel mockOne() {
+        return new NioSocketChannel();
     }
 
     @Override
@@ -88,8 +92,8 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     protected ControlPacketContext createNewCpx(Publish packet,
-                                                ControlPacketContext.Status status,
-                                                ControlPacketContext.Type type) {
+        ControlPacketContext.Status status,
+        ControlPacketContext.Type type) {
         if (type == OUT && !enqueueOutQueue(packet)) {
             return new ControlPacketContext(packet, status, type);
         }
@@ -97,7 +101,7 @@ public class ClusterServerSession extends DefaultServerSession {
             return new ControlPacketContext(packet, status, type);
         }
         return new ClusterControlPacketContext(clusterDbRepo(),
-                cId(), type, packet, status, null);
+            cId(), type, packet, status, null);
     }
 
     @Override
@@ -121,18 +125,8 @@ public class ClusterServerSession extends DefaultServerSession {
     }
 
     @Override
-    public void open(Channel ch, Broker broker) {
-        log.debug("Cluster Session({}) Channel<->Session<->Broker", cId());
-        if (isOnline()) {
-            log.debug("Session({}) nodeId is Not Null: {}", cId(), nodeId);
-        }
-        this.outQueuePacketIdentifier = null;
-        super.open(ch, broker);
-    }
-
-    @Override
-    public void channelClosed() {
-        super.channelClosed();
+    public void close() {
+        super.close();
         if (isOnline()) {
             this.nodeId = null;
             log.debug("Cluster now try to disconnect this Session from Node->{}", this);
@@ -145,20 +139,8 @@ public class ClusterServerSession extends DefaultServerSession {
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"type\":\"ClusterServerSession\",");
-        sb.append("\"registered\":").append(isRegistered()).append(',');
-        sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
-        sb.append("\"cleanSession\":").append(cleanSession()).append(',');
-        sb.append("\"bound\":").append(isBound()).append(',');
-        sb.append("\"isOnline\":").append(isOnline()).append(',');
-        if (nodeId() != null) {
-            sb.append("\"nodeId\":\"").append(nodeId()).append("\",");
-        }
-        if (outQueuePacketIdentifier() != null) {
-            sb.append("\"outQueuePacketIdentifier\":").append(outQueuePacketIdentifier()).append(",");
-        }
-        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        // todo
+        return "todo";
     }
 
     @Override
@@ -170,29 +152,29 @@ public class ClusterServerSession extends DefaultServerSession {
         return outQueuePacketIdentifier;
     }
 
-    public void outQueuePacketIdentifier(Short packetIdentifier) {
-        this.outQueuePacketIdentifier = packetIdentifier;
-        this.resetPacketIdentifier(packetIdentifier);
-    }
-
-    public void resetPacketIdentifier(Short packetIdentifier) {
-        if (packetIdentifier == null) {
-            // do nothing
-            return;
-        }
-        if (packetIdentifier >= Short.MAX_VALUE) {
-            throw new IllegalArgumentException();
-        }
-        this.packetIdentifier.set(packetIdentifier);
-    }
+    // public void outQueuePacketIdentifier(Short packetIdentifier) {
+    //     this.outQueuePacketIdentifier = packetIdentifier;
+    //     this.resetPacketIdentifier(packetIdentifier);
+    // }
+    //
+    // public void resetPacketIdentifier(Short packetIdentifier) {
+    //     if (packetIdentifier == null) {
+    //         // do nothing
+    //         return;
+    //     }
+    //     if (packetIdentifier >= Short.MAX_VALUE) {
+    //         throw new IllegalArgumentException();
+    //     }
+    //     this.packetIdentifier.set(packetIdentifier);
+    // }
 
     public boolean isOnline() {
         return nodeId != null;
     }
 
-    public ClusterServerSession nodeId(String nodeId) {
-        this.nodeId = nodeId;
-        return this;
-    }
+    // public ClusterServerSession nodeId(String nodeId) {
+    //     this.nodeId = nodeId;
+    //     return this;
+    // }
 
 }

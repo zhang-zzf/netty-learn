@@ -18,6 +18,7 @@ import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.PingReq;
 import org.example.mqtt.model.PingResp;
+import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.Session;
 
 /**
@@ -43,6 +44,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     private final int activeIdleTimeoutSecond;
     private ReadTimeoutHandler activeIdleTimeoutHandler;
 
+    private final ChannelFutureListener SEND_PACKET_AFTER_CONNACK = future -> {
+        if (future.isSuccess() && session instanceof AbstractSession as) {
+            as.connected();
+        }
+    };
+
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         // If the Server does not receive a CONNECT Packet
@@ -56,12 +63,11 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     public void channelRead(ChannelHandlerContext ctx, Object msg) {
         // receive a packet, remove the activeIdleTimeoutHandler
         removeActiveIdleTimeoutHandler(ctx);
-        if (!(msg instanceof ControlPacket)) {
+        if (!(msg instanceof ControlPacket cp)) {
             log.error("channelRead msg is not ControlPacket, now close the Session and channel");
             closeSession(ctx);
             return;
         }
-        ControlPacket cp = (ControlPacket) msg;
         channelRead0(ctx, cp);
         // fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
         // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
@@ -69,23 +75,16 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         ctx.fireChannelRead(cp);
     }
 
-    private void closeSession(ChannelHandlerContext ctx) {
-        if (session != null) {
-            broker.closeSession(session);
-        }
-        ctx.channel().close();
-    }
-
     private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
-            ctx.channel().close();
+            closeSession(ctx);
             return;
         }
         // the first Connect Packet
-        if (cp instanceof Connect) {
+        if (cp instanceof Connect connect) {
             // A Client can only send the CONNECT Packet once over a Network Connection.
             // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
             // and disconnect the Client
@@ -94,7 +93,6 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 closeSession(ctx);
                 return;
             }
-            Connect connect = (Connect) cp;
             log.debug("Client receive Connect-> cId: {}, packet: {}", connect.clientIdentifier(), connect);
             // The Server MUST respond to the CONNECT Packet
             // with a CONNACK return code 0x01 (unacceptable protocol level) and then
@@ -119,14 +117,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             if (connect.keepAlive() > 0) {
                 addClientKeepAliveHandler(ctx, connect.keepAlive());
             }
-            ConnAck connAck = doHandleConnect(connect);
+            ConnAck connAck = doHandleConnect(connect, ctx);
             ctx.writeAndFlush(connAck)
                 .addListener(LOG_ON_FAILURE)
                 .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                .addListener(f -> {
-                    this.session.open(ctx.channel(), broker);
-                    log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
-                })
+                .addListener(f -> log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
+                .addListener(SEND_PACKET_AFTER_CONNACK)
             ;
         }
         else if (cp instanceof PingReq) {
@@ -139,43 +135,23 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    protected ConnAck doHandleConnect(Connect connect) {
+    protected ConnAck doHandleConnect(Connect connect, ChannelHandlerContext ctx) {
         ConnAck connAck = ConnAck.accepted();
         String cId = connect.clientIdentifier();
         ServerSession preSession = broker.session(cId);
-        if (preSession != null && preSession.isBound()) {
+        if (preSession != null && preSession.isActive()) {
             log.debug("Client({}) exist bound Session: {}", cId, preSession);
             //  If the ClientId represents a Client already connected to the Server then the Server MUST
             //  disconnect the existing Client
-            // preSession.close();
-            preSession.channel().close();
-            broker.closeSession(preSession);
+            broker.detachSession(preSession, false);
             // query again
             preSession = broker.session(cId);
             log.debug("Client({}) close exist bound Session: {}", cId, preSession);
         }
-        if (connect.cleanSession()) {
-            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cId, preSession);
-            if (preSession != null) {
-                broker.closeSession(preSession);
-                if (log.isDebugEnabled()) {
-                    log.debug("Client({}) closed the old Session, Broker now has Session: {}", cId, broker.session(cId));
-                }
-            }
-            this.session = broker.createSession(connect);
-            log.debug("Client({}) need a (cleanSession=1) Session, new Session created: {}", cId, this.session);
-        }
-        else {
-            log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, preSession);
-            if (preSession == null) {
-                this.session = broker.createSession(connect);
-                log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
-            }
-            else {
-                connAck = ConnAck.acceptedWithStoredSession();
-                this.session = ((DefaultServerSession) preSession).reInitWith(connect);
-                log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cId, this.session);
-            }
+        this.session = DefaultServerSession.newFrom(connect, ctx.channel(), broker);
+        broker.attachSession(session);
+        if (!connect.cleanSession() && preSession != null) {
+            connAck = ConnAck.acceptedWithStoredSession();
         }
         return connAck;
     }
@@ -216,7 +192,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Client({}) channelInactive", csci());
         if (session != null) {
-            broker.closeSession(session);
+            broker.detachSession(session, false);
         }
         super.channelInactive(ctx);
     }
@@ -227,6 +203,15 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     protected Broker broker() {
         return broker;
+    }
+
+    private void closeSession(ChannelHandlerContext ctx) {
+        if (session != null) {
+            broker.detachSession(session, false);
+        }
+        else {
+            ctx.channel().close();
+        }
     }
 
 }

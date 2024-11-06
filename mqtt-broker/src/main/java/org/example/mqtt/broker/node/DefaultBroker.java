@@ -1,12 +1,23 @@
 package org.example.mqtt.broker.node;
 
+import static java.util.stream.Collectors.toSet;
+import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
+import static org.example.mqtt.model.Publish.needAck;
+
 import io.micrometer.core.annotation.Timed;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
-import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
@@ -14,16 +25,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.Nullable;
-import java.util.*;
-
-import static java.util.stream.Collectors.toSet;
-import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
-import static org.example.mqtt.model.Publish.needAck;
-
 /**
  * @author zhanfeng.zhang@icloud.com
- * @date 2022/06/28
+ * @date 2024-11-06
  */
 @Slf4j
 @Component
@@ -102,34 +106,30 @@ public class DefaultBroker implements Broker {
         return brokerState.session();
     }
 
-    @SneakyThrows
-    @Override
-    public void destroySession(ServerSession session) {
-        log.debug("Broker try to destroySession->{}", session);
-        brokerState.disconnect(session).get();
-        log.debug("Broker destroyed Session");
-    }
-
     @Override
     public boolean block(Publish packet) {
         return !blockedTopicFilter.match(packet.topicName()).isEmpty();
     }
 
+    @SneakyThrows
     @Override
-    public void closeSession(ServerSession session) {
-        // close channel
-        if (session.isBound()) {
-            session.channel().close();
+    public void detachSession(ServerSession session, boolean force) {
+        if (session == null) {
+            return;
         }
-        if (session.cleanSession()) {
+        // close channel
+        if (session.isActive()) {
+            session.close();
+        }
+        if (session.cleanSession() || force) {
             String cId = session.clientIdentifier();
             log.debug("Broker({}) now try to close Session({})", this, cId);
             // broker clear session state
-            destroySession(session);
+            log.debug("Broker try to destroySession->{}", session);
+            brokerState.disconnect(session).get();
+            log.debug("Broker destroyed Session");
             log.debug("Broker closed Session({})", cId);
         }
-        // session close callback
-        session.onSessionClose();
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {
@@ -148,17 +148,6 @@ public class DefaultBroker implements Broker {
         return new HashSet<>(Arrays.asList(4));
     }
 
-    @SneakyThrows
-    @Override
-    public void connect(ServerSession session) {
-        // sync wait
-        ServerSession previous = brokerState.connect(session).get();
-        if (previous != null) {
-            previous.close();
-            log.warn("DefaultBroker#connect close exist Session-> {}", previous);
-        }
-    }
-
     private void retain(Publish publish) {
         if (!publish.retainFlag()) {
             throw new IllegalArgumentException();
@@ -168,7 +157,8 @@ public class DefaultBroker implements Broker {
             log.debug("receive zero bytes payload retain Publish, now remove it: {}", packet);
             // remove the retained message
             brokerState.removeRetain(packet);
-        } else {
+        }
+        else {
             // save the retained message
             brokerState.saveRetain(packet);
         }
@@ -192,8 +182,26 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public ServerSession createSession(Connect connect) {
-        return DefaultServerSession.from(connect);
+    @SneakyThrows
+    public void attachSession(ServerSession session) {
+        String cId = session.clientIdentifier();
+        // sync wait
+        ServerSession previous = brokerState.connect(session).get();
+        if (session.cleanSession()) { // need a clean Session
+            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cId, previous);
+            detachSession(previous, false);
+        }
+        else {
+            log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, previous);
+            if (previous == null) {
+                log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
+            }
+            else {
+                log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cId, previous);
+                session.migrate(previous);
+                log.debug("Client({}) need a (cleanSession=0) Session, exist Session migrated: {}", cId, session);
+            }
+        }
     }
 
     private boolean zeroBytesPayload(Publish publish) {

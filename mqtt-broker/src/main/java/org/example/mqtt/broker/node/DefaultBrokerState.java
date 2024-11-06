@@ -97,12 +97,12 @@ public class DefaultBrokerState {
         }
     }
 
-    public Future<Void> unsubscribe(ServerSession session, Subscribe.Subscription subscription) {
+    public Future<?> unsubscribe(ServerSession session, Subscribe.Subscription subscription) {
         Runnable task = () -> doUnsubscribe(session, subscription);
-        return (Future<Void>) executorService.submit(task);
+        return executorService.submit(task);
     }
 
-    public Future<Void> disconnect(ServerSession session) {
+    public Future<?> disconnect(ServerSession session) {
         Runnable task = () -> {
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
             for (Subscribe.Subscription sub : subscriptions) {
@@ -110,11 +110,11 @@ public class DefaultBrokerState {
             }
             sessionMap.remove(session.clientIdentifier(), session);
         };
-        return (Future<Void>) executorService.submit(task);
+        return executorService.submit(task);
     }
 
     public Future<ServerSession> connect(ServerSession session) {
-        Callable task = () -> {
+        Callable<ServerSession> task = () -> {
             ServerSession previous = sessionMap.put(session.clientIdentifier(), session);
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
             for (Subscribe.Subscription sub : subscriptions) {
@@ -123,7 +123,6 @@ public class DefaultBrokerState {
             return previous;
         };
         return executorService.submit(task);
-
     }
 
     public void removeRetain(Publish packet) {

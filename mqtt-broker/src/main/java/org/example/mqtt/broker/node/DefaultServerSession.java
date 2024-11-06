@@ -1,19 +1,37 @@
 package org.example.mqtt.broker.node;
 
+import static org.example.mqtt.model.ControlPacket.DISCONNECT;
+import static org.example.mqtt.model.ControlPacket.PUBLISH;
+import static org.example.mqtt.model.ControlPacket.SUBSCRIBE;
+import static org.example.mqtt.model.ControlPacket.UNSUBSCRIBE;
+import static org.example.mqtt.model.Publish.META_NM_RECEIVE;
+import static org.example.mqtt.model.Publish.META_NM_WRAP;
+import static org.example.mqtt.model.Publish.META_P_RECEIVE_MILLIS;
+import static org.example.mqtt.model.Publish.META_P_RECEIVE_NANO;
+import static org.example.mqtt.model.Publish.META_P_SOURCE;
+import static org.example.mqtt.model.Publish.META_P_SOURCE_BROKER;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
-import org.example.mqtt.model.*;
+import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.Disconnect;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.UnsubAck;
+import org.example.mqtt.model.Unsubscribe;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
-
-import java.util.*;
-
-import static org.example.mqtt.model.ControlPacket.*;
-import static org.example.mqtt.model.Publish.*;
+import org.example.mqtt.session.Session;
 
 /**
  * Session 的生命周期由 Broker 控制
@@ -24,8 +42,7 @@ import static org.example.mqtt.model.Publish.*;
 @Slf4j
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
-    private Broker broker;
-    private volatile boolean registered;
+    private final Broker broker;
     protected Set<Subscribe.Subscription> subscriptions = new HashSet<>();
     /**
      * Will Message
@@ -37,21 +54,17 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      */
     private volatile Publish willMessage;
 
-    public DefaultServerSession(String clientIdentifier) {
-        super(clientIdentifier);
+    public DefaultServerSession(String clientIdentifier, boolean cleanSession, Channel channel, Broker broker) {
+        super(clientIdentifier, cleanSession, channel);
+        this.broker = broker;
     }
 
-    public static ServerSession from(Connect connect) {
-        return new DefaultServerSession(connect.clientIdentifier())
-                .reInitWith(connect);
-    }
-
-    public DefaultServerSession reInitWith(Connect connect) {
-        cleanSession(connect.cleanSession());
+    public static DefaultServerSession newFrom(Connect connect, Channel channel, Broker broker) {
+        DefaultServerSession session = new DefaultServerSession(connect.clientIdentifier(), connect.cleanSession(), channel, broker);
         if (connect.willFlag()) {
-            willMessage = extractWillMessage(connect);
+            session.willMessage = extractWillMessage(connect);
         }
-        return this;
+        return session;
     }
 
     @Override
@@ -62,17 +75,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             }
         }
         switch (packet.type()) {
-            case SUBSCRIBE:
-                doReceiveSubscribe((Subscribe) packet);
-                break;
-            case UNSUBSCRIBE:
-                doReceiveUnsubscribe((Unsubscribe) packet);
-                break;
-            case DISCONNECT:
-                doReceiveDisconnect((Disconnect) packet);
-                break;
-            default:
-                super.onPacket(packet);
+            case SUBSCRIBE -> doReceiveSubscribe((Subscribe) packet);
+            case UNSUBSCRIBE -> doReceiveUnsubscribe((Unsubscribe) packet);
+            case DISCONNECT -> doReceiveDisconnect((Disconnect) packet);
+            default -> super.onPacket(packet);
         }
     }
 
@@ -81,6 +87,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         return subscriptions;
     }
 
+    /**
+     * rewrite to handle Publish packet with extra logix
+     * <p>ServerSession 需要对发送的 Publish 包 特殊处理</p>
+     * <p>ServerSession 只发送 Publish</p>
+     */
     @Override
     public void send(ControlPacket packet) {
         if (packet == null) {
@@ -95,76 +106,25 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             publish.payload().retain();
             log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
             super.send(publish);
-        } else {
+        }
+        else {
             throw new IllegalArgumentException();
         }
     }
 
     @Override
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
+        super.publishPacketSentComplete(cpx);
         /**
          * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
          */
         cpx.packet().payload().release();
         log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
-        super.publishPacketSentComplete(cpx);
     }
 
     @Override
-    protected boolean onPublish(Publish packet) {
+    protected void onPublish(Publish packet) {
         broker.handlePublish(packet);
-        return true;
-    }
-
-    private void doReceiveUnsubscribe(Unsubscribe packet) {
-        log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
-        broker.unsubscribe(this, packet);
-        doRemoveSubscriptions(packet.subscriptions());
-        UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
-        log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
-        channel().writeAndFlush(unsubAck);
-    }
-
-    protected void doRemoveSubscriptions(List<Subscribe.Subscription> subscriptions) {
-        this.subscriptions.removeAll(subscriptions);
-    }
-
-    private void doReceiveSubscribe(Subscribe packet) {
-        log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
-        // register the Subscribe
-        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
-        SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
-        log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
-        doAddSubscriptions(permitted);
-        channel().writeAndFlush(subAck);
-        doSendRetainPublish(permitted);
-    }
-
-    private void doSendRetainPublish(List<Subscribe.Subscription> permitted) {
-        for (Subscribe.Subscription p : permitted) {
-            for (Publish packet : broker.retainMatch(p.topicFilter())) {
-                log.debug("Session({}) match retain Publish: {}", cId(), packet);
-                // send retain Publish
-                int qos = Math.min(packet.qos(), p.qos());
-                // do rebuild the PublishPacket
-                send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
-            }
-        }
-    }
-
-    protected void doAddSubscriptions(List<Subscribe.Subscription> permitted) {
-        this.subscriptions.removeAll(permitted);
-        this.subscriptions.addAll(permitted);
-    }
-
-    protected void doReceiveDisconnect(Disconnect packet) {
-        log.debug("Session({}) doReceiveDisconnect.", clientIdentifier());
-        // clean the Will message.
-        if (willMessage != null) {
-            log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
-            willMessage = null;
-        }
-        close();
     }
 
     @Override
@@ -173,46 +133,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public boolean isRegistered() {
-        return registered;
-    }
-
-    @Override
-    public void open(Channel ch, Broker broker) {
-        log.debug("Session({}) Channel<->Session<->Broker: {}, {}", cId(), ch, broker);
-        bind(ch);
-        if (!registered) {
-            log.debug("Session({}) now try to connect to Broker: {}", cId(), broker);
-            this.broker = broker;
-            broker.connect(this);
-            registered = true;
-            log.debug("Session({}) now connected to Broker", cId());
-        }
-    }
-
-    @Override
-    public void channelClosed() {
-        super.channelClosed();
-        // 取消与 Broker 的关联
-        if (registered) {
-            if (cleanSession()) {
-                log.debug("Session({}) now try to disconnect from Broker: {}", cId(), broker);
-                // disconnect the session from the broker
-                broker.destroySession(this);
-                registered = false;
-                log.debug("Session({}) disconnected from Broker", cId());
-            }
-        }
-        // send will message
-        if (willMessage != null) {
-            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
-            onPublish(willMessage);
-            willMessage = null;
-        }
-    }
-
-    @Override
-    public void onSessionClose() {
+    public void close() {
+        super.close();
         // send will message
         if (willMessage != null) {
             log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
@@ -223,52 +145,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"clientIdentifier\":\"").append(clientIdentifier()).append("\",");
-        sb.append("\"registered\":").append(registered).append(',');
-        sb.append("\"cleanSession\":").append(cleanSession()).append(',');
-        sb.append("\"bound\":").append(isBound()).append(',');
-        if (subscriptions != null) {
-            sb.append("\"subscriptions\":");
-            if (!(subscriptions).isEmpty()) {
-                sb.append("[");
-                for (Object collectionValue : subscriptions) {
-                    sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
-                }
-                sb.replace(sb.length() - 1, sb.length(), "]");
-            } else {
-                sb.append("[]");
-            }
-            sb.append(',');
-        }
-        if (willMessage != null) {
-            sb.append("\"willMessage\":");
-            String objectStr = willMessage.toString().trim();
-            if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
-                sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
-                sb.append(objectStr);
-            } else {
-                sb.append("\"").append(objectStr).append("\"");
-            }
-            sb.append(',');
-        }
-        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
-    private Publish extractWillMessage(Connect connect) {
-        int qos = connect.willQos();
-        String topic = connect.willTopic();
-        ByteBuf byteBuf = connect.willMessage();
-        boolean retain = connect.willRetainFlag();
-        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
+        //   todo
+        return "todo";
     }
 
     @Override
     protected void publishPacketSent(ControlPacketContext cpx) {
         try {
             metricPublish(cpx);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             // just log an error
             log.error("unExpected exception", e);
         }
@@ -295,7 +180,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             // nmReceive->packetSent 和 packetReceive->.->packetSent 使用同样的流程，不再重复打点
             // MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
             MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->nm->packetSent");
-        } else {
+        }
+        else {
             long nanoTime = System.nanoTime();
             long pReceiveInNano = (long) meta.get(META_P_RECEIVE_NANO);
             MetricUtil.nanoTime(METRIC_NAME, nanoTime - pReceiveInNano, "phase", "packetReceive->.->packetSent");
@@ -305,6 +191,65 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         if (pReceive != null) {
             MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->packetSent");
         }
+    }
+
+    @Override
+    public void migrate(Session session) {
+        super.migrate(session);
+        if (session instanceof DefaultServerSession dss) {
+            // subscription
+            subscriptions.addAll(dss.subscriptions());
+        }
+    }
+
+    private void doReceiveSubscribe(Subscribe packet) {
+        log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
+        // register the Subscribe packet
+        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
+        this.subscriptions.addAll(permitted);
+        SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
+        log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
+        doSendPacket(subAck);
+        doSendRetainPublish(permitted);
+    }
+
+    private void doSendRetainPublish(List<Subscribe.Subscription> permitted) {
+        for (Subscribe.Subscription p : permitted) {
+            for (Publish packet : broker.retainMatch(p.topicFilter())) {
+                log.debug("Session({}) match retain Publish: {}", cId(), packet);
+                // send retain Publish
+                int qos = Math.min(packet.qos(), p.qos());
+                // do rebuild the PublishPacket
+                send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
+            }
+        }
+    }
+
+    private void doReceiveUnsubscribe(Unsubscribe packet) {
+        log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
+        broker.unsubscribe(this, packet);
+        subscriptions.forEach(this.subscriptions::remove);
+        UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
+        log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
+        doSendPacket(unsubAck);
+    }
+
+    private void doReceiveDisconnect(Disconnect packet) {
+        log.debug("Session({}) doReceiveDisconnect.", clientIdentifier());
+        // clean the Will message.
+        if (willMessage != null) {
+            log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
+            willMessage = null;
+        }
+        broker.detachSession(this,false);
+    }
+
+    private static Publish extractWillMessage(Connect connect) {
+        int qos = connect.willQos();
+        String topic = connect.willTopic();
+        ByteBuf byteBuf = connect.willMessage();
+        boolean retain = connect.willRetainFlag();
+        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
     }
 
 }

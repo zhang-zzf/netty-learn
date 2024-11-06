@@ -163,7 +163,7 @@ public class Connect extends ControlPacket {
     }
 
     public String clientIdentifier() {
-        return this.clientIdentifier;
+        return clientIdentifier;
     }
 
     @Override

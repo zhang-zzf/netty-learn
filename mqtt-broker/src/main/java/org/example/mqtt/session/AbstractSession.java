@@ -1,28 +1,41 @@
 package org.example.mqtt.session;
 
+import static com.google.common.base.Preconditions.checkNotNull;
+import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
+import static org.example.mqtt.model.ControlPacket.PUBACK;
+import static org.example.mqtt.model.ControlPacket.PUBCOMP;
+import static org.example.mqtt.model.ControlPacket.PUBLISH;
+import static org.example.mqtt.model.ControlPacket.PUBREC;
+import static org.example.mqtt.model.ControlPacket.PUBREL;
+import static org.example.mqtt.session.ControlPacketContext.Status.HANDLED;
+import static org.example.mqtt.session.ControlPacketContext.Status.INIT;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_ACK;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_COMP;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_REC;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_REL;
+import static org.example.mqtt.session.ControlPacketContext.Type.IN;
+import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
+
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.EventLoop;
-import lombok.SneakyThrows;
-import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.model.*;
-
 import java.util.LinkedList;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
-import static org.example.mqtt.model.ControlPacket.*;
-import static org.example.mqtt.session.ControlPacketContext.Status.*;
-import static org.example.mqtt.session.ControlPacketContext.Type.IN;
-import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.PubAck;
+import org.example.mqtt.model.PubComp;
+import org.example.mqtt.model.PubRec;
+import org.example.mqtt.model.PubRel;
+import org.example.mqtt.model.Publish;
 
 /**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-05
  */
 @Slf4j
 public abstract class AbstractSession implements Session {
@@ -33,26 +46,27 @@ public abstract class AbstractSession implements Session {
         }
     };
 
-    private final String clientIdentifier;
     protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
-    private Boolean cleanSession;
 
-    private Queue<ControlPacketContext> inQueue;
-    private Queue<ControlPacketContext> outQueue;
+    private final String clientIdentifier;
+    private final Channel channel;
 
-    /**
-     * bind to the same EventLoop that the channel was bind to.
-     */
-    private volatile EventLoop eventLoop;
-    private volatile Channel channel;
+    private final boolean cleanSession;
+
+    protected final Queue<ControlPacketContext> inQueue;
+    protected final Queue<ControlPacketContext> outQueue;
+
 
     /**
      * 是否发送 Publish Packet
      */
-    private volatile Thread sendingPublishThread;
-
-    protected AbstractSession(String clientIdentifier) {
-        this.clientIdentifier = clientIdentifier;
+    // private volatile Thread sendingPublishThread;
+    protected AbstractSession(String clientIdentifier, boolean cleanSession, Channel channel) {
+        this.clientIdentifier = checkNotNull(clientIdentifier, "clientIdentifier");
+        this.cleanSession = cleanSession;
+        this.channel = checkNotNull(channel);
+        this.inQueue = newInQueue();
+        this.outQueue = newOutQueue();
     }
 
     /**
@@ -61,31 +75,19 @@ public abstract class AbstractSession implements Session {
     @SneakyThrows
     @Override
     public void close() {
-        log.debug("Session({}) try to close->{}", cId(), this);
-        if (isBound()) {
+        log.debug("Session({}) try to close -> {}", cId(), this);
+        if (isActive()) {
             log.debug("Session({}) now try to unbind from Channel: {}", cId(), channel);
-            if (channel.isOpen()) {
-                channel.close();
-            }
-            channelClosed();
+            channel.close();
             log.debug("Session({}) unbound from Channel", cId());
-        } else {
+        }
+        else {
             log.debug("Session({}) was not bound with a Channel", cId());
         }
     }
 
     @Override
-    public void channelClosed() {
-        if (channel != null) {
-            channel = null;
-        }
-    }
-
-    @Override
     public boolean cleanSession() {
-        if (cleanSession == null) {
-            return true;
-        }
         return cleanSession;
     }
 
@@ -96,13 +98,16 @@ public abstract class AbstractSession implements Session {
             throw new IllegalArgumentException();
         }
         if (PUBLISH == packet.type()) {
-            sendPublishInEventLoop((Publish) packet);
-        } else {
+            invokeSendPublish((Publish) packet);
+        }
+        else {
             doSendPacket(packet);
         }
     }
 
     private void doSendPublish(Publish outgoing) {
+        // Session 使用 EventLoop 更改内部状态
+        assert channel.eventLoop().inEventLoop();
         // very little chance
         if (outQueueQos2DuplicateCheck(outgoing)) {
             log.warn("Session({}) send same Publish(QoS2), discard it: {}", cId(), outgoing);
@@ -110,22 +115,22 @@ public abstract class AbstractSession implements Session {
         }
         ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
         log.debug("sender({}/{}) Publish .->INIT: {}", cId(), cpx.pId(), cpx);
-        if (isBound()) {
-            // online. send immediately
-            // Only enqueue Qos1 and QoS2
-            if (enqueueOutQueue(cpx.packet())) {
+        if (isActive()) {// isActive. send immediately
+            if (enqueueOutQueue(cpx.packet())) {// Only enqueue Qos1 and QoS2
                 outQueueEnqueue(cpx);
-                if (cpx.packetIdentifier() == outQueue().peek().packetIdentifier()) {
+                if (headOfQueue(cpx, outQueue())) {
                     // cpx is the head of the outQueue
                     doWritePublishPacket(cpx);
-                } else {
+                }
+                else {
                     log.debug("sender({}/{}) Publish wait for it's turn: {}", cId(), cpx.pId(), cpx);
                 }
-            } else {
-                // no need to enqueue, just send it.
+            }
+            else {// no need to enqueue, just send it.
                 doWritePublishPacket(cpx);
             }
-        } else {
+        }
+        else {
             // offline
             if (!enqueueOutQueue(cpx.packet())) {
                 // QoS0 Publish will be discarded by default config.
@@ -138,26 +143,23 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    protected void sendPublishInEventLoop(Publish publish) {
-        if (eventLoop == null) {
-            throw new IllegalStateException();
-        }
-        // make sure use the safe thread that the session wad bound to
-        if (eventLoop.inEventLoop()) {
-            invokeSendPublish(publish);
-        } else {
-            eventLoop.execute(() -> invokeSendPublish(publish));
-        }
+    private boolean headOfQueue(ControlPacketContext cpx, Queue<ControlPacketContext> queue) {
+        return headOfQueue(cpx.packetIdentifier(), queue);
     }
 
-    private void invokeSendPublish(Publish packet) {
-        // send immediately if can or queue the packet
-        // put Publish packet into queue
-        try {
-            sendingPublishThread = Thread.currentThread();
-            doSendPublish(packet);
-        } finally {
-            sendingPublishThread = null;
+    private boolean headOfQueue(short pId, Queue<ControlPacketContext> queue) {
+        ControlPacketContext head = queue.peek();
+        return head != null && head.packetIdentifier() == pId;
+    }
+
+
+    private void invokeSendPublish(Publish publish) {
+        // make sure use the same thread that the session wad bound to
+        if (channel.eventLoop().inEventLoop()) {
+            doSendPublish(publish);
+        }
+        else {
+            channel.eventLoop().execute(() -> doSendPublish(publish));
         }
     }
 
@@ -174,8 +176,8 @@ public abstract class AbstractSession implements Session {
         return clientIdentifier();
     }
 
-    private void doSendPacket(ControlPacket packet) {
-        if (!isBound()) {
+    protected void doSendPacket(ControlPacket packet) {
+        if (!isActive()) {
             log.warn("Session is not bind to a Channel, discard the ControlPacket: {}, {}", cId(), packet);
             return;
         }
@@ -184,6 +186,11 @@ public abstract class AbstractSession implements Session {
                 log.debug("doSendPacket({}): {}", cId(), packet);
             }
         });
+    }
+
+    @Override
+    public boolean isActive() {
+        return channel.isActive();
     }
 
     private boolean outQueueQos2DuplicateCheck(Publish packet) {
@@ -246,24 +253,12 @@ public abstract class AbstractSession implements Session {
     @Override
     public void onPacket(ControlPacket packet) {
         switch (packet.type()) {
-            case PUBLISH:
-                doReceivePublish((Publish) packet);
-                break;
-            case PUBACK:
-                doReceivePubAck((PubAck) packet);
-                break;
-            case PUBREC:
-                doReceivePubRec((PubRec) packet);
-                break;
-            case PUBREL:
-                doReceivePubRel((PubRel) packet);
-                break;
-            case PUBCOMP:
-                doReceivePubComp((PubComp) packet);
-                break;
-            default:
-                log.error("unhandled ControlPacket type->{}", packet);
-                throw new IllegalArgumentException();
+            case PUBLISH -> doReceivePublish((Publish) packet);
+            case PUBACK -> doReceivePubAck((PubAck) packet);
+            case PUBREC -> doReceivePubRec((PubRec) packet);
+            case PUBREL -> doReceivePubRel((PubRel) packet);
+            case PUBCOMP -> doReceivePubComp((PubComp) packet);
+            default -> throw new IllegalArgumentException();
         }
     }
 
@@ -280,7 +275,7 @@ public abstract class AbstractSession implements Session {
             return;
         }
         // cpx != null means outQueue is not empty
-        if (outQueue().peek().packetIdentifier() == pId) {
+        if (headOfQueue(pId, outQueue())) {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
             log.debug("sender({}/{}) [PubComp the Header of the outQueue]", cId(), cpx.pId());
             // the header, remove it from the queue
@@ -289,7 +284,8 @@ public abstract class AbstractSession implements Session {
             publishPacketSentComplete(cpx);
             // try clean the queue (the cpx that behinds head may already complete)
             tryCleanOutQueue();
-        } else {
+        }
+        else {
             cpx.markStatus(PUB_REC, PUB_COMP);
             log.debug("sender({}/{}) Publish PUB_REC->PUB_COMP", cId(), packet.pId());
         }
@@ -334,7 +330,7 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubAck failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        if (outQueue().peek().packetIdentifier() == pId) {
+        if (headOfQueue(pId, outQueue())) {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
             // the header, just delete it from the queue
             log.debug("sender({}/{}) [PubAck the Header of the outQueue]", cId(), cpx.pId());
@@ -343,7 +339,8 @@ public abstract class AbstractSession implements Session {
             publishPacketSentComplete(cpx);
             // try clean the queue
             tryCleanOutQueue();
-        } else {
+        }
+        else {
             cpx.markStatus(PUB_ACK);
             log.debug("sender({}/{}) Publish INIT->PUB_ACK", cId(), packet.pId());
         }
@@ -415,17 +412,17 @@ public abstract class AbstractSession implements Session {
         log.debug("receiver({}/{}) [Publish Handled] Publish INIT->HANDLED", cId(), cpx.pId());
         if (packet.atMostOnce()) {
             publishReceivedComplete(cpx);
-        } else if (packet.atLeastOnce()) {
+        }
+        else if (packet.atLeastOnce()) {
             doWrite(cpx.pubAck()).addListener(f -> {
                 cpx.markStatus(HANDLED, PUB_ACK);
                 log.debug("receiver({}/{}) [QoS1 PUB_ACK sent] Publish HANDLED->PUB_ACK", cId(), cpx.pId());
                 publishReceivedComplete(cpx);
             });
-        } else if (packet.exactlyOnce()) {
+        }
+        else if (packet.exactlyOnce()) {
             // does not modify the status of the cpx
-            doWrite(cpx.pubRec()).addListener(f -> {
-                log.debug("receiver({}/{}) [QoS2 PUB_REC sent]", cId(), cpx.pId());
-            });
+            doWrite(cpx.pubRec()).addListener(f -> log.debug("receiver({}/{}) [QoS2 PUB_REC sent]", cId(), cpx.pId()));
         }
     }
 
@@ -434,15 +431,15 @@ public abstract class AbstractSession implements Session {
     }
 
     protected ControlPacketContext createNewCpx(Publish packet,
-                                                ControlPacketContext.Status status,
-                                                ControlPacketContext.Type type) {
+        ControlPacketContext.Status status,
+        ControlPacketContext.Type type) {
         return new ControlPacketContext(packet, status, type);
     }
 
     private void doHandleDuplicateQoS2Publish(ControlPacketContext cpx) {
         switch (cpx.status()) {
             case INIT:
-                log.debug("receiver({}/{}) Publish INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}, {}", cId(), cpx.pId(), cpx);
+                log.debug("receiver({}/{}) Publish INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}", cId(), cpx.pId(), cpx);
                 break;
             case HANDLED:
                 doWritePubRecPacket(cpx);
@@ -456,7 +453,7 @@ public abstract class AbstractSession implements Session {
         // does not modify the status of the cpx
         doWrite(cpx.pubRec()).addListener(f -> {
             if (f.isSuccess()) {
-                log.debug("receiver({}/{}) HANDLED ->. [QoS2 已发送 PUB_REC]: {}, {}", cId(), cpx.pId(), cpx);
+                log.debug("receiver({}/{}) HANDLED ->. [QoS2 已发送 PUB_REC]: {}", cId(), cpx.pId(), cpx);
             }
         });
     }
@@ -476,13 +473,13 @@ public abstract class AbstractSession implements Session {
      *
      * @param packet the Publish packet that received from pair
      */
-    protected abstract boolean onPublish(Publish packet);
+    protected abstract void onPublish(Publish packet);
 
     private ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
-                .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                .addListener(LOG_ON_FAILURE)
-                ;
+            .addListener(FIRE_EXCEPTION_ON_FAILURE)
+            .addListener(LOG_ON_FAILURE)
+            ;
     }
 
     @Override
@@ -500,24 +497,15 @@ public abstract class AbstractSession implements Session {
         return this.clientIdentifier;
     }
 
-    public AbstractSession cleanSession(boolean cleanSession) {
-        this.cleanSession = cleanSession;
-        return this;
-    }
-
-    @Override
-    public void bind(Channel channel) {
-        log.debug("Session({}) now try bind to Channel: {}", cId(), channel);
-        while (sendingPublishThread != null && !channel.eventLoop().inEventLoop(sendingPublishThread)) {
-            // spin
-        }
-        this.eventLoop = channel.eventLoop();
-        // better: eventLoop first then channel
-        this.channel = channel;
-        // try start retry task
-        // send Publish from outQueue immediately.
-        this.eventLoop.submit(this::resendOutQueue);
-        log.debug("Session({}) now bound to Channel", cId());
+    /**
+     * CONNECT -> CONNACK
+     * <pre>
+     *     callback after established  CONNECT -> CONNACK
+     * </pre>
+     */
+    public void connected() {
+        // invoke later
+        channel.eventLoop().submit(this::resendOutQueue);
     }
 
     protected void resendOutQueue() {
@@ -534,17 +522,13 @@ public abstract class AbstractSession implements Session {
         if (packet.atMostOnce() || packet.atLeastOnce()) {
             cpx.markStatus(INIT);
             doWritePublishPacket(cpx);
-        } else if (packet.exactlyOnce()) {
+        }
+        else if (packet.exactlyOnce()) {
             switch (cpx.status()) {
-                case INIT:
-                    doWritePublishPacket(cpx);
-                    break;
-                case PUB_REC:
-                    // send PubRel packet.
-                    doWritePubRelPacket(cpx);
-                    break;
-                default:
-                    throw new IllegalStateException();
+                case INIT -> doWritePublishPacket(cpx);
+                // send PubRel packet.
+                case PUB_REC -> doWritePubRelPacket(cpx);
+                default -> throw new IllegalStateException();
             }
         }
     }
@@ -557,7 +541,6 @@ public abstract class AbstractSession implements Session {
             if (f.isSuccess()) {
                 publishPacketSent(cpx);
             }
-            // must release the retained Publish
             if (!enqueueOutQueue(cpx.packet())) {
                 publishPacketSentComplete(cpx);
             }
@@ -573,11 +556,6 @@ public abstract class AbstractSession implements Session {
     @Override
     public Channel channel() {
         return this.channel;
-    }
-
-    @Override
-    public boolean isBound() {
-        return channel != null;
     }
 
     @Override
@@ -607,9 +585,6 @@ public abstract class AbstractSession implements Session {
     }
 
     protected Queue<ControlPacketContext> inQueue() {
-        if (inQueue == null) {
-            inQueue = newInQueue();
-        }
         return inQueue;
     }
 
@@ -618,14 +593,23 @@ public abstract class AbstractSession implements Session {
     }
 
     protected Queue<ControlPacketContext> outQueue() {
-        if (outQueue == null) {
-            outQueue = newOutQueue();
-        }
         return outQueue;
     }
 
     protected Queue<ControlPacketContext> newOutQueue() {
         return new LinkedList<>();
+    }
+
+    @Override
+    public void migrate(Session session) {
+        if (session instanceof AbstractSession as) {
+            // packet id
+            packetIdentifier.set(as.packetIdentifier.get());
+            // inQueue
+            inQueue.addAll(as.inQueue);
+            // outQueue
+            outQueue.addAll(as.outQueue);
+        }
     }
 
 }

@@ -556,19 +556,24 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
         log.debug("ClusterBroker try to closeSession-> {}", session);
         if (session instanceof ClusterServerSession css) {
             // todo
-            clusterBrokerState.saveSession(css);
-            // important: 1 must be executed before 2
-            // alter solution: 改变 addOfflineSessionToTopic 的实现，使其可以操作 订阅树
-            // todo
-            // 1. Session离线，继续订阅主题
-            clusterBrokerState.addOfflineSessionToTopic(css.clientIdentifier(), css.subscriptions());
-            // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
-            nodeBroker.detachSession(css, true);
-            // 是否清除 cluster level Session
-            if (force) {
+            if (force) {// 是否清除 cluster level Session
+                nodeBroker.detachSession(css, true);
                 clusterBrokerState.deleteSession(css);
                 log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
+
             }
+            else {
+
+                clusterBrokerState.saveSession(css);
+                // important: 1 must be executed before 2
+                // alter solution: 改变 addOfflineSessionToTopic 的实现，使其可以操作 订阅树
+                // todo
+                // 1. Session离线，继续订阅主题
+                clusterBrokerState.addOfflineSessionToTopic(css.clientIdentifier(), css.subscriptions());
+                // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
+                nodeBroker.detachSession(css, true);
+            }
+
         }
         else if (session instanceof NodeServerSession ns) {
             nodeBroker.detachSession(ns, false);

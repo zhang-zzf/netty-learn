@@ -118,22 +118,18 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     @Override
     public boolean attachSession(ServerSession session) {
-        return nodeBroker().attachSession(session);
-    }
-
-    @Override
-    public void connect(ServerSession session) {
-        // Session 连接到 nodeBroker
-        nodeBroker.connect(session);
-        if (session instanceof ClusterServerSession) {
-            ClusterServerSession css = (ClusterServerSession) session;
+        // todo
+        // 先更新本地状态，还是先更新集群状态
+        boolean migrated = nodeBroker().attachSession(session);
+        if (session instanceof ClusterServerSession css) {
             // 1. 注册成功,绑定信息保存到 DB
-            clusterBrokerState.saveSession(css.nodeId(nodeId()));
+            clusterBrokerState.saveSession(css);
             // 2.从集群的订阅树中移除 Session 的离线订阅
             clusterBrokerState.removeOfflineSessionFromTopic(css.clientIdentifier(), css.subscriptions());
         }
         // publish Connect to Cluster
         publishConnectToCluster(session.clientIdentifier());
+        return migrated;
     }
 
     private void publishConnectToCluster(String clientIdentifier) {
@@ -164,7 +160,7 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
         log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
         nodeBroker.unsubscribe(session, packet);
         // 清理结果不重要，即使清理失败，不影响流程
-        removeNodeFromTopicAsync(session, new HashSet<>(packet.subscriptions()));
+        removeNodeFromTopicAsync(new HashSet<>(packet.subscriptions()));
     }
 
     /**
@@ -172,8 +168,7 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
      * <p>异步清理</p>
      * <p>即使清理失败也可以接受，{@link ClusterBrokerImpl#forward(Publish)}中有兜底清理策略</p>
      */
-    @Override
-    public CompletableFuture<Void> removeNodeFromTopicAsync(ServerSession session, Set<Subscribe.Subscription> subscriptions) {
+    private CompletableFuture<Void> removeNodeFromTopicAsync(Set<Subscribe.Subscription> subscriptions) {
         List<String> topicToRemove = subscriptions.stream()
             .map(Subscribe.Subscription::topicFilter)
             .filter(topicFilter -> nodeBroker.topic(topicFilter).isEmpty())
@@ -582,22 +577,8 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
             throw new UnsupportedOperationException();
         }
         // 清理集群路由表
-        removeNodeFromTopicAsync(session, session.subscriptions());
+        removeNodeFromTopicAsync(session.subscriptions());
     }
 
-
-    @Override
-    public void disconnectSessionFromNode(ClusterServerSession session) {
-        session.nodeId(null);
-        clusterBrokerState.saveSession(session);
-        // important: 1 must be executed before 2
-        // alter solution: 改变 addOfflineSessionToTopic 的实现，使其可以操作 订阅树
-        // 1. Session离线，继续订阅主题
-        clusterBrokerState.addOfflineSessionToTopic(session.clientIdentifier(), session.subscriptions());
-        // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
-        nodeBroker().detachSession(session, true);
-        // 2.1 清理路由表
-        removeNodeFromTopicAsync(session, session.subscriptions());
-    }
 
 }

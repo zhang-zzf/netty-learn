@@ -46,8 +46,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             var preSession = broker().nodeBroker().session(ccId);
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {
-                // apply for DefaultServerSession and ClusterServerSession
-                broker().detachSession(preSession, false);
+                // apply for NodeServerSession and ClusterServerSession
+                preSession.close();
                 log.debug("Client({}) Node closed the exist preSession", ccId);
             }
             else {
@@ -56,15 +56,18 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
                 if (css != null) {
                     if (css.isOnline()) {
-                        log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node->{}", ccId, css);
+                        log.info("Client({}) Cluster try to close Online Session(cleanSession=0) on the Node -> {}", ccId, css);
                         // online Session on the Node, rare case
                         closeServerSessionOnOtherNode(css);
                     }
-                    broker().detachSession(css, false);
+                    // delete the cluster Session anyway;
+                    // todo
+                    // broker().state().deleteSession(css);
+                    broker().detachSession(css,true);
                 }
             }
             // build a new one (just local Node Session)
-            this.session = broker().createSession(connect, ctx.channel());
+            broker().attachSession(new NodeServerSession(connect, ctx.channel(), broker()));
             log.debug("Client({}) Node created a new Session: {}", ccId, session);
         }
         else {
@@ -139,6 +142,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 NodeMessage nm = NodeMessage.wrapSessionClose(broker().nodeId(), css.clientIdentifier());
                 Publish outgoing = Publish.outgoing(Publish.AT_LEAST_ONCE, topicName, nm.toByteBuf());
                 // async notify
+                // todo broker().forward
                 broker().nodeBroker().forward(outgoing);
                 // 等待 100 ms
                 Thread.sleep(100);

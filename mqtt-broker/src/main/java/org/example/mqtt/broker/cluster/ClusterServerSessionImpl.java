@@ -33,9 +33,8 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
      */
     public ClusterServerSessionImpl(Connect connect, Channel channel, Broker broker) {
         super(connect, channel, broker);
-        if (connect.cleanSession()) {
-            throw new IllegalArgumentException();
-        }
+        // ClusterServerSessionImpl only used for a not clean session
+        assert !connect.cleanSession();
         // check ClusterServerSession's owner before bind to this broker
         ServerSession session = broker().session(connect.clientIdentifier());
         if (session == null || session instanceof ClusterServerSession css && css.nodeId() == null) {
@@ -84,6 +83,11 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
     @Override
     public String nodeId() {
         return nodeId;
+    }
+
+    @Override
+    public boolean isOnline() {
+        return nodeId != null;
     }
 
     @Override
@@ -139,12 +143,8 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
         log.debug("Cluster now try to disconnect this Session from Node -> {}", this);
         super.close();
         this.nodeId = null;
-        // 保存 tail
         broker().detachSession(this, false);
-
-        // todo
-        // broker().disconnectSessionFromNode(this);
-        log.debug("the cleanSession=0 Session was disconnected from this Node");
+        log.debug("Cluster disconnected this Session from Node -> {}", this);
     }
 
     @Override

@@ -69,11 +69,11 @@ public abstract class AbstractSession implements Session {
     @SneakyThrows
     @Override
     public void close() {
-        log.debug("Session({}) try to close -> {}", cId(), this);
+        log.debug("Session({}) try to close itself: {}", cId(), this);
         if (isActive()) {
-            log.debug("Session({}) now try to unbind from Channel: {}", cId(), channel);
+            log.debug("Session({}) now try to close Channel: {}", cId(), channel);
             channel.close();
-            log.debug("Session({}) unbound from Channel", cId());
+            log.debug("Session({}) Channel was closed", cId());
         }
         else {
             log.debug("Session({}) was not bound with a Channel", cId());

@@ -9,27 +9,17 @@ import org.example.mqtt.model.Connect;
 /**
  * @author zhanfeng.zhang@icloud.com
  * @date 2024-11-05
- *
+ * <p>
  * Use with ClusterBroker for cleanSession=1 ServerSession in the Cluster Mode
  * <p>be careful when use for cleanSession=0 session in the Cluster Mode</p>
  */
 @Slf4j
 public class NodeServerSession extends DefaultServerSession {
 
-    private boolean topicCleared = false;
-
     public NodeServerSession(Connect connect, Channel channel, Broker broker) {
         super(connect, channel, broker);
-    }
-
-    @Override
-    public void close() {
-        super.close();
-        if (!topicCleared) {
-            // todo
-            broker().detachSession(this,false);
-            topicCleared = true;
-        }
+        // NodeServerSession only used for CleanSession
+        assert connect.cleanSession();
     }
 
     @Override

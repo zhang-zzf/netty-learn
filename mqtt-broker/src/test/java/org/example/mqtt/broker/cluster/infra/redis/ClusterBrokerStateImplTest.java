@@ -4,7 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
-import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
@@ -29,7 +29,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 
 @Slf4j
 @Disabled
-class ClusterDbRepoImplTest {
+class ClusterBrokerStateImplTest {
 
     final static RedissonClient client;
 
@@ -38,7 +38,7 @@ class ClusterDbRepoImplTest {
         client = RedisConfiguration.newRedisson(addresses);
     }
 
-    final static ClusterDbRepo dbRepo = new ClusterDbRepoImpl(client);
+    final static ClusterBrokerState dbRepo = new ClusterBrokerStateImpl(client);
 
     /**
      * 验证 CompletionStage 异常的传递
@@ -90,8 +90,8 @@ class ClusterDbRepoImplTest {
 
     @Test
     void givenTopicFilter_whenConvertToRedisKey_then() {
-        then(ClusterDbRepoImpl.toTopicFilterRedisKey("topic")).isEqualTo("{topic}");
-        then(ClusterDbRepoImpl.toTopicFilterRedisKey("topic/ab")).isEqualTo("{topic}/ab");
+        then(ClusterBrokerStateImpl.toTopicFilterRedisKey("topic")).isEqualTo("{topic}");
+        then(ClusterBrokerStateImpl.toTopicFilterRedisKey("topic/ab")).isEqualTo("{topic}/ab");
     }
 
     @ParameterizedTest
@@ -164,7 +164,7 @@ class ClusterDbRepoImplTest {
         }
     }
 
-    private static void searchPressure(ClusterDbRepo dbRepo,
+    private static void searchPressure(ClusterBrokerState dbRepo,
                                        Set<String> list,
                                        ThreadPoolExecutor threadPool) {
         final AtomicLong start = new AtomicLong(System.currentTimeMillis());
@@ -190,7 +190,7 @@ class ClusterDbRepoImplTest {
         }
     }
 
-    private static void indexPressure(ClusterDbRepo dbRepo,
+    private static void indexPressure(ClusterBrokerState dbRepo,
                                       List<String> nodes,
                                       Set<String> list,
                                       ThreadPoolExecutor threadPool) {

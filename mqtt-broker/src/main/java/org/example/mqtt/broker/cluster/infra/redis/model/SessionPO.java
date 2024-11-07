@@ -27,10 +27,6 @@ public class SessionPO implements Serializable {
      */
     private Set<SubscriptionPO> sub;
     private String nodeId;
-    /**
-     * Session 离线后 outQueue.tail 的 packetIdentifier
-     */
-    private Short oQPId;
 
     @Override
     public String toString() {
@@ -53,9 +49,6 @@ public class SessionPO implements Serializable {
         }
         if (nodeId != null) {
             sb.append("\"nodeId\":\"").append(nodeId).append('\"').append(',');
-        }
-        if (oQPId != null) {
-            sb.append("\"oQPID\":").append(oQPId).append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
@@ -80,24 +73,6 @@ public class SessionPO implements Serializable {
 
     }
 
-    public ClusterServerSession toDomain() {
-        return toDomain(this);
-    }
-
-    public static ClusterServerSession toDomain(SessionPO po) {
-        if (po == null) {
-            return null;
-        }
-        Set<Subscribe.Subscription> subscriptions = new HashSet<>();
-        Set<SessionPO.SubscriptionPO> sPO = po.getSub();
-        if (sPO != null) {
-            subscriptions = sPO.stream()
-                    .map(o -> new Subscribe.Subscription(o.getTf(), o.getQos()))
-                    .collect(toSet());
-        }
-        return ClusterServerSession.from(po.getCId(), po.getNodeId(), subscriptions, po.getOQPId());
-    }
-
     public static SessionPO fromDomain(ClusterServerSession domain) {
         Set<SessionPO.SubscriptionPO> subscriptions = null;
         if (!domain.subscriptions().isEmpty()) {
@@ -105,12 +80,10 @@ public class SessionPO implements Serializable {
                     .map(s -> new SubscriptionPO(s.topicFilter(), s.qos()))
                     .collect(toSet());
         }
-        SessionPO po = new SessionPO()
+        return new SessionPO()
                 .setCId(domain.clientIdentifier())
                 .setNodeId(domain.nodeId())
-                .setSub(subscriptions)
-                .setOQPId(domain.outQueuePacketIdentifier());
-        return po;
+                .setSub(subscriptions);
     }
 
 }

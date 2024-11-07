@@ -28,7 +28,7 @@ class ClusterServerSessionHandlerTest {
 
     public static final String MQTT_CLIENT_A = "mqtt_client_a";
     public static final String MQTT_CLIENT_B = "mqtt_client_b";
-    ClusterDbRepo dbRepo = mock(ClusterDbRepo.class);
+    ClusterBrokerState dbRepo = mock(ClusterBrokerState.class);
     Cluster cluster;
 
     // publish

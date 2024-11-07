@@ -1,0 +1,96 @@
+package org.example.mqtt.broker.cluster;
+
+import io.netty.channel.Channel;
+import java.util.Collections;
+import java.util.Set;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.Subscribe.Subscription;
+import org.example.mqtt.session.Session;
+
+/**
+ * @author : zhanfeng.zhang@icloud.com
+ * @date : 2024-11-06
+ */
+public class ClusterServerSessionRemoteNodeImpl implements ClusterServerSession {
+
+    private final String clientIdentifier;
+
+    private final String nodeId;
+
+    private final Set<Subscribe.Subscription> subscriptions;
+
+    private final Short nextPacketIdentifier;
+
+    public ClusterServerSessionRemoteNodeImpl(String clientIdentifier, String nodeId, Set<Subscription> subscriptions, Short nextPacketId) {
+        this.clientIdentifier = clientIdentifier;
+        this.nodeId = nodeId;
+        this.subscriptions = subscriptions;
+        this.nextPacketIdentifier = nextPacketId;
+    }
+
+    @Override
+    public short nextPacketIdentifier() {
+        return nextPacketIdentifier;
+    }
+
+    @Override
+    public String nodeId() {
+        return nodeId;
+    }
+
+    @Override
+    public String clientIdentifier() {
+        return clientIdentifier;
+    }
+
+    @Override
+    public Set<Subscription> subscriptions() {
+        return Collections.unmodifiableSet(subscriptions);
+    }
+
+    /**
+     * the broker that session was bound to
+     *
+     * @return Broker
+     */
+    public ClusterBroker broker() {
+        return null;
+    }
+
+    @Override
+    public void send(ControlPacket message) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void onPacket(ControlPacket message) {
+        throw new UnsupportedOperationException();
+
+    }
+
+    @Override
+    public Channel channel() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean isActive() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void close() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public boolean cleanSession() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void migrate(Session session) {
+        throw new UnsupportedOperationException();
+    }
+}

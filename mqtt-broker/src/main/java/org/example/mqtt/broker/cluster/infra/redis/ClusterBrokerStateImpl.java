@@ -2,12 +2,15 @@ package org.example.mqtt.broker.cluster.infra.redis;
 
 import com.google.common.io.CharStreams;
 import io.micrometer.core.annotation.Timed;
+import java.util.HashSet;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.example.mqtt.broker.cluster.ClusterBrokerRemoteImpl;
 import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
-import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.cluster.ClusterServerSession;
+import org.example.mqtt.broker.cluster.ClusterServerSessionRemoteNodeImpl;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.example.mqtt.broker.cluster.infra.redis.model.CpxPO;
 import org.example.mqtt.broker.cluster.infra.redis.model.SessionPO;
@@ -38,6 +41,7 @@ import java.util.concurrent.CompletionStage;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toSet;
 import static org.example.mqtt.broker.cluster.infra.redis.model.CpxPO.*;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import static org.redisson.api.RScript.Mode.READ_ONLY;
@@ -47,7 +51,7 @@ import static org.redisson.api.RScript.ReturnType.*;
 @Slf4j
 @Repository
 @Timed(histogram = true, percentiles = {0.5, 0.8, 0.9, 0.95, 0.99})
-public class ClusterDbRepoImpl implements ClusterDbRepo {
+public class ClusterBrokerStateImpl implements ClusterBrokerState {
 
     private static final String LUA_SESSION_QUEUE_DEQUEUE = getStringFromClasspathFile("infra/redis/cpx_dequeue.lua");
 
@@ -62,7 +66,7 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
     private final String LUA_CPX_SEARCH;
     private final String LUA_CPX_DELETE;
 
-    public ClusterDbRepoImpl(RedissonClient redisson) {
+    public ClusterBrokerStateImpl(RedissonClient redisson) {
         this.redisson = redisson;
         this.rScript = redisson.getScript(StringCodec.INSTANCE);
         this.LUA_MATCH = getStringFromClasspathFile("infra/redis/match.lua");
@@ -77,21 +81,31 @@ public class ClusterDbRepoImpl implements ClusterDbRepo {
 
     @Override
     public ClusterServerSession getSession(String clientIdentifier) {
-        SessionPO po = redisson
-                .<SessionPO>getBucket(toSessionRedisKey(clientIdentifier), SESSION_CODEC)
-                .get();
+        SessionPO po = redisson.<SessionPO>getBucket(toSessionRedisKey(clientIdentifier), SESSION_CODEC).get();
         if (po == null) {
             return null;
         }
         // LPUSH -> enqueue; RPOP -> dequeue
         // redis 视角：List 的队头是 Queue 的队尾。
         // 我们取 Queue 队尾数组
-        String pId = redisson
-                .<String>getDeque(toCpxQueueRedisKey(clientIdentifier, OUT), StringCodec.INSTANCE)
-                .peek();
-        po.setOQPId(decodePacketIdentifier(pId));
-        return po.toDomain();
+        // todo 梳理这里的逻辑
+        String pId = redisson.<String>getDeque(toCpxQueueRedisKey(clientIdentifier, OUT), StringCodec.INSTANCE).peek();
+        return toDomain(po, decodePacketIdentifier(pId));
     }
+
+    public static ClusterServerSessionRemoteNodeImpl toDomain(SessionPO po, Short nextPacketIdentifier ) {
+        if (po == null) {
+            return null;
+        }
+        Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+        if (po.getSub() != null) {
+            subscriptions = po.getSub().stream()
+                .map(o -> new Subscribe.Subscription(o.getTf(), o.getQos()))
+                .collect(toSet());
+        }
+        return new ClusterServerSessionRemoteNodeImpl(po.getNodeId(), po.getNodeId(), subscriptions, nextPacketIdentifier);
+    }
+
 
     @Override
     public boolean offerCpx(@Nullable ClusterControlPacketContext tail, ClusterControlPacketContext cpx) {

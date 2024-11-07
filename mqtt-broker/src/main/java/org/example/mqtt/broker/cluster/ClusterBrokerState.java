@@ -10,7 +10,7 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 
-public interface ClusterDbRepo {
+public interface ClusterBrokerState {
 
     void saveSession(ClusterServerSession session);
 

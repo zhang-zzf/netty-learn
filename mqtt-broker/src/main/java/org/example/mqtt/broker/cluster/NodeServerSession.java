@@ -4,6 +4,7 @@ import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.node.DefaultServerSession;
+import org.example.mqtt.model.Connect;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -15,17 +16,18 @@ import org.example.mqtt.broker.node.DefaultServerSession;
 @Slf4j
 public class NodeServerSession extends DefaultServerSession {
 
-    private volatile boolean topicCleared = false;
+    private boolean topicCleared = false;
 
-    public NodeServerSession(String clientIdentifier, Channel channel, Broker broker) {
-        super(clientIdentifier, true, channel, broker);
+    public NodeServerSession(Connect connect, Channel channel, Broker broker) {
+        super(connect, channel, broker);
     }
 
     @Override
     public void close() {
         super.close();
         if (!topicCleared) {
-            broker().removeNodeFromTopicAsync(this, subscriptions());
+            // todo
+            broker().detachSession(this,false);
             topicCleared = true;
         }
     }

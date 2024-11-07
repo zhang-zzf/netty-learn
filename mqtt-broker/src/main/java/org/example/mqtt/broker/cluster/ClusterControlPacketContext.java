@@ -8,18 +8,18 @@ import org.example.mqtt.session.ControlPacketContext;
 @Slf4j
 public class ClusterControlPacketContext extends ControlPacketContext {
 
-    private final ClusterDbRepo clusterDbRepo;
+    private final ClusterBrokerState clusterBrokerState;
     private final String clientIdentifier;
     private Short nextPacketIdentifier;
 
-    public ClusterControlPacketContext(ClusterDbRepo clusterDbRepo,
+    public ClusterControlPacketContext(ClusterBrokerState clusterBrokerState,
                                        String clientIdentifier,
                                        Type type,
                                        Publish packet,
                                        Status status,
                                        Short nextPacketIdentifier) {
         super(packet, status, type);
-        this.clusterDbRepo = clusterDbRepo;
+        this.clusterBrokerState = clusterBrokerState;
         this.clientIdentifier = clientIdentifier;
         this.nextPacketIdentifier = nextPacketIdentifier;
     }
@@ -28,7 +28,7 @@ public class ClusterControlPacketContext extends ControlPacketContext {
     public ClusterControlPacketContext markStatus(Status expect, Status update) {
         log.debug("cpx({}/{}/{}) markStatus->expected:{}, updated:{}", cId(), type(), pId(), expect, update);
         super.markStatus(expect, update);
-        clusterDbRepo.updateCpxStatus(this);
+        clusterBrokerState.updateCpxStatus(this);
         return this;
     }
 

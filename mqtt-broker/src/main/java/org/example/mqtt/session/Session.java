@@ -1,16 +1,15 @@
 package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
+import java.util.Set;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Subscribe;
-
-import java.util.Set;
 
 /**
  * @author zhanfeng.zhang@icloud.com
  * @date 2024-11-05
  */
-public interface Session extends AutoCloseable {
+public interface Session {
 
     /**
      * clientId
@@ -43,22 +42,6 @@ public interface Session extends AutoCloseable {
     Channel channel();
 
     boolean isActive();
-
-    /**
-     * todo
-     * bind the session to a channel
-     *
-     * @param channel Channel that use to send and receive data from pair
-    void bind(Channel channel);
-     */
-
-    /**
-     * todo
-     * whether the Session is bound with a Channel
-     *
-     * @return Returns {@code true} if the {@link Session} is bound with a {@link Channel}.
-    boolean isBound();
-     */
 
     /**
      * the Subscribe that the session was registered

@@ -5,9 +5,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterBrokerImpl;
-import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.cluster.ClusterServerSessionHandler;
-import org.example.mqtt.broker.cluster.infra.redis.ClusterDbRepoImpl;
+import org.example.mqtt.broker.cluster.infra.redis.ClusterBrokerStateImpl;
 import org.example.mqtt.broker.cluster.infra.redis.RedisConfiguration;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.node.DefaultBroker;
@@ -27,8 +27,7 @@ public class BrokerBootstrap {
         if (!Boolean.getBoolean("spring.enable")) {
             Authenticator authenticator = packet -> 0x00;
             final Cluster cluster = new Cluster();
-            DefaultBroker broker = new DefaultBroker();
-            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), broker);
+            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), new DefaultBroker(), cluster);
             startBroker(authenticator, cluster, clusterBroker);
         } else {
             log.info("start BrokerBootstrap with Spring Context");
@@ -55,10 +54,10 @@ public class BrokerBootstrap {
         log.info("startBroker success-> nodeId: {}", clusterBroker.nodeId());
     }
 
-    private static ClusterDbRepo redisClusterDbRepo() {
+    private static ClusterBrokerState redisClusterDbRepo() {
         String redisAddresses = "redis://10.255.4.15:7000, redis://10.255.4.15:7001, redis://10.255.4.15:7002";
         redisAddresses = System.getProperty("mqtt.server.cluster.db.redis.url", redisAddresses);
-        return new ClusterDbRepoImpl(RedisConfiguration.newRedisson(redisAddresses));
+        return new ClusterBrokerStateImpl(RedisConfiguration.newRedisson(redisAddresses));
     }
 
 }

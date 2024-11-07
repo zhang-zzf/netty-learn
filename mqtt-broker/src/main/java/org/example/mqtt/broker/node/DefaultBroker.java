@@ -126,7 +126,7 @@ public class DefaultBroker implements Broker {
             log.debug("Broker({}) now try to close Session({})", this, cId);
             // broker clear session state
             log.debug("Broker try to destroySession->{}", session);
-            brokerState.disconnect(session).get();
+            brokerState.remove(session).get();
             log.debug("Broker destroyed Session");
             log.debug("Broker closed Session({})", cId);
         }
@@ -183,15 +183,14 @@ public class DefaultBroker implements Broker {
 
     @Override
     @SneakyThrows
-    public void attachSession(ServerSession session) {
-        String cId = session.clientIdentifier();
+    public boolean attachSession(ServerSession session) {
         // sync wait
-        ServerSession previous = brokerState.connect(session).get();
-        if (session.cleanSession()) { // need a clean Session
-            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cId, previous);
-            detachSession(previous, false);
+        ServerSession previous = brokerState.add(session).get();
+        if (previous != null) {
+            previous.close();
         }
-        else {
+        if (!session.cleanSession()) {
+            String cId = session.clientIdentifier();
             log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, previous);
             if (previous == null) {
                 log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
@@ -200,8 +199,10 @@ public class DefaultBroker implements Broker {
                 log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", cId, previous);
                 session.migrate(previous);
                 log.debug("Client({}) need a (cleanSession=0) Session, exist Session migrated: {}", cId, session);
+                return true;
             }
         }
+        return false;
     }
 
     private boolean zeroBytesPayload(Publish publish) {

@@ -11,7 +11,7 @@ import java.util.Map;
 import static java.util.stream.Collectors.toList;
 
 @Slf4j
-class ClusterDbRepoImplPressureTest {
+class ClusterBrokerStateImplPressureTest {
 
     @Test
     void given_when_then() {

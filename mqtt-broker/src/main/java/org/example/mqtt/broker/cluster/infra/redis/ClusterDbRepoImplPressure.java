@@ -4,7 +4,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
 import org.example.mqtt.broker.cluster.ClusterBroker;
-import org.example.mqtt.broker.cluster.ClusterDbRepo;
+import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.redisson.connection.CRC16;
 import org.springframework.context.ApplicationContext;
@@ -32,7 +32,7 @@ public class ClusterDbRepoImplPressure {
     public static void main(String[] args) {
         // 打点
         ApplicationContext context = new AnnotationConfigApplicationContext(ClusterDbRepoImplPressure.class);
-        ClusterDbRepo dbRepo = context.getBean(ClusterDbRepo.class);
+        ClusterBrokerState dbRepo = context.getBean(ClusterBrokerState.class);
         // nodes
         List<String> nodes = new ArrayList<>(64);
         for (int i = 0; i < 10; i++) {

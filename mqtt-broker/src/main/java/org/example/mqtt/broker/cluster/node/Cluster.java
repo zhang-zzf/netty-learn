@@ -412,7 +412,6 @@ public class Cluster implements AutoCloseable {
     }
 
     public Cluster bind(ClusterBroker clusterBroker) {
-        clusterBroker.join(this);
         this.clusterBroker = clusterBroker;
         return this;
     }

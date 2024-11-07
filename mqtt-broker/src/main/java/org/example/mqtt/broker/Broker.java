@@ -48,7 +48,7 @@ public interface Broker {
      */
     void handlePublish(Publish packet);
 
-    void attachSession(ServerSession session);
+    boolean attachSession(ServerSession session);
 
     void detachSession(ServerSession session, boolean force);
 

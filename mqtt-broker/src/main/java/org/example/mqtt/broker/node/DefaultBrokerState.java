@@ -102,7 +102,7 @@ public class DefaultBrokerState {
         return executorService.submit(task);
     }
 
-    public Future<?> disconnect(ServerSession session) {
+    public Future<?> remove(ServerSession session) {
         Runnable task = () -> {
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();
             for (Subscribe.Subscription sub : subscriptions) {
@@ -113,7 +113,7 @@ public class DefaultBrokerState {
         return executorService.submit(task);
     }
 
-    public Future<ServerSession> connect(ServerSession session) {
+    public Future<ServerSession> add(ServerSession session) {
         Callable<ServerSession> task = () -> {
             ServerSession previous = sessionMap.put(session.clientIdentifier(), session);
             Set<Subscribe.Subscription> subscriptions = session.subscriptions();

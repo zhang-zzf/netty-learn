@@ -136,24 +136,11 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     protected ConnAck doHandleConnect(Connect connect, ChannelHandlerContext ctx) {
-        ConnAck connAck = ConnAck.accepted();
-        String cId = connect.clientIdentifier();
-        ServerSession preSession = broker.session(cId);
-        if (preSession != null && preSession.isActive()) {
-            log.debug("Client({}) exist bound Session: {}", cId, preSession);
-            //  If the ClientId represents a Client already connected to the Server then the Server MUST
-            //  disconnect the existing Client
-            broker.detachSession(preSession, false);
-            // query again
-            preSession = broker.session(cId);
-            log.debug("Client({}) close exist bound Session: {}", cId, preSession);
+        this.session = new DefaultServerSession(connect, ctx.channel(), broker);
+        if (broker.attachSession(this.session)) {
+            return ConnAck.acceptedWithStoredSession();
         }
-        this.session = DefaultServerSession.newFrom(connect, ctx.channel(), broker);
-        broker.attachSession(session);
-        if (!connect.cleanSession() && preSession != null) {
-            connAck = ConnAck.acceptedWithStoredSession();
-        }
-        return connAck;
+        return ConnAck.accepted();
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {
@@ -192,7 +179,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Client({}) channelInactive", csci());
         if (session != null) {
-            broker.detachSession(session, false);
+            session.close();
         }
         super.channelInactive(ctx);
     }
@@ -207,7 +194,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     private void closeSession(ChannelHandlerContext ctx) {
         if (session != null) {
-            broker.detachSession(session, false);
+            session.close();
         }
         else {
             ctx.channel().close();

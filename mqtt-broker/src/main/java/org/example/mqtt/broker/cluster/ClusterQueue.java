@@ -12,23 +12,21 @@ import java.util.List;
  * <p>集群级别同一时刻只能有一个线程访问</p>
  */
 @Slf4j
-public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
+public class ClusterQueue extends AbstractQueue<ControlPacketContext> {
 
-    private final ClusterDbRepo clusterDbRepo;
+    private final ClusterBrokerState state;
     private final String clientIdentifier;
     private final ControlPacketContext.Type type;
     private ClusterControlPacketContext head;
     private ClusterControlPacketContext tail;
 
-    public ClusterDbQueue(ClusterDbRepo clusterDbRepo, String clientIdentifier, ControlPacketContext.Type type) {
-        this.clusterDbRepo = clusterDbRepo;
+    public ClusterQueue(ClusterBrokerState state, String clientIdentifier, ControlPacketContext.Type type) {
+        this.state = state;
         this.clientIdentifier = clientIdentifier;
         this.type = type;
-        List<ClusterControlPacketContext> fetchFromHead =
-                clusterDbRepo.searchCpx(clientIdentifier, type, false, 1);
+        List<ClusterControlPacketContext> fetchFromHead = state.searchCpx(clientIdentifier, type, false, 1);
         this.head = fetchFromHead.isEmpty() ? null : fetchFromHead.get(0);
-        List<ClusterControlPacketContext> fetchFromTail =
-                clusterDbRepo.searchCpx(clientIdentifier, type, true, 1);
+        List<ClusterControlPacketContext> fetchFromTail = state.searchCpx(clientIdentifier, type, true, 1);
         this.tail = fetchFromTail.isEmpty() ? null : fetchFromTail.get(0);
         // 若 Queue 中仅有一个元素, head 和 tail 指针必须执行同一个对象
         if (head != null && head.packetIdentifier() == tail.packetIdentifier()) {
@@ -49,7 +47,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
     @Override
     public boolean offer(ControlPacketContext cpx) {
         ClusterControlPacketContext ccpx = (ClusterControlPacketContext) cpx;
-        boolean added = clusterDbRepo.offerCpx(tail, ccpx);
+        boolean added = state.offerCpx(tail, ccpx);
         // 更新 tail 指针
         if (added) {
             if (this.tail != null) {
@@ -73,7 +71,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
         Short nPId = first.nextPacketIdentifier();
         if (nPId != null) {
             log.debug("Queue({}/{}) fetch next from db", cId(), type);
-            ClusterControlPacketContext next = clusterDbRepo.getCpx(clientIdentifier, type, nPId);
+            ClusterControlPacketContext next = state.getCpx(clientIdentifier, type, nPId);
             if (next == null) {
                 // should exist
                 log.error("poll [should have next Item, but does not]");
@@ -87,7 +85,7 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
             this.tail = null;
         }
         // delete
-        boolean deleted = clusterDbRepo.deleteCpx(first);
+        boolean deleted = state.deleteCpx(first);
         if (!deleted) {
             log.error("deleteCpx failed-> {}", first);
             throw new IllegalStateException();
@@ -103,10 +101,6 @@ public class ClusterDbQueue extends AbstractQueue<ControlPacketContext> {
     @Override
     public ClusterControlPacketContext peek() {
         return head;
-    }
-
-    public Short tailPacketIdentifier() {
-        return tail == null ? null : tail.packetIdentifier();
     }
 
 }

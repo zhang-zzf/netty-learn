@@ -14,8 +14,10 @@ import static org.example.mqtt.model.Publish.META_P_SOURCE_BROKER;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Queue;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
@@ -34,16 +36,17 @@ import org.example.mqtt.session.ControlPacketContext;
 import org.example.mqtt.session.Session;
 
 /**
- * Session 的生命周期由 Broker 控制
- *
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-06
  */
 @Slf4j
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
     private final Broker broker;
     protected Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
+    private final  Queue<ControlPacketContext> outQueue = new LinkedList<>();
+
     /**
      * Will Message
      * <pre>
@@ -54,17 +57,12 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      */
     private volatile Publish willMessage;
 
-    public DefaultServerSession(String clientIdentifier, boolean cleanSession, Channel channel, Broker broker) {
-        super(clientIdentifier, cleanSession, channel);
+    public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
+        super(connect.clientIdentifier(), connect.cleanSession(), channel);
         this.broker = broker;
-    }
-
-    public static DefaultServerSession newFrom(Connect connect, Channel channel, Broker broker) {
-        DefaultServerSession session = new DefaultServerSession(connect.clientIdentifier(), connect.cleanSession(), channel, broker);
         if (connect.willFlag()) {
-            session.willMessage = extractWillMessage(connect);
+            this.willMessage = extractWillMessage(connect);
         }
-        return session;
     }
 
     @Override
@@ -141,12 +139,23 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             onPublish(willMessage);
             willMessage = null;
         }
+        broker.detachSession(this, false);
     }
 
     @Override
     public String toString() {
         //   todo
         return "todo";
+    }
+
+    @Override
+    protected Queue<ControlPacketContext> inQueue() {
+        return inQueue;
+    }
+
+    @Override
+    protected Queue<ControlPacketContext> outQueue() {
+        return outQueue;
     }
 
     @Override
@@ -199,10 +208,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         if (session instanceof DefaultServerSession dss) {
             // subscription
             subscriptions.addAll(dss.subscriptions());
+            inQueue.addAll(dss.inQueue);
+            outQueue.addAll(dss.outQueue);
+        }
+        else {
+            throw new IllegalArgumentException();
         }
     }
 
-    private void doReceiveSubscribe(Subscribe packet) {
+    protected void doReceiveSubscribe(Subscribe packet) {
         log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
         // register the Subscribe packet
         List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
@@ -225,10 +239,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
     }
 
-    private void doReceiveUnsubscribe(Unsubscribe packet) {
+    protected void doReceiveUnsubscribe(Unsubscribe packet) {
         log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
         broker.unsubscribe(this, packet);
-        subscriptions.forEach(this.subscriptions::remove);
+        packet.subscriptions().forEach(this.subscriptions::remove);
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
         doSendPacket(unsubAck);
@@ -241,7 +255,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
             willMessage = null;
         }
-        broker.detachSession(this,false);
+        close();
     }
 
     private static Publish extractWillMessage(Connect connect) {

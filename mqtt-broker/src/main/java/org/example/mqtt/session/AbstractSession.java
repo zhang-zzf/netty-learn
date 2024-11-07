@@ -53,10 +53,6 @@ public abstract class AbstractSession implements Session {
 
     private final boolean cleanSession;
 
-    protected final Queue<ControlPacketContext> inQueue;
-    protected final Queue<ControlPacketContext> outQueue;
-
-
     /**
      * 是否发送 Publish Packet
      */
@@ -65,8 +61,6 @@ public abstract class AbstractSession implements Session {
         this.clientIdentifier = checkNotNull(clientIdentifier, "clientIdentifier");
         this.cleanSession = cleanSession;
         this.channel = checkNotNull(channel);
-        this.inQueue = newInQueue();
-        this.outQueue = newOutQueue();
     }
 
     /**
@@ -279,7 +273,7 @@ public abstract class AbstractSession implements Session {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
             log.debug("sender({}/{}) [PubComp the Header of the outQueue]", cId(), cpx.pId());
             // the header, remove it from the queue
-            outQueue.poll();
+            outQueue().poll();
             log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
             publishPacketSentComplete(cpx);
             // try clean the queue (the cpx that behinds head may already complete)
@@ -584,31 +578,15 @@ public abstract class AbstractSession implements Session {
         return Objects.hash(clientIdentifier);
     }
 
-    protected Queue<ControlPacketContext> inQueue() {
-        return inQueue;
-    }
+    protected abstract Queue<ControlPacketContext> inQueue();
 
-    protected Queue<ControlPacketContext> newInQueue() {
-        return new LinkedList<>();
-    }
-
-    protected Queue<ControlPacketContext> outQueue() {
-        return outQueue;
-    }
-
-    protected Queue<ControlPacketContext> newOutQueue() {
-        return new LinkedList<>();
-    }
+    protected abstract Queue<ControlPacketContext> outQueue();
 
     @Override
     public void migrate(Session session) {
         if (session instanceof AbstractSession as) {
             // packet id
-            packetIdentifier.set(as.packetIdentifier.get());
-            // inQueue
-            inQueue.addAll(as.inQueue);
-            // outQueue
-            outQueue.addAll(as.outQueue);
+            this.packetIdentifier.set(as.packetIdentifier.get());
         }
     }
 

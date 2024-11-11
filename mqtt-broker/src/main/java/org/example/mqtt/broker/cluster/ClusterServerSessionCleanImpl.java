@@ -14,17 +14,30 @@ import org.example.mqtt.model.Connect;
  * <p>be careful when use for cleanSession=0 session in the Cluster Mode</p>
  */
 @Slf4j
-public class NodeServerSession extends DefaultServerSession {
+public class ClusterServerSessionCleanImpl extends DefaultServerSession implements ClusterServerSession{
 
-    public NodeServerSession(Connect connect, Channel channel, Broker broker) {
+    public ClusterServerSessionCleanImpl(Connect connect, Channel channel, Broker broker) {
         super(connect, channel, broker);
         // NodeServerSession only used for CleanSession
         assert connect.cleanSession();
+        // for now, only used in cluster environment
+        assert broker instanceof ClusterBroker;
     }
 
     @Override
     public ClusterBroker broker() {
         return (ClusterBroker) super.broker();
+    }
+
+    @Override
+    public String nodeId() {
+        return broker().nodeId();
+    }
+
+    @Override
+    public boolean isOnline() {
+        // always true
+        return true;
     }
 
     @Override

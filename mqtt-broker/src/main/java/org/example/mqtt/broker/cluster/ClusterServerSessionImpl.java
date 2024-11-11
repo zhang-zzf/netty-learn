@@ -58,11 +58,8 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
     }
 
     @Override
-    public void migrate(Session session) {
-        if (session instanceof ClusterServerSessionImpl css) {
-            super.migrate(session);
-        }
-        else if (session instanceof ClusterServerSessionRemoteNodeImpl cssrn) {
+    public ClusterServerSessionImpl migrate(Session session) {
+        if (session instanceof ClusterServerSessionRemoteNodeImpl cssrn) {
             // 集群游离的 session
             // 手动初始化
             super.packetIdentifier.set(cssrn.nextPacketIdentifier());
@@ -73,6 +70,7 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
         }
         // watch out: do not use parent migrate
         // super.migrate(session);
+        return this;
     }
 
     @Override

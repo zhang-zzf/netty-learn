@@ -19,7 +19,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-import java.util.LinkedList;
+
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
@@ -133,6 +133,7 @@ public abstract class AbstractSession implements Session {
                 return;
             }
             // no send, but there is no memory leak
+            // todo metric the message
             outQueueEnqueue(cpx);
         }
     }
@@ -170,12 +171,12 @@ public abstract class AbstractSession implements Session {
         return clientIdentifier();
     }
 
-    protected void doSendPacket(ControlPacket packet) {
+    protected ChannelFuture doSendPacket(ControlPacket packet) {
         if (!isActive()) {
             log.warn("Session is not bind to a Channel, discard the ControlPacket: {}, {}", cId(), packet);
-            return;
+            return channel.newFailedFuture(new IllegalStateException("Session is not bind to a Channel"));
         }
-        doWrite(packet).addListener(f -> {
+        return doWrite(packet).addListener(f -> {
             if (f.isSuccess()) {
                 log.debug("doSendPacket({}): {}", cId(), packet);
             }
@@ -527,11 +528,11 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private void doWritePublishPacket(ControlPacketContext cpx) {
+    private ChannelFuture doWritePublishPacket(ControlPacketContext cpx) {
         if (cpx == null) {
-            return;
+            return channel.newSucceededFuture();
         }
-        doWrite(cpx.packet()).addListener(f -> {
+        return doWrite(cpx.packet()).addListener(f -> {
             if (f.isSuccess()) {
                 publishPacketSent(cpx);
             }
@@ -583,11 +584,12 @@ public abstract class AbstractSession implements Session {
     protected abstract Queue<ControlPacketContext> outQueue();
 
     @Override
-    public void migrate(Session session) {
+    public AbstractSession migrate(Session session) {
         if (session instanceof AbstractSession as) {
             // packet id
             this.packetIdentifier.set(as.packetIdentifier.get());
         }
+        return this;
     }
 
 }

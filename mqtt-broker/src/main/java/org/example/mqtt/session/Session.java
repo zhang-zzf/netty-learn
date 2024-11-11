@@ -69,6 +69,6 @@ public interface Session {
      */
     boolean cleanSession();
 
-    void migrate(Session session);
+    Session migrate(Session session);
 
 }

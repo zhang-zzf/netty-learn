@@ -13,12 +13,14 @@ import static org.example.mqtt.model.Publish.META_P_SOURCE_BROKER;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
 import java.util.Set;
+
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.Broker;
@@ -45,7 +47,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     private final Broker broker;
     protected Set<Subscribe.Subscription> subscriptions = new HashSet<>();
     private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
-    private final  Queue<ControlPacketContext> outQueue = new LinkedList<>();
+    private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
 
     /**
      * Will Message
@@ -86,7 +88,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     /**
-     * rewrite to handle Publish packet with extra logix
+     * rewrite to handle Publish packet with extra logic
      * <p>ServerSession 需要对发送的 Publish 包 特殊处理</p>
      * <p>ServerSession 只发送 Publish</p>
      */
@@ -104,20 +106,19 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             publish.payload().retain();
             log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
             super.send(publish);
-        }
-        else {
+        } else {
             throw new IllegalArgumentException();
         }
     }
 
     @Override
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
-        super.publishPacketSentComplete(cpx);
         /**
          * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
          */
         cpx.packet().payload().release();
         log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
+        super.publishPacketSentComplete(cpx);
     }
 
     @Override
@@ -189,8 +190,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             // nmReceive->packetSent 和 packetReceive->.->packetSent 使用同样的流程，不再重复打点
             // MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
             MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->nm->packetSent");
-        }
-        else {
+        } else {
             long nanoTime = System.nanoTime();
             long pReceiveInNano = (long) meta.get(META_P_RECEIVE_NANO);
             MetricUtil.nanoTime(METRIC_NAME, nanoTime - pReceiveInNano, "phase", "packetReceive->.->packetSent");
@@ -203,17 +203,17 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    public void migrate(Session session) {
+    public DefaultServerSession migrate(Session session) {
         super.migrate(session);
         if (session instanceof DefaultServerSession dss) {
             // subscription
             subscriptions.addAll(dss.subscriptions());
             inQueue.addAll(dss.inQueue);
             outQueue.addAll(dss.outQueue);
-        }
-        else {
+        } else {
             throw new IllegalArgumentException();
         }
+        return this;
     }
 
     protected void doReceiveSubscribe(Subscribe packet) {

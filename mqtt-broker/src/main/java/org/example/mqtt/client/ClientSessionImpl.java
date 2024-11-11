@@ -1,30 +1,34 @@
 package org.example.mqtt.client;
 
+import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.model.*;
 import org.example.mqtt.session.AbstractSession;
 import org.example.mqtt.session.ControlPacketContext;
 
 import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Queue;
 import java.util.Set;
 
 import static org.example.mqtt.model.ControlPacket.*;
 
 /**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/7/5
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-11
  */
 @Slf4j
-public class DefaultClientSession extends AbstractSession implements ClientSession {
+public class ClientSessionImpl extends AbstractSession implements ClientSession {
 
     private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
+    private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
 
     private final Client client;
 
-    private volatile boolean clientClosed = false;
 
-    public DefaultClientSession(Client client) {
-        super(client.clientIdentifier());
+    public ClientSessionImpl(Client client, boolean cleanSession, Channel channel) {
+        super(client.clientIdentifier(), cleanSession, channel);
         this.client = client;
     }
 
@@ -32,7 +36,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     public void send(ControlPacket packet) {
         if (packet instanceof Publish) {
             /**
-             * {@link DefaultClientSession#publishPacketSentComplete(ControlPacketContext)}
+             * {@link ClientSessionImpl#publishPacketSentComplete(ControlPacketContext)}
              * will release the content
              */
             ((Publish) packet).payload().retain();
@@ -47,7 +51,7 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
         Publish packet = cpx.packet();
         client.completeRequest(packet.packetIdentifier(), null);
         /**
-         * release {@link DefaultClientSession#send(ControlPacket)}
+         * release {@link ClientSessionImpl#send(ControlPacket)}
          */
         packet.payload().release();
     }
@@ -82,9 +86,18 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    protected boolean onPublish(Publish packet) {
+    protected void onPublish(Publish packet) {
         client.receivePublish(packet);
-        return true;
+    }
+
+    @Override
+    protected Queue<ControlPacketContext> inQueue() {
+        return inQueue;
+    }
+
+    @Override
+    protected Queue<ControlPacketContext> outQueue() {
+        return outQueue;
     }
 
     @Override
@@ -98,16 +111,9 @@ public class DefaultClientSession extends AbstractSession implements ClientSessi
     }
 
     @Override
-    public void channelClosed() {
-        if (!clientClosed) {
-            clientClosed = true;
-            client.disconnected();
-        }
-    }
-
-    @Override
-    public void onSessionClose() {
-        // todo
+    public void close() {
+        super.close();
+        client.disconnected();
     }
 
 }

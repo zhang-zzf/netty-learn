@@ -45,12 +45,12 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             // Just get Session from local Node(Broker)
             var preSession = broker().nodeBroker().session(ccId);
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
-            if (preSession != null) {
-                // apply for NodeServerSession and ClusterServerSession
-                preSession.close();
+            if (preSession != null) {// 当前节点存在 ClusterServerSession (NodeServerSession / ClusterServerSessionImpl)
+                // apply for ClusterServerSession (NodeServerSession / ClusterServerSessionImpl)
+                preSession.close(); // will detach session from broker
                 log.debug("Client({}) Node closed the exist preSession", ccId);
             }
-            else {
+            else {// 当前节点无 ClusterServerSession
                 // check if there is a Session in the Cluster
                 var css = (ClusterServerSession) broker().session(ccId);
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
@@ -63,48 +63,47 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                     // delete the cluster Session anyway;
                     // todo
                     // broker().state().deleteSession(css);
-                    broker().detachSession(css,true);
+                    broker().detachSession(css, true);
                 }
             }
-            // build a new one (just local Node Session)
-            broker().attachSession(new NodeServerSession(connect, ctx.channel(), broker()));
+            // create a new one (just local Node Session)
+            broker().attachSession(this.session = new ClusterServerSessionCleanImpl(connect, ctx.channel(), broker()));
             log.debug("Client({}) Node created a new Session: {}", ccId, session);
         }
-        else {
-            // need a CleanSession=0 cluster level Session
+        else {// need a CleanSession=0 cluster level Session
             log.debug("Client({}) need a (cleanSession=0) Session", ccId);
             // Just get Session from local Node(Broker)
             var preSession = broker().nodeBroker().session(ccId);
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {
                 log.debug("Client({}) Node now try to close Session: {}", ccId, preSession);
-                broker().detachSession(preSession,false);
-                if (preSession instanceof ClusterServerSession) {
+                preSession.close();
+                if (preSession instanceof ClusterServerSessionCleanImpl cssci) { // cleanSession
+                    broker().attachSession(this.session = new ClusterServerSessionImpl(connect, ctx.channel(), broker()));
+                    log.debug("Client({}) Node created a new Session: {}", ccId, session);
+                }
+                else if (preSession instanceof ClusterServerSessionImpl) {
                     // get Session from the Cluster, it should be set to offline mode
                     var css = (ClusterServerSession) broker().session(ccId);
                     if (css.isOnline()) {
                         throw new IllegalStateException();
                     }
                     log.debug("Client({}) Node now has closed ClusterServerSession: {}", ccId, css);
-                    this.session = css.reInitWith(connect);
+                    broker().attachSession(this.session = new ClusterServerSessionImpl(connect, ctx.channel(), broker()).migrate(css));
                     connAck = ConnAck.acceptedWithStoredSession();
                     log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", ccId, this.session);
-                }
-                else if (preSession instanceof DefaultServerSession) {
-                    this.session = broker().createSession(connect, ctx.channel());
-                    log.debug("Client({}) Node created a new Session: {}", ccId, session);
                 }
                 else {
                     throw new IllegalArgumentException();
                 }
             }
-            else {
+            else { // 当前节点无 ClusterServerSession
                 // check if there have a Session in the Cluster
                 var css = (ClusterServerSession) broker().session(ccId);
                 log.debug("Client({}) Cluster now has Session: {}", ccId, css);
                 if (css == null) {
                     // no Exist Session
-                    this.session = broker().createSession(connect, ctx.channel());
+                    broker().attachSession(this.session = new ClusterServerSessionImpl(connect, ctx.channel(), broker()));
                     log.debug("Client({}) Node created a new Session: {}", ccId, session);
                 }
                 else {
@@ -116,7 +115,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                         css = (ClusterServerSession) broker().session(ccId);
                     }
                     // now ClusterSession is offline mode
-                    this.session = css.reInitWith(connect);
+                    broker().attachSession(this.session = new ClusterServerSessionImpl(connect, ctx.channel(), broker()).migrate(css));
                     connAck = ConnAck.acceptedWithStoredSession();
                     log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", ccId, this.session);
                 }
@@ -144,6 +143,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 // async notify
                 // todo broker().forward
                 broker().nodeBroker().forward(outgoing);
+                // todo 优化
                 // 等待 100 ms
                 Thread.sleep(100);
                 css = (ClusterServerSession) broker().session(css.clientIdentifier());

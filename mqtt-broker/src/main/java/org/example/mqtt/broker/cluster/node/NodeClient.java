@@ -165,7 +165,6 @@ public class NodeClient implements MessageHandler, AutoCloseable {
             }
             log.info("Client.Connect from {}, now close Session: {}", m.getNodeId(), session);
             session.close();
-            broker().destroySession(session);
         }
     }
 

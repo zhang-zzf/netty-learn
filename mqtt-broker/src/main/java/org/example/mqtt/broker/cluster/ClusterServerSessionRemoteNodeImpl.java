@@ -90,7 +90,7 @@ public class ClusterServerSessionRemoteNodeImpl implements ClusterServerSession 
     }
 
     @Override
-    public void migrate(Session session) {
+    public ClusterServerSessionRemoteNodeImpl migrate(Session session) {
         throw new UnsupportedOperationException();
     }
 

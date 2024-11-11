@@ -51,7 +51,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Client({}) channelInactive, now cleanup the Session", session.clientIdentifier());
-        session.channelClosed();
+        session.close();
         super.channelInactive(ctx);
     }
 

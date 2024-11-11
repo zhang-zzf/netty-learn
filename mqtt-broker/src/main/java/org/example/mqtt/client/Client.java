@@ -53,7 +53,7 @@ public class Client implements AutoCloseable {
     public Client(String clientIdentifier, String remoteAddress, EventLoopGroup eventLoopGroup, MessageHandler handler) {
         this.clientIdentifier = clientIdentifier;
         this.remoteAddress = remoteAddress;
-        this.session = new DefaultClientSession(this);
+        this.session = new ClientSessionImpl(this);
         this.handler = handler;
         connectToBroker(this.remoteAddress, eventLoopGroup);
     }

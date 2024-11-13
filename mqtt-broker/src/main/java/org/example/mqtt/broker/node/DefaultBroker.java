@@ -75,8 +75,7 @@ public class DefaultBroker implements Broker {
                 String topicFilter = topic.topicFilter();
                 int qos = qoS(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                short packetIdentifier = packetIdentifier(session, qos);
-                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier);
+                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier(session, qos));
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward-> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }

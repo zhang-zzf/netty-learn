@@ -3,8 +3,8 @@ package org.example.mqtt.model;
 import io.netty.buffer.ByteBuf;
 
 /**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-13
  */
 public class UnsubAck extends ControlPacket {
 

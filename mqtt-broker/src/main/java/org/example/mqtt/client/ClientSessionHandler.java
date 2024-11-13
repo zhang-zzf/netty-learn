@@ -43,6 +43,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
 
     private void addKeepAliveIdleStateHandler(ChannelHandlerContext ctx) {
         int keepAlive = session.keepAlive();
+        // if keepAlive == 0 then the IdleStateHandler will be disabled.
         IdleStateHandler idle = new IdleStateHandler(0, keepAlive, 0);
         ctx.pipeline().addBefore(HANDLER_NAME, "keepAliveIdleStateHandler", idle);
         log.debug("keepAliveIdleStateHandler added: {}", keepAlive);

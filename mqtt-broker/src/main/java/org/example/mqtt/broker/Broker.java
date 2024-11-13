@@ -58,6 +58,7 @@ public interface Broker {
 
     void close() throws Exception;
 
+    // todo
     default boolean closed() {
         return false;
     }

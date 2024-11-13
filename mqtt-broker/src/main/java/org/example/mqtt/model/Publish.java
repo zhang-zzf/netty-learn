@@ -36,6 +36,7 @@ public class Publish extends ControlPacket {
     }
 
     private void initMetricMetaData() {
+        // todo metric 多线程 同步 性能是否存在问题？
         addMeta(META_P_RECEIVE_NANO, System.nanoTime());
         addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }

@@ -24,10 +24,10 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
     private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
     private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
 
-    private final Client client;
+    private final AbstractClient client;
 
 
-    public ClientSessionImpl(Client client, boolean cleanSession, Channel channel) {
+    public ClientSessionImpl(AbstractClient client, boolean cleanSession, Channel channel) {
         super(client.clientIdentifier(), cleanSession, channel);
         this.client = client;
     }
@@ -40,20 +40,19 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
              * will release the content
              */
             ((Publish) packet).payload().retain();
-        } else if (packet instanceof Connect) {
         }
         super.send(packet);
     }
 
     @Override
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
-        super.publishPacketSentComplete(cpx);
         Publish packet = cpx.packet();
-        client.completeRequest(packet.packetIdentifier(), null);
+        client.ackPackets(packet.packetIdentifier(), null);
         /**
          * release {@link ClientSessionImpl#send(ControlPacket)}
          */
         packet.payload().release();
+        super.publishPacketSentComplete(cpx);
     }
 
     @Override
@@ -78,16 +77,16 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
     }
 
     private void doReceiveSubAck(SubAck packet) {
-        client.completeRequest(packet.packetIdentifier(), packet);
+        client.ackPackets(packet.packetIdentifier(), packet);
     }
 
     private void doReceiveUnsubAck(UnsubAck packet) {
-        client.completeRequest(packet.packetIdentifier(), packet);
+        client.ackPackets(packet.packetIdentifier(), packet);
     }
 
     @Override
     protected void onPublish(Publish packet) {
-        client.receivePublish(packet);
+        client.onPublish(packet);
     }
 
     @Override
@@ -107,13 +106,13 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
 
     @Override
     public int keepAlive() {
-        return client.KEEP_ALIVE;
+        return client.keepAlive();
     }
 
     @Override
     public void close() {
+        client.close();
         super.close();
-        client.disconnected();
     }
 
 }

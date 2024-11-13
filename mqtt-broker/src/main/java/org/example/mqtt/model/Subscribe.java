@@ -150,7 +150,7 @@ public class Subscribe extends ControlPacket {
 
     /**
      * @author zhanfeng.zhang@icloud.com
-     * @date 2022/06/23
+     * @date 2024-11-12
      */
     @Accessors(chain = true)
     @NoArgsConstructor

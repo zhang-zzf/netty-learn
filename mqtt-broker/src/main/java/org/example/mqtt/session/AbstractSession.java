@@ -38,6 +38,7 @@ import org.example.mqtt.model.Publish;
  * @date 2024-11-05
  */
 @Slf4j
+// todo QoS1 / QoS 2 重试发送
 public abstract class AbstractSession implements Session {
 
     public static final ChannelFutureListener LOG_ON_FAILURE = future -> {
@@ -120,6 +121,7 @@ public abstract class AbstractSession implements Session {
                     log.debug("sender({}/{}) Publish wait for it's turn: {}", cId(), cpx.pId(), cpx);
                 }
             }
+            // qos0 比 qos1/qos2 更早发送。。？ OK
             else {// no need to enqueue, just send it.
                 doWritePublishPacket(cpx);
             }
@@ -237,7 +239,7 @@ public abstract class AbstractSession implements Session {
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
         log.debug("sender({}/{}) Publish Packet sent completed", cId(), cpx.pId());
         // send the next if exist
-        if (enqueueOutQueue(cpx.packet())) {
+        if (enqueueOutQueue(cpx.packet())) { //? why check -> send the next item in the queue only if cpx is in the queue
             ControlPacketContext head = outQueue().peek();
             log.debug("sender({}) now try to send the next cpx-> {}", cId(), head);
             // outQueue 队列中 head 发送完成，继续发送下一个

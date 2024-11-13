@@ -3,14 +3,14 @@ package org.example.mqtt.broker.cluster.node;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.EventLoopGroup;
-import lombok.Getter;
+import java.net.URI;
+import java.net.URISyntaxException;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterServerSession;
-import org.example.mqtt.client.Client;
-import org.example.mqtt.client.MessageHandler;
+import org.example.mqtt.client.AbstractClient;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.SubAck;
 import org.example.mqtt.model.Subscribe;
@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
+import org.jetbrains.annotations.NotNull;
 
 import static java.util.Collections.singletonList;
 import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER;
@@ -26,23 +27,23 @@ import static org.example.mqtt.broker.cluster.node.Cluster.$_SYS_NODE_TOPIC;
 import static org.example.mqtt.broker.cluster.node.NodeMessage.*;
 
 @Slf4j
-public class NodeClient implements MessageHandler, AutoCloseable {
+public class NodeClient extends AbstractClient {
 
-    private final Client client;
     private final Cluster cluster;
     private final Node remoteNode;
-    @Getter
-    private final String clientIdentifier;
+
     // 集群级别 clientIdentifier 不重名
     private final static AtomicLong clientIdentifierCounter = new AtomicLong(0);
 
-    public NodeClient(Node remoteNode, EventLoopGroup clientEventLoopGroup, Cluster cluster) {
-        this.clientIdentifier = String.format($_SYS_NODE_TOPIC,
-                cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
+    public NodeClient(Node remoteNode, EventLoopGroup eventLoop, Cluster cluster) throws URISyntaxException {
+        super(clusterClientIdentifier(cluster), new URI(remoteNode.address()), eventLoop);
         this.remoteNode = remoteNode;
         this.cluster = cluster;
-        this.client = new Client(clientIdentifier, remoteNode.address(), clientEventLoopGroup, this);
         subscribeMyClientIdentifier();
+    }
+
+    private static String clusterClientIdentifier(Cluster cluster) {
+        return String.format($_SYS_NODE_TOPIC, cluster.broker().nodeId(), clientIdentifierCounter.getAndIncrement());
     }
 
     public CompletableFuture<SubAck> subscribeClusterMessage() {
@@ -60,8 +61,7 @@ public class NodeClient implements MessageHandler, AutoCloseable {
     }
 
     private void subscribeMyClientIdentifier() {
-        Subscribe.Subscription nodeSubscription =
-                new Subscribe.Subscription(clientIdentifier, Publish.EXACTLY_ONCE);
+        Subscribe.Subscription nodeSubscription = new Subscribe.Subscription(clientIdentifier(), Publish.EXACTLY_ONCE);
         List<Subscribe.Subscription> sub = singletonList(nodeSubscription);
         log.debug("NodeClient try to subscribe-> client: {}, Topic: {}", clientIdentifier, sub);
         client.subscribeAsync(sub).whenComplete((r, e) -> {

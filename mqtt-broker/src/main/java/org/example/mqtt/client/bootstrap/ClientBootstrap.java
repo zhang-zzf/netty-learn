@@ -9,10 +9,12 @@ import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPromise;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.ScheduledFuture;
@@ -20,8 +22,10 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Queue;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -136,6 +140,10 @@ public class ClientBootstrap {
 
     public static class ClientTestSession extends AbstractSession {
 
+        private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
+        private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
+
+
         final Counter counter = Metrics.counter("com.github.zzf.netty.client.msg.out");
 
         final Timer publishReceived = Timer.builder("com.github.zzf.netty.client.msg")
@@ -152,12 +160,12 @@ public class ClientBootstrap {
             .maximumExpectedValue(Duration.ofSeconds(10))
             .register(Metrics.globalRegistry);
 
-        protected ClientTestSession(String clientIdentifier) {
-            super(clientIdentifier);
+        protected ClientTestSession(String clientIdentifier, Channel channel) {
+            super(clientIdentifier, true, channel);
         }
 
         @Override
-        public boolean onPublish(Publish packet) {
+        public void onPublish(Publish packet) {
             ByteBuf payload = packet.payload();
             // retain the payload that will be release by publishReceived() method
             payload.retain();
@@ -165,7 +173,16 @@ public class ClientBootstrap {
             long useTime = System.nanoTime() - timeInNano;
             onPublish.record(useTime, TimeUnit.NANOSECONDS);
             log.debug("client sent -> server handle -> client onPublish: {}ns", useTime);
-            return true;
+        }
+
+        @Override
+        protected Queue<ControlPacketContext> inQueue() {
+            return inQueue;
+        }
+
+        @Override
+        protected Queue<ControlPacketContext> outQueue() {
+            return outQueue;
         }
 
         @Override
@@ -181,19 +198,15 @@ public class ClientBootstrap {
         }
 
         @Override
-        public void send(ControlPacket packet) {
+        public ChannelPromise send(ControlPacket packet) {
             counter.increment();
             super.send(packet);
+            return null;
         }
 
         @Override
         public Set<Subscribe.Subscription> subscriptions() {
             return null;
-        }
-
-        @Override
-        public void onSessionClose() {
-            // todo
         }
 
     }
@@ -225,9 +238,7 @@ public class ClientBootstrap {
             String clientIdentifier = "client_" + ipAndPort[0] + "_" + ipAndPort[1];
             // 监听的 topic 是下一个client
             listenedTopicFilter = "client_" + ipAndPort[0] + "_" + (Integer.valueOf(ipAndPort[1]) + 1) + "/+";
-            session = new ClientTestSession(clientIdentifier);
-            // bind the channel
-            session.bind(ctx.channel());
+            session = new ClientTestSession(clientIdentifier, ctx.channel());
             // ChannelActive send Connect
             log.info("client({}) channelActive", clientIdentifier);
             int keepAlive = period / 1000 * 4;
@@ -290,7 +301,7 @@ public class ClientBootstrap {
             if (publishSendTask != null) {
                 publishSendTask.cancel(true);
             }
-            session.channelClosed();
+            session.close();
             super.channelInactive(ctx);
         }
 

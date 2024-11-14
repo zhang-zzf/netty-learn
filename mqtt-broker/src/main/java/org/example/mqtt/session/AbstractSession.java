@@ -19,7 +19,7 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
-
+import io.netty.channel.ChannelPromise;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
@@ -43,7 +43,7 @@ public abstract class AbstractSession implements Session {
 
     public static final ChannelFutureListener LOG_ON_FAILURE = future -> {
         if (!future.isSuccess()) {
-            log.error("Channel(" + future.channel() + ").writeAndFlush failed.", future.cause());
+            log.error("Channel({}).writeAndFlush failed.", future.channel(), future.cause());
         }
     };
 
@@ -86,26 +86,59 @@ public abstract class AbstractSession implements Session {
         return cleanSession;
     }
 
+    /**
+     * <pre>
+     *     how to define promise is success
+     *      1. Publish promise is always success
+     *          1. QoS0 promise is success
+     *          1. QoS1 / QoS2 进入 outQueue 队列成功 -> promise is success
+     *      1. other ControlPacket promise is success only when the packets was sent to peer.
+     * </pre>
+     */
     @Override
-    public void send(ControlPacket packet) {
-        log.debug("send: .->{}, {}", cId(), packet);
+    public ChannelFuture send(ControlPacket packet) {
+        log.debug("sender({}): .-> {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
         }
-        if (PUBLISH == packet.type()) {
-            invokeSendPublish((Publish) packet);
+        if (packet.type() == PUBLISH) {
+            Publish publish = (Publish) packet;
+            log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
+            /**
+             *  {@link AbstractSession#publishPacketSentComplete(ControlPacketContext)}  will release the payload
+             */
+            publish.payload().retain();
+            log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
+        }
+        // todo 测试 channel 关闭后是否可以正常使用 Promise
+        final ChannelPromise promise = channel.newPromise();
+        // channel.eventLoop() exists even after channel was closed
+        // make sure use the same thread that the session wad bound to
+        if (channel.eventLoop().inEventLoop()) {
+            doSend(packet, promise);
         }
         else {
-            doSendPacket(packet);
+            channel.eventLoop().execute(() -> doSend(packet, promise));
+        }
+        return promise;
+    }
+
+    private void doSend(ControlPacket packet, ChannelPromise promise) {
+        if (PUBLISH == packet.type()) {
+            doSendPublish((Publish) packet, promise);
+        }
+        else {
+            doSendPacket(packet, promise);
         }
     }
 
-    private void doSendPublish(Publish outgoing) {
+    private void doSendPublish(Publish outgoing, final ChannelPromise promise) {
         // Session 使用 EventLoop 更改内部状态
         assert channel.eventLoop().inEventLoop();
         // very little chance
         if (outQueueQos2DuplicateCheck(outgoing)) {
             log.warn("Session({}) send same Publish(QoS2), discard it: {}", cId(), outgoing);
+            promise.setSuccess();
             return;
         }
         ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
@@ -121,7 +154,7 @@ public abstract class AbstractSession implements Session {
                     log.debug("sender({}/{}) Publish wait for it's turn: {}", cId(), cpx.pId(), cpx);
                 }
             }
-            // qos0 比 qos1/qos2 更早发送。。？ OK
+            // qos0 比 qos1/qos2 更早发送。。？ OK (match the mqtt protocol)
             else {// no need to enqueue, just send it.
                 doWritePublishPacket(cpx);
             }
@@ -132,12 +165,15 @@ public abstract class AbstractSession implements Session {
                 // QoS0 Publish will be discarded by default config.
                 log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
                 publishPacketSentComplete(cpx);
-                return;
             }
-            // no send, but there is no memory leak
-            // todo metric the message
-            outQueueEnqueue(cpx);
+            else {
+                // no send, but there is no memory leak
+                // todo metric the message
+                outQueueEnqueue(cpx);
+            }
         }
+        // anyway the result is success (match the QoS rules)
+        promise.setSuccess();
     }
 
     private boolean headOfQueue(ControlPacketContext cpx, Queue<ControlPacketContext> queue) {
@@ -147,17 +183,6 @@ public abstract class AbstractSession implements Session {
     private boolean headOfQueue(short pId, Queue<ControlPacketContext> queue) {
         ControlPacketContext head = queue.peek();
         return head != null && head.packetIdentifier() == pId;
-    }
-
-
-    private void invokeSendPublish(Publish publish) {
-        // make sure use the same thread that the session wad bound to
-        if (channel.eventLoop().inEventLoop()) {
-            doSendPublish(publish);
-        }
-        else {
-            channel.eventLoop().execute(() -> doSendPublish(publish));
-        }
     }
 
     protected boolean enqueueOutQueue(Publish packet) {
@@ -173,14 +198,22 @@ public abstract class AbstractSession implements Session {
         return clientIdentifier();
     }
 
-    protected ChannelFuture doSendPacket(ControlPacket packet) {
+    protected void doSendPacket(ControlPacket packet) {
+        doSendPacket(packet, channel.newPromise());
+    }
+
+    private void doSendPacket(ControlPacket packet, ChannelPromise promise) {
         if (!isActive()) {
             log.warn("Session is not bind to a Channel, discard the ControlPacket: {}, {}", cId(), packet);
-            return channel.newFailedFuture(new IllegalStateException("Session is not bind to a Channel"));
+            promise.setFailure(new IllegalStateException("Session is not bind to a Channel"));
         }
-        return doWrite(packet).addListener(f -> {
+        doWrite(packet).addListener(f -> {
             if (f.isSuccess()) {
                 log.debug("doSendPacket({}): {}", cId(), packet);
+                promise.setSuccess();
+            }
+            else {
+                promise.setFailure(f.cause());
             }
         });
     }
@@ -238,6 +271,12 @@ public abstract class AbstractSession implements Session {
      */
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
         log.debug("sender({}/{}) Publish Packet sent completed", cId(), cpx.pId());
+        /**
+         * release the payload retained by {@link AbstractSession#send(ControlPacket)}
+         */
+        cpx.packet().payload().release();
+        log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
+        //
         // send the next if exist
         if (enqueueOutQueue(cpx.packet())) { //? why check -> send the next item in the queue only if cpx is in the queue
             ControlPacketContext head = outQueue().peek();

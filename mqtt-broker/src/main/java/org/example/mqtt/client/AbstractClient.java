@@ -5,14 +5,18 @@ import static org.example.mqtt.client.ClientSessionHandler.HANDLER_NAME;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -66,10 +70,10 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public CompletionStage<ConnAck> connect(Connect connect) {
+    public CompletableFuture<ConnAck> connect(Connect connect) {
         this.connAckFuture = new CompletableFuture<>();
         ChannelFutureListener connectSuccessListener = f -> {
-            if (f.isSuccess()) {// 链接成功后发送 Connect Packet
+            if (f.isSuccess()) {// 连接成功后发送 Connect Packet
                 Channel channel = f.channel();
                 log.debug("Client({}) Channel connected to remote broker -> {}", clientIdentifier, channel);
                 // bind Channel with Session
@@ -106,6 +110,22 @@ public abstract class AbstractClient implements Client {
         return (CompletionStage<SubAck>) unAckPackets(packetIdentifier);
     }
 
+    protected CompletionStage<SubAck> subscribe(String topicFilter, int qos) {
+        List<Subscribe.Subscription> sub = List.of(new Subscribe.Subscription(topicFilter, qos));
+        log.debug("Client try to subscribe -> client: {}, Topic: {}", clientIdentifier(), sub);
+        CompletionStage<SubAck> future = subscribe(sub);
+        future.whenComplete((SubAck subAck, Throwable t) -> {
+            if (t != null) {
+                log.warn("Client subscribe Topic failed -> client: {}", clientIdentifier(), t);
+            }
+            if (subAck != null) {
+                log.debug("Client subscribe Topic succeed -> client: {}, Topic: {}", clientIdentifier(), subAck);
+            }
+        });
+        return future;
+    }
+
+
     @Override
     public CompletionStage<UnsubAck> unsubscribe(List<Subscribe.Subscription> unsub) {
         log.debug("Client({}) unsubscribe: {}", clientIdentifier(), unsub);
@@ -121,29 +141,49 @@ public abstract class AbstractClient implements Client {
     public void disconnect() {
         // todo 状态清理
         session.send(Disconnect.from());
+        close();
     }
 
     @Override
     public CompletionStage<Void> publish(int qos, String topicName, ByteBuf payload) {
         if (qos == Publish.AT_MOST_ONCE) {
-            session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload));
+            CompletableFuture<Void> future = new CompletableFuture<>();
+            session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload))
+                .addListener(sendResultListener(future))
+            ;
             // no need to wait
-            return CompletableFuture.completedFuture(null);
+            return future;
         }
         else {
             short packetIdentifier = session.nextPacketIdentifier();
-            session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload));
-            return (CompletionStage<Void>) unAckPackets(packetIdentifier);
+            final CompletableFuture<Void> future = (CompletableFuture<Void>) unAckPackets(packetIdentifier);
+            session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload))
+                .addListener(f -> {
+                    if (!f.isSuccess()) {
+                        ackPacketsExceptionally(packetIdentifier, f.cause() == null ? new CancellationException() : f.cause());
+                    }
+                });
+            return future;
         }
+    }
+
+    private GenericFutureListener<ChannelFuture> sendResultListener(CompletableFuture<Void> future) {
+        return (ChannelFuture cf) -> {
+            if (cf.isSuccess()) {
+                future.complete(null);
+            }
+            else {
+                future.completeExceptionally(cf.cause());
+            }
+        };
     }
 
     @Override
     public void onPublish(Publish publish) {
-        // todo
         log.debug("Client({}) onPublish: {}", clientIdentifier(), publish);
     }
 
-    private CompletionStage<?> unAckPackets(short packetIdentifier) {
+    private CompletableFuture<?> unAckPackets(short packetIdentifier) {
         CompletableFuture<Object> future = new CompletableFuture<>();
         if (unAckPackets.putIfAbsent(packetIdentifier, future) != null) {
             throw new IllegalStateException();
@@ -151,10 +191,17 @@ public abstract class AbstractClient implements Client {
         return future;
     }
 
-    public void ackPackets(short packetIdentifier, Object packet) {
+    public void ackPackets(short packetIdentifier, Object result) {
         CompletableFuture<Object> cf = unAckPackets.remove(packetIdentifier);
         if (cf != null) {
-            cf.complete(packet);
+            cf.complete(result);
+        }
+    }
+
+    public void ackPacketsExceptionally(short packetIdentifier, Throwable result) {
+        CompletableFuture<Object> cf = unAckPackets.remove(packetIdentifier);
+        if (cf != null) {
+            cf.completeExceptionally(result);
         }
     }
 

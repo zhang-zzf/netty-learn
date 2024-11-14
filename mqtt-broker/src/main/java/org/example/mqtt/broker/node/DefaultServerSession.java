@@ -14,6 +14,7 @@ import static org.example.mqtt.model.Publish.META_P_SOURCE_BROKER;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 
+import io.netty.channel.ChannelFuture;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -58,6 +59,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      * </pre>
      */
     private volatile Publish willMessage;
+    private volatile boolean closing = false;
 
     public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
         super(connect.clientIdentifier(), connect.cleanSession(), channel);
@@ -93,32 +95,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      * <p>ServerSession 只发送 Publish</p>
      */
     @Override
-    public void send(ControlPacket packet) {
-        if (packet == null) {
+    public ChannelFuture send(ControlPacket packet) {
+        if (packet == null || packet.type() != PUBLISH) {
             throw new IllegalArgumentException();
         }
-        if (packet.type() == PUBLISH) {
-            Publish publish = (Publish) packet;
-            log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
-            /**
-             *  {@link DefaultServerSession#publishPacketSentComplete(ControlPacketContext)}  will release the payload
-             */
-            publish.payload().retain();
-            log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
-            super.send(publish);
-        } else {
-            throw new IllegalArgumentException();
-        }
-    }
-
-    @Override
-    protected void publishPacketSentComplete(ControlPacketContext cpx) {
-        /**
-         * release the payload retained by {@link DefaultServerSession#send(ControlPacket)}
-         */
-        cpx.packet().payload().release();
-        log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
-        super.publishPacketSentComplete(cpx);
+        return super.send(packet);
     }
 
     @Override
@@ -133,7 +114,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void close() {
-        super.close();
+        if (closing) {
+            return;
+        }
+        this.closing = true;
         // send will message
         if (willMessage != null) {
             log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
@@ -141,6 +125,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             willMessage = null;
         }
         broker.detachSession(this, false);
+        super.close();
     }
 
     @Override

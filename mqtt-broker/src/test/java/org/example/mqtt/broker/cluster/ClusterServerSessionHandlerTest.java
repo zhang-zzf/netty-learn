@@ -1,20 +1,5 @@
 package org.example.mqtt.broker.cluster;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.embedded.EmbeddedChannel;
-import org.example.mqtt.broker.cluster.node.Cluster;
-import org.example.mqtt.broker.codec.MqttCodec;
-import org.example.mqtt.broker.node.DefaultBroker;
-import org.example.mqtt.model.*;
-import org.example.mqtt.session.AbstractSession;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.BDDMockito;
-
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.BDDAssertions.then;
@@ -23,6 +8,39 @@ import static org.example.mqtt.model.ConnAck.ACCEPTED;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import org.example.mqtt.broker.cluster.node.Cluster;
+import org.example.mqtt.broker.codec.MqttCodec;
+import org.example.mqtt.broker.node.DefaultBroker;
+import org.example.mqtt.model.ConnAck;
+import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.Disconnect;
+import org.example.mqtt.model.PubAck;
+import org.example.mqtt.model.PubComp;
+import org.example.mqtt.model.PubRec;
+import org.example.mqtt.model.PubRel;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.UnsubAck;
+import org.example.mqtt.model.Unsubscribe;
+import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.BDDMockito;
 
 class ClusterServerSessionHandlerTest {
 
@@ -41,25 +59,26 @@ class ClusterServerSessionHandlerTest {
 
     @BeforeEach
     public void beforeEach() {
-        ClusterBroker broker = new ClusterBrokerImpl(dbRepo, new DefaultBroker());
-        cluster = new Cluster().bind(broker);
-        mqttClientA = new Session0(MQTT_CLIENT_A);
+        cluster = new Cluster();
+        ClusterBroker broker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(broker);
         clientA = createChannel(cluster);
+        mqttClientA = new Session0(MQTT_CLIENT_A, clientA);
         // clientA 模拟接受 Connect 消息
         clientA.writeInbound(Connect.from(MQTT_CLIENT_A, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(clientA.readOutbound())).isNotNull();
-        mqttClientB = new Session0(MQTT_CLIENT_B);
         clientB = createChannel(cluster);
+        mqttClientB = new Session0(MQTT_CLIENT_B, clientB);
         clientB.writeInbound(Connect.from(MQTT_CLIENT_B, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(clientB.readOutbound())).isNotNull();
         // topicFilter 匹配自己
         ClusterTopic any = new ClusterTopic("any")
-                .setNodes(new HashSet<String>() {{
-                    add(broker.nodeId());
-                }})
-                .setOfflineSessions(new HashMap<>(0));
+            .setNodes(new HashSet<>() {{
+                add(broker.nodeId());
+            }})
+            .setOfflineSessions(new HashMap<>(0));
         given(dbRepo.matchTopic(any())).willReturn(singletonList(any));
         given(dbRepo.matchTopicAsync(any())).willReturn(new CompletableFuture<>());
         given(dbRepo.addNodeToTopicAsync(any(), any())).willReturn(new CompletableFuture<>());
@@ -73,13 +92,15 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession1_whenConnectAndDisconnect_thenSuccess() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // Disconnect
         c1.writeInbound(Disconnect.from().toByteBuf());
         then(c1.isActive()).isFalse();
@@ -93,12 +114,15 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
     }
 
@@ -110,14 +134,17 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession1_then() {
         String clientIdentifier = "strReceiver01";
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
         // that is the same client
         EmbeddedChannel cc1 = createChannel(cluster);
@@ -125,8 +152,8 @@ class ClusterServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -136,18 +163,21 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         cc1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // 删除 ClusterServerSession
         BDDMockito.then(dbRepo).should().deleteSession(any());
     }
@@ -159,16 +189,20 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession1_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         String strReceiver01 = "strReceiver01";
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        ClusterServerSession offlineSession = ClusterServerSession.from(Connect.from(strReceiver01, false, (short) 64));
+        ClusterServerSession offlineSession =
+            new ClusterServerSessionImpl(Connect.from(strReceiver01, false, (short) 64), cc1, clusterBroker);
         given(dbRepo.getSession(any())).willReturn(offlineSession);
         cc1.writeInbound(Connect.from(strReceiver01, true, (short) 64).toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         BDDMockito.then(dbRepo).should().deleteSession(offlineSession);
     }
 
@@ -179,12 +213,15 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenEmptySession_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
     }
 
@@ -197,13 +234,16 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenCleanSession0_whenConnectAndDisConnect_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // Disconnect
         c1.writeInbound(Disconnect.from().toByteBuf());
         then(c1.isActive()).isFalse();
@@ -216,18 +256,21 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         cc1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -237,21 +280,25 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         EmbeddedChannel c1 = createChannel(cluster);
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         c1.writeInbound(connect.toByteBuf());
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
+        // todo
+        // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(true, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(true, ConnAck::sp)
         ;
     }
 
@@ -261,15 +308,19 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenConnectedSession_whenConnectAgain_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
+        // todo
+        // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(true, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(true, ConnAck::sp);
         cc1.writeInbound(connect.toByteBuf());
         then(cc1.isActive()).isFalse();
     }
@@ -281,15 +332,19 @@ class ClusterServerSessionHandlerTest {
      */
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession0_then() {
-        Cluster cluster = new Cluster().bind(new ClusterBrokerImpl(dbRepo, new DefaultBroker()));
+        Cluster cluster = new Cluster();
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        cluster.bind(clusterBroker);
+        //
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         EmbeddedChannel cc1 = createChannel(cluster);
         // mock
-        given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
+        // todo
+        // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(true, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(true, ConnAck::sp);
     }
 
     /**
@@ -310,33 +365,28 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", mqttClientA.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
         Publish m = new Publish(clientB.readOutbound());
         then(m).isNotNull()
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // 取消订阅
         // given
         clientB.writeInbound(Unsubscribe.from(mqttClientB.nextPacketIdentifier(), subscriptions).toByteBuf());
         then(new UnsubAck(clientB.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
-                mqttClientA.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            mqttClientA.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(p2.toByteBuf());
         // then
         then(clientB.<ByteBuf>readOutbound()).isNull();
     }
 
     /**
-     * // given
-     * clientB subscribe t/0 (QoS 0)
-     * // when
-     * clientA publish QoS0 Message to t/0
-     * // then
-     * clientB receive a QoS0 Message from t/0
+     * // given clientB subscribe t/0 (QoS 0) // when clientA publish QoS0 Message to t/0 // then clientB receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -350,22 +400,17 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", mqttClientA.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * clientB subscribe t/0(QoS 0)
-     * // when
-     * clientA publish QoS1 Message to t/0
-     * // then
-     * clientB receive a QoS0 Message from t/0
+     * // given clientB subscribe t/0(QoS 0) // when clientA publish QoS1 Message to t/0 // then clientB receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS1_thenReceiver1ReceiveQoS0() {
@@ -379,23 +424,18 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short sendPacketIdentifier = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/0", sendPacketIdentifier,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         then(new PubAck(clientA.readOutbound())).returns(sendPacketIdentifier, PubAck::packetIdentifier);
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * clientB subscribe t/0 QoS 0
-     * // when
-     * clientA publish QoS2 Message to t/0
-     * // then
-     * clientB receive a QoS0 Message from t/0
+     * // given clientB subscribe t/0 QoS 0 // when clientA publish QoS2 Message to t/0 // then clientB receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS2_thenReceiver1ReceiveQoS0() {
@@ -409,7 +449,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short sendPacketIdentifier = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/0", sendPacketIdentifier,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         then(new PubRec(clientA.readOutbound())).returns(sendPacketIdentifier, PubRec::packetIdentifier);
         clientA.writeInbound(PubRel.from(sendPacketIdentifier).toByteBuf());
@@ -417,17 +457,12 @@ class ClusterServerSessionHandlerTest {
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * clientB subscribe t/1 (QoS 1)
-     * // when
-     * clientA publish QoS1 Message to t/1
-     * // then
-     * clientB receive a QoS1 Message from t/1
+     * // given clientB subscribe t/1 (QoS 1) // when clientA publish QoS1 Message to t/1 // then clientB receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
@@ -446,19 +481,14 @@ class ClusterServerSessionHandlerTest {
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
         clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
     }
 
     /**
-     * // given
-     * clientB subscribe t/1 QoS 1
-     * // when
-     * clientA publish QoS0 Message to t/1
-     * // then
-     * clientB receive a QoS0 Message from t/1
+     * // given clientB subscribe t/1 QoS 1 // when clientA publish QoS0 Message to t/1 // then clientB receive a QoS0 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -475,17 +505,12 @@ class ClusterServerSessionHandlerTest {
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * clientB subscribe t/1 QoS 1
-     * // when
-     * clientA publish QoS2 Message to t/1
-     * // then
-     * clientB receive a QoS1 Message from t/1
+     * // given clientB subscribe t/1 QoS 1 // when clientA publish QoS2 Message to t/1 // then clientB receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS2_thenReceiver1ReceiveQoS1() {
@@ -507,19 +532,14 @@ class ClusterServerSessionHandlerTest {
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // clientB receive QoS1 Message, should send a PubAck
         clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
     }
 
     /**
-     * // given
-     * clientB subscribe t/2 QoS 2
-     * // when
-     * clientA publish QoS2 Message to t/2
-     * // then
-     * clientB receive a QoS2 Message from t/2
+     * // given clientB subscribe t/2 QoS 2 // when clientA publish QoS2 Message to t/2 // then clientB receive a QoS2 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS2_thenReceiver1ReceiveQoS2() {
@@ -532,13 +552,13 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(2, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(2, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubRec 消息
         clientB.writeInbound(PubRec.from(packet.packetIdentifier()).toByteBuf());
         // clientB 收到 PubRel
@@ -553,12 +573,7 @@ class ClusterServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * clientB subscribe t/2 QoS 2
-     * // when
-     * clientA publish QoS0 Message to t/2
-     * // then
-     * clientB receive a QoS0 Message from t/2
+     * // given clientB subscribe t/2 QoS 2 // when clientA publish QoS0 Message to t/2 // then clientB receive a QoS0 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -571,22 +586,17 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * clientB subscribe t/2 QoS 2
-     * // when
-     * clientA publish QoS1 Message to t/2
-     * // then
-     * clientB receive a QoS1 Message from t/2
+     * // given clientB subscribe t/2 QoS 2 // when clientA publish QoS1 Message to t/2 // then clientB receive a QoS1 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
@@ -599,13 +609,13 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new Publish(clientB.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
         clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
         //
@@ -616,20 +626,32 @@ class ClusterServerSessionHandlerTest {
     private EmbeddedChannel createChannel(Cluster cluster) {
         EmbeddedChannel c = new EmbeddedChannel();
         c.pipeline()
-                .addLast(new MqttCodec())
-                .addLast(HANDLER_NAME, new ClusterServerSessionHandler(cp -> 0x00, 3, cluster));
+            .addLast(new MqttCodec())
+            .addLast(HANDLER_NAME, new ClusterServerSessionHandler(cp -> 0x00, 3, cluster));
         return c;
     }
 
     public static class Session0 extends AbstractSession {
 
-        protected Session0(String clientIdentifier) {
-            super(clientIdentifier);
+        protected Session0(String clientIdentifier, Channel channel) {
+            super(clientIdentifier, true, channel);
         }
 
         @Override
-        protected boolean onPublish(Publish packet) {
-            return false;
+        protected void onPublish(Publish packet) {
+        }
+
+        private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
+        private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
+
+        @Override
+        protected Queue<ControlPacketContext> inQueue() {
+            return inQueue;
+        }
+
+        @Override
+        protected Queue<ControlPacketContext> outQueue() {
+            return outQueue;
         }
 
         @Override
@@ -637,10 +659,6 @@ class ClusterServerSessionHandlerTest {
             return null;
         }
 
-        @Override
-        public void onSessionClose() {
-            // todo
-        }
 
     }
 

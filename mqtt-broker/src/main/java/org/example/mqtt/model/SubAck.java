@@ -36,7 +36,7 @@ public class SubAck extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        ByteBuf _buf = packet;
+        ByteBuf _buf = incoming;
         this.packetIdentifier = _buf.readShort();
         this.subscriptions = new ArrayList<>();
         while (_buf.isReadable()) {

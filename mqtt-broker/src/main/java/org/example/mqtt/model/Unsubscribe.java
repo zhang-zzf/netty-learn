@@ -29,7 +29,7 @@ public class Unsubscribe extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        final ByteBuf buf = packet;
+        final ByteBuf buf = incoming;
         this.packetIdentifier = buf.readShort();
         this.subscriptions = new ArrayList<>();
         while (buf.isReadable()) {

@@ -1,6 +1,8 @@
 package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelPromise;
 import java.util.Set;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Subscribe;
@@ -23,8 +25,9 @@ public interface Session {
      * <p>Sender send a message to Receiver</p>
      *
      * @param message message
+     * @return
      */
-    void send(ControlPacket message);
+    ChannelFuture send(ControlPacket message);
 
     /**
      * receive a message from peer

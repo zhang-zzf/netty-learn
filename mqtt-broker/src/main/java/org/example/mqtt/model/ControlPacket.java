@@ -2,7 +2,6 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.*;
 import io.netty.util.AbstractReferenceCounted;
-import io.netty.util.ReferenceCounted;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,7 +31,10 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
 
     protected byte byte0;
     protected int remainingLength;
-    protected ByteBuf packet;
+    /**
+     * build packet from incoming ByteBuf
+     */
+    protected ByteBuf incoming;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -42,24 +44,24 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
     /**
      * build incoming Packet
      *
-     * @param packet packet
+     * @param incoming packet
      */
-    protected ControlPacket(ByteBuf packet) {
-        this.packet = packet;
-        packet.markReaderIndex();
+    protected ControlPacket(ByteBuf incoming) {
+        this.incoming = incoming;
+        incoming.markReaderIndex();
         try {
-            this.byte0 = packet.readByte();
-            this.remainingLength = readRemainingLength(packet);
+            this.byte0 = incoming.readByte();
+            this.remainingLength = readRemainingLength(incoming);
             // should read all the bytes out of the packet.
             initPacket();
-            if (packet.isReadable()) {
+            if (incoming.isReadable()) {
                 // control packet is illegal.
                 throw new IllegalArgumentException();
             }
         } catch (Exception e) {
             throw new IllegalArgumentException(e);
         } finally {
-            packet.resetReaderIndex();
+            incoming.resetReaderIndex();
         }
     }
 
@@ -69,7 +71,7 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
      * @return the content
      */
     public ByteBuf content() {
-        return this.packet;
+        return this.incoming;
     }
 
     /**
@@ -235,36 +237,44 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
         return Integer.valueOf(hexPId.substring(2), 16).shortValue();
     }
 
-
     @Override
     public int refCnt() {
-        return packet.refCnt();
+        if (incoming == null) {
+            throw new IllegalStateException();
+        }
+        return incoming.refCnt();
     }
 
     @Override
     public ByteBuf retain() {
-        return packet.retain();
+        if (incoming == null) {
+            throw new IllegalStateException();
+        }
+        return incoming.retain();
     }
 
     @Override
     public ByteBuf retain(int increment) {
-        return packet.retain(increment);
+        return incoming.retain(increment);
     }
 
     @Override
     public boolean release() {
-        return packet.release();
+        if (incoming == null) {
+            return true;
+        }
+        return incoming.release();
     }
 
     @Override
     public boolean release(int decrement) {
-        return packet.release(decrement);
+        return incoming.release(decrement);
     }
 
     @Override
     protected void deallocate() {
         // help GC
-        this.packet = null;
+        this.incoming = null;
     }
 
     @Override

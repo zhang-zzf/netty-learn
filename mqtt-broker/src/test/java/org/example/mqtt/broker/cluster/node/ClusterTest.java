@@ -1,24 +1,23 @@
 package org.example.mqtt.broker.cluster.node;
 
+import static org.assertj.core.api.BDDAssertions.then;
+import static org.mockito.Mockito.mock;
+
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Set;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.node.DefaultBroker;
 import org.junit.jupiter.api.Test;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.HashSet;
-import java.util.Set;
-
-import static org.assertj.core.api.BDDAssertions.then;
-import static org.mockito.Mockito.mock;
-
 class ClusterTest {
 
     ClusterBrokerState dbRepo = mock(ClusterBrokerState.class);
-    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker());
     Cluster cluster = new Cluster();
+    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
 
     @Test
     void given_whenBuildPublish_when() {

@@ -39,6 +39,10 @@ public class DefaultBroker implements Broker {
 
     public DefaultBroker() {
         this.self = this;
+        initBlockedTopicFilter();
+    }
+
+    private void initBlockedTopicFilter() {
         String tfConfig = System.getProperty("mqtt.server.block.tf", "+/server/#");
         Set<String> blockedTf = Arrays.stream(tfConfig.split(",")).collect(toSet());
         blockedTopicFilter = TopicFilterTree.from(blockedTf);
@@ -122,12 +126,10 @@ public class DefaultBroker implements Broker {
         }
         if (session.cleanSession() || force) {
             String cId = session.clientIdentifier();
-            log.debug("Broker({}) now try to close Session({})", this, cId);
+            log.debug("Broker({}) now try to remove Session({})", this, cId);
             // broker clear session state
-            log.debug("Broker try to destroySession->{}", session);
             brokerState.remove(session).get();
-            log.debug("Broker destroyed Session");
-            log.debug("Broker closed Session({})", cId);
+            log.debug("Broker removed Session({})", cId);
         }
     }
 
@@ -188,10 +190,20 @@ public class DefaultBroker implements Broker {
         if (previous != null) {
             previous.close();
         }
-        if (!session.cleanSession()) {
-            String cId = session.clientIdentifier();
+        String cId = session.clientIdentifier();
+        if (session.cleanSession()) {
+            log.debug("Client({}) need a (cleanSession=1) Session, Broker now has Session: {}", cId, previous);
+            if (previous != null && !previous.cleanSession()) {
+                detachSession(previous, true);
+                log.debug("Client({})'s old Session was removed", cId);
+            }
+            log.debug("Client({}) connected to Broker with Session: {}", cId, session);
+        }
+        else {
             log.debug("Client({}) need a (cleanSession=0) Session, Broker has Session: {}", cId, previous);
-            if (previous == null) {
+            // CleanSession MUST NOT be reused in any subsequent Session
+            // if previous.cleanSession is true, then broker should use the new created Session
+            if (previous == null || previous.cleanSession()) {
                 log.debug("Client({}) need a (cleanSession=0) Session, new Session created", cId);
             }
             else {

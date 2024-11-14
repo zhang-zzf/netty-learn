@@ -14,6 +14,9 @@ public class ConnAck extends ControlPacket {
     public static final byte SERVER_UNAVAILABLE = 0x03;
     public static final byte NOT_AUTHORIZED = 0x05;
 
+    /**
+     * Session Present Flag
+     */
     private boolean sp;
     private int returnCode;
 
@@ -73,8 +76,8 @@ public class ConnAck extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        this.sp = packet.readByte() != 0x00;
-        this.returnCode = packet.readByte();
+        this.sp = incoming.readByte() != 0x00;
+        this.returnCode = incoming.readByte();
     }
 
     public boolean sp() {

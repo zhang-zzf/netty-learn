@@ -1,15 +1,17 @@
 package org.example.mqtt.broker.node;
 
+import static org.assertj.core.api.BDDAssertions.then;
+
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import org.example.mqtt.broker.Topic;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Subscribe;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
-
-import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-
-import static org.assertj.core.api.BDDAssertions.then;
 
 class DefaultBrokerStateTest {
 
@@ -43,9 +45,14 @@ class DefaultBrokerStateTest {
     void givenNotEmpty_whenTopic_then(String topicFilter) throws ExecutionException, InterruptedException {
         DefaultBrokerState brokerState = new DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription(topicFilter, 2);
-        brokerState.subscribe(new DefaultServerSession("c1"), subscription).get();
+        brokerState.subscribe(buildServerSession(), subscription).get();
         Optional<Topic> topic = brokerState.topic(topicFilter);
         then(topic).isNotEmpty().get().returns(topicFilter, Topic::topicFilter);
+    }
+
+    @NotNull
+    private static DefaultServerSession buildServerSession() {
+        return new DefaultServerSession(Connect.from("c1", (short) 1), new EmbeddedChannel(), null);
     }
 
     /**
@@ -58,7 +65,7 @@ class DefaultBrokerStateTest {
     void givenNotEmpty_whenTopicNotExist_thenEmpty() throws ExecutionException, InterruptedException {
         DefaultBrokerState brokerState = new DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription("topic/abc/#", 2);
-        brokerState.subscribe(new DefaultServerSession("c1"), subscription).get();
+        brokerState.subscribe(buildServerSession(), subscription).get();
         then(brokerState.topic("topic/abc")).isEmpty();
         then(brokerState.topic("topic/abc/")).isEmpty();
         then(brokerState.topic("topic/abc/+")).isEmpty();
@@ -72,7 +79,7 @@ class DefaultBrokerStateTest {
         String topicFilter = "topic/abc/#";
         DefaultBrokerState brokerState = new DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription(topicFilter, 2);
-        DefaultServerSession session = new DefaultServerSession("c1");
+        DefaultServerSession session = buildServerSession();
         brokerState.subscribe(session, subscription).get();
         then(brokerState.topic(topicFilter)).isNotEmpty();
         brokerState.unsubscribe(session, subscription).get();

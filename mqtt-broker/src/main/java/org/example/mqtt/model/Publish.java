@@ -140,7 +140,7 @@ public class Publish extends ControlPacket {
 
     @Override
     protected void initPacket() {
-        ByteBuf buf = packet;
+        ByteBuf buf = incoming;
         this.topicName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
         if (needAck()) {
             this.packetIdentifier = buf.readShort();

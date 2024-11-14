@@ -1,17 +1,26 @@
 package org.example.mqtt.client;
 
-import io.netty.channel.Channel;
-import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.model.*;
-import org.example.mqtt.session.AbstractSession;
-import org.example.mqtt.session.ControlPacketContext;
+import static org.example.mqtt.model.ControlPacket.CONNACK;
+import static org.example.mqtt.model.ControlPacket.SUBACK;
+import static org.example.mqtt.model.ControlPacket.UNSUBACK;
 
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelFuture;
+import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.GenericFutureListener;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
-
-import static org.example.mqtt.model.ControlPacket.*;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.model.ConnAck;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.UnsubAck;
+import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -33,26 +42,10 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
     }
 
     @Override
-    public void send(ControlPacket packet) {
-        if (packet instanceof Publish) {
-            /**
-             * {@link ClientSessionImpl#publishPacketSentComplete(ControlPacketContext)}
-             * will release the content
-             */
-            ((Publish) packet).payload().retain();
-        }
-        super.send(packet);
-    }
-
-    @Override
     protected void publishPacketSentComplete(ControlPacketContext cpx) {
-        Publish packet = cpx.packet();
-        client.ackPackets(packet.packetIdentifier(), null);
-        /**
-         * release {@link ClientSessionImpl#send(ControlPacket)}
-         */
-        packet.payload().release();
         super.publishPacketSentComplete(cpx);
+        // invoke callback after the Publish was completely sent.
+        client.ackPacketsExceptionally(cpx.packet().packetIdentifier(), null);
     }
 
     @Override
@@ -114,5 +107,20 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
         client.close();
         super.close();
     }
+
+    @Override
+    public ChannelFuture send(ControlPacket packet) {
+        if (!isActive()) {
+            log.info("Client({}) publish failed, Session is not active. ", clientIdentifier());
+            return channel().newFailedFuture(new IllegalStateException("Session is not active."));
+        }
+        return super.send(packet).addListener((GenericFutureListener<? extends Future<? super Void>>) (f) -> {
+            if (!f.isSuccess()) {
+                close();
+            }
+        })
+            ;
+    }
+
 
 }

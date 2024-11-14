@@ -1,25 +1,39 @@
 package org.example.mqtt.broker;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.embedded.EmbeddedChannel;
-import org.example.mqtt.broker.codec.MqttCodec;
-import org.example.mqtt.broker.node.DefaultBroker;
-import org.example.mqtt.broker.node.DefaultServerSessionHandler;
-import org.example.mqtt.model.*;
-import org.example.mqtt.session.AbstractSession;
-import org.example.mqtt.session.Session;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.example.mqtt.model.ConnAck.ACCEPTED;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.Channel;
+import io.netty.channel.embedded.EmbeddedChannel;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Queue;
+import java.util.Set;
+import java.util.UUID;
+import org.example.mqtt.broker.codec.MqttCodec;
+import org.example.mqtt.broker.node.DefaultBroker;
+import org.example.mqtt.broker.node.DefaultServerSessionHandler;
+import org.example.mqtt.model.ConnAck;
+import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.Disconnect;
+import org.example.mqtt.model.PubAck;
+import org.example.mqtt.model.PubComp;
+import org.example.mqtt.model.PubRec;
+import org.example.mqtt.model.PubRel;
+import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.SubAck;
+import org.example.mqtt.model.Subscribe;
+import org.example.mqtt.model.UnsubAck;
+import org.example.mqtt.model.Unsubscribe;
+import org.example.mqtt.session.AbstractSession;
+import org.example.mqtt.session.ControlPacketContext;
+import org.example.mqtt.session.Session;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 class ServerSessionHandlerTest {
 
@@ -37,15 +51,15 @@ class ServerSessionHandlerTest {
         // 每个 UT 一个新的 Broker
         broker = createBroker();
         final String strReceiver01 = "receiver1";
-        sReceiver1 = new Session0(strReceiver01);
         receiver1 = createChannel(broker);
+        sReceiver1 = new Session0(strReceiver01, receiver1);
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from(strReceiver01, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(receiver1.readOutbound())).isNotNull();
         //
-        sPublish1 = new Session0("publish1");
         publish1 = createChannel(broker);
+        sPublish1 = new Session0("publish1", publish1);
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(Connect.from("publish1", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
@@ -54,9 +68,8 @@ class ServerSessionHandlerTest {
 
     private EmbeddedChannel createChannel(Broker broker) {
         EmbeddedChannel c = new EmbeddedChannel();
-        // receiver1 Connect to the Broker
         c.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+            .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
         return c;
     }
 
@@ -77,8 +90,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
     }
 
@@ -96,8 +109,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
         // that is the same client
         EmbeddedChannel cc1 = createChannel(broker);
@@ -105,8 +118,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -124,8 +137,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
         // that is the same client
         EmbeddedChannel cc1 = createChannel(broker);
@@ -133,8 +146,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -152,8 +165,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // Disconnect
         c1.writeInbound(Disconnect.from().toByteBuf());
         // cc1 same clientIdentifier with c1
@@ -163,8 +176,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -181,10 +194,10 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         then(broker.session(clientIdentifier)).isNotNull()
-                .returns(false, Session::cleanSession);
+            .returns(false, Session::cleanSession);
     }
 
     /**
@@ -211,22 +224,21 @@ class ServerSessionHandlerTest {
         then(c1.isActive()).isFalse();
         // 依旧可以从 Broker 中获取 Session 信息
         then(broker.session(clientIdentifier)).isNotNull()
-                .returns(false, Session::cleanSession)
-                .returns(true, ServerSession::isRegistered)
-                .returns(false, Session::isBound);
+            .returns(false, Session::cleanSession)
+            .returns(false, ServerSession::isActive)
+        ;
         // 再次 Connect
         EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns(true, ConnAck::sp);
+            .returns(true, ConnAck::sp);
         // 从 Broker 中获取 Session 信息
         then(broker.session(clientIdentifier)).isNotNull()
-                .returns(false, Session::cleanSession)
-                .returns(true, ServerSession::isRegistered)
-                // 再次上线
-                .returns(true, Session::isBound);
+            .returns(false, Session::cleanSession)
+            // 再次上线
+            .returns(true, Session::isActive);
     }
 
     /**
@@ -243,8 +255,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
         // cc1 same clientIdentifier with c1
         // that is the same client
@@ -253,8 +265,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
     }
 
     /**
@@ -271,8 +283,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp)
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp)
         ;
         // cc1 same clientIdentifier with c1
         // that is the same client
@@ -281,8 +293,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(true, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(true, ConnAck::sp);
     }
 
     /**
@@ -317,8 +329,8 @@ class ServerSessionHandlerTest {
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(c1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(false, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(false, ConnAck::sp);
         // Disconnect
         c1.writeInbound(Disconnect.from().toByteBuf());
         // cc1 same clientIdentifier with c1
@@ -328,8 +340,8 @@ class ServerSessionHandlerTest {
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(cc1.readOutbound())).isNotNull()
-                .returns((int) ACCEPTED, ConnAck::returnCode)
-                .returns(true, ConnAck::sp);
+            .returns((int) ACCEPTED, ConnAck::returnCode)
+            .returns(true, ConnAck::sp);
     }
 
     /**
@@ -349,13 +361,13 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
@@ -375,24 +387,19 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 1;
         Publish publish = Publish.outgoing(false, qos, false, "t/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
     }
 
 
     /**
-     * // given
-     * receiver1 subscribe t/0 (QoS 0)
-     * // when
-     * publish1 publish QoS0 Message to t/0
-     * // then
-     * receiver1 receive a QoS0 Message from t/0
+     * // given receiver1 subscribe t/0 (QoS 0) // when publish1 publish QoS0 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -406,22 +413,17 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/0(QoS 0)
-     * // when
-     * publish1 publish QoS1 Message to t/0
-     * // then
-     * receiver1 receive a QoS0 Message from t/0
+     * // given receiver1 subscribe t/0(QoS 0) // when publish1 publish QoS1 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS1_thenReceiver1ReceiveQoS0() {
@@ -434,22 +436,17 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/0 QoS 0
-     * // when
-     * publish1 publish QoS2 Message to t/0
-     * // then
-     * receiver1 receive a QoS0 Message from t/0
+     * // given receiver1 subscribe t/0 QoS 0 // when publish1 publish QoS2 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS2_thenReceiver1ReceiveQoS0() {
@@ -462,22 +459,17 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/1 (QoS 1)
-     * // when
-     * publish1 publish QoS1 Message to t/1
-     * // then
-     * receiver1 receive a QoS1 Message from t/1
+     * // given receiver1 subscribe t/1 (QoS 1) // when publish1 publish QoS1 Message to t/1 // then receiver1 receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
@@ -494,8 +486,8 @@ class ServerSessionHandlerTest {
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
         receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
         // publish1 收到 PubAck 消息
@@ -504,12 +496,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/1 QoS 1
-     * // when
-     * publish1 publish QoS0 Message to t/1
-     * // then
-     * receiver1 receive a QoS0 Message from t/1
+     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS0 Message to t/1 // then receiver1 receive a QoS0 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -526,17 +513,12 @@ class ServerSessionHandlerTest {
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/1 QoS 1
-     * // when
-     * publish1 publish QoS2 Message to t/1
-     * // then
-     * receiver1 receive a QoS1 Message from t/1
+     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS2 Message to t/1 // then receiver1 receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS2_thenReceiver1ReceiveQoS1() {
@@ -553,8 +535,8 @@ class ServerSessionHandlerTest {
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receiver1 receive QoS1 Message, should send a PubAck
         receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
         // publish1 receive PubRec, should send a PubRel
@@ -565,12 +547,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/2 QoS 2
-     * // when
-     * publish1 publish QoS2 Message to t/2
-     * // then
-     * receiver1 receive a QoS2 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS2 Message to t/2 // then receiver1 receive a QoS2 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS2_thenReceiver1ReceiveQoS2() {
@@ -583,13 +560,13 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(2, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(2, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubRec 消息
         receiver1.writeInbound(PubRec.from(packet.packetIdentifier()).toByteBuf());
         // receiver1 收到 PubRel
@@ -604,12 +581,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/2 QoS 2
-     * // when
-     * publish1 publish QoS0 Message to t/2
-     * // then
-     * receiver1 receive a QoS0 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS0 Message to t/2 // then receiver1 receive a QoS0 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -622,22 +594,17 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(0, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(0, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/2 QoS 2
-     * // when
-     * publish1 publish QoS1 Message to t/2
-     * // then
-     * receiver1 receive a QoS1 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS1 Message to t/2 // then receiver1 receive a QoS1 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
@@ -650,13 +617,13 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/2", publish1PacketId,
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new Publish(receiver1.readOutbound());
         then(packet)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
         receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
         //
@@ -682,33 +649,28 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
         Publish m = new Publish(receiver1.readOutbound());
         then(m).isNotNull()
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // 取消订阅
         // given
         receiver1.writeInbound(Unsubscribe.from(sReceiver1.nextPacketIdentifier(), subscriptions).toByteBuf());
         then(new UnsubAck(receiver1.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(p2.toByteBuf());
         // then
         then(receiver1.<ByteBuf>readOutbound()).isNull();
     }
 
     /**
-     * // given
-     * Client has no Subscription
-     * // when
-     * forward Publish
-     * // then
-     * Client receive no Publish
+     * // given Client has no Subscription // when forward Publish // then Client receive no Publish
      */
     @Test
     void givenNoSubscription_whenPublish_thenWillNotReceivePublish() {
@@ -718,7 +680,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
@@ -727,14 +689,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/0 QoS 0
-     * receiver1 subscribe t/0/# QoS 0
-     * // when
-     * publish1 publish QoS0 Message to t/0
-     * // then
-     * receiver1 receive a QoS0 message from t/0
-     * receiver1 receive a QoS0 message from t/0/#
+     * // given receiver1 subscribe t/0 QoS 0 receiver1 subscribe t/0/# QoS 0 // when publish1 publish QoS0 Message to t/0 // then receiver1 receive a QoS0 message from t/0 receiver1 receive a QoS0 message from t/0/#
      */
     @Test
     void givenSubscribe2TopicQoS0_whenPublish_thenReceive2Message() {
@@ -752,31 +707,24 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = new Publish(receiver1.readOutbound());
         then(publishMessage1)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage2 = new Publish(receiver1.readOutbound());
         then(publishMessage2)
-                .returns((int) qos, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns((int) qos, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isEqualTo((byte) 0);
         then(publishMessage2.packetIdentifier()).isEqualTo((byte) 0);
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/1 QoS 1
-     * receiver1 subscribe t/1/# QoS 1
-     * // when
-     * publish1 publish QoS1 Message to t/1
-     * // then
-     * receiver1 receive a QoS1 message from t/1
-     * receiver1 receive a QoS1 message from t/1/#
+     * // given receiver1 subscribe t/1 QoS 1 receiver1 subscribe t/1/# QoS 1 // when publish1 publish QoS1 Message to t/1 // then receiver1 receive a QoS1 message from t/1 receiver1 receive a QoS1 message from t/1/#
      */
     @Test
     void givenSubscribe2TopicQoS1_whenPublish_thenReceive2Message() {
@@ -791,19 +739,19 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = new Publish(receiver1.readOutbound());
         then(publishMessage1)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         receiver1.writeInbound(PubAck.from(publishMessage1.packetIdentifier()).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage2 = new Publish(receiver1.readOutbound());
         then(publishMessage2)
-                .returns(1, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(1, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
         //
         receiver1.writeInbound(PubAck.from(publishMessage2.packetIdentifier()).toByteBuf());
@@ -811,14 +759,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given
-     * receiver1 subscribe t/2 QoS 2
-     * receiver1 subscribe t/2/# QoS 2
-     * // when
-     * publish1 publish QoS2 Message to t/2
-     * // then
-     * receiver1 receive a QoS2 message from t/2
-     * receiver1 receive a QoS2 message from t/2/#
+     * // given receiver1 subscribe t/2 QoS 2 receiver1 subscribe t/2/# QoS 2 // when publish1 publish QoS2 Message to t/2 // then receiver1 receive a QoS2 message from t/2 receiver1 receive a QoS2 message from t/2/#
      */
     @Test
     void givenSubscribe2TopicQoS2_whenPublish_thenReceive2Message() {
@@ -833,7 +774,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", sPublish1.nextPacketIdentifier(),
-                Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // publish1 收到 PubRec 消息
         then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
@@ -843,16 +784,16 @@ class ServerSessionHandlerTest {
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = new Publish(receiver1.readOutbound());
         then(publishMessage1)
-                .returns(2, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(2, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         receiver1.writeInbound(PubRec.from(publishMessage1.packetIdentifier()).toByteBuf());
         then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage1.packetIdentifier());
         receiver1.writeInbound(PubComp.from(publishMessage1.packetIdentifier()).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage2 = new Publish(receiver1.readOutbound());
         then(publishMessage2)
-                .returns(2, Publish::qos)
-                .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(2, Publish::qos)
+            .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
         // receiver1
         receiver1.writeInbound(PubRec.from(publishMessage2.packetIdentifier()).toByteBuf());
@@ -875,7 +816,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(retain.toByteBuf());
         // receiver1 接受 Publish
         // 正常 forward 路由的 Publish
@@ -899,12 +840,12 @@ class ServerSessionHandlerTest {
     void givenRetain_whenRetain2Times_thenOnlyStoreTheLast() {
         // publish1 发送 Publish 消息
         Publish retain1 = Publish.outgoing(true, (byte) 0, false, "retain/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
         publish1.writeInbound(retain1.toByteBuf());
         // 发送第2条 retain Publish
         String retain2Payload = UUID.randomUUID().toString();
         Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(retain2Payload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(retain2Payload, UTF_8));
         publish1.writeInbound(retain.toByteBuf());
         //
         // 后续订阅
@@ -913,8 +854,8 @@ class ServerSessionHandlerTest {
         then(new SubAck(receiver1.readOutbound())).isNotNull();
         // 收到 retain 消息
         then(new Publish(receiver1.readOutbound()))
-                .returns(true, Publish::retainFlag)
-                .returns(retain2Payload, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(true, Publish::retainFlag)
+            .returns(retain2Payload, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
@@ -927,11 +868,11 @@ class ServerSessionHandlerTest {
     void givenRetain_whenSendZeroByteRetainPublish_thenNoRetain() {
         // publish1 发送 Publish 消息
         Publish retain1 = Publish.outgoing(true, (byte) 1, false, "retain/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
         publish1.writeInbound(retain1.toByteBuf());
         // 发送第2条 retain Publish (no payload)
         Publish retain = Publish.outgoing(true, (byte) 1, false, "retain/1",
-                sPublish1.nextPacketIdentifier(), Unpooled.buffer());
+            sPublish1.nextPacketIdentifier(), Unpooled.buffer());
         publish1.writeInbound(retain.toByteBuf());
         //
         // 后续订阅
@@ -953,27 +894,27 @@ class ServerSessionHandlerTest {
         // given
         final Broker broker = createBroker();
         final String strReceiver01 = "receiver1";
-        sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
+        sReceiver1 = new Session0(strReceiver01, receiver1);
         // receiver1 Connect to the Broker
         receiver1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+            .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(receiver1.readOutbound())).isNotNull();
         receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
-                singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
+            singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
         // 读出 SubAck 消息
         new SubAck(receiver1.readOutbound());
         //
-        sPublish1 = new Session0("publish1");
         publish1 = createChannel(broker);
+        sPublish1 = new Session0("publish1", publish1);
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,
-                (short) 64,
-                "publish1",
-                "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
+            (short) 64,
+            "publish1",
+            "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(willConnect.toByteBuf());
         // 读出 ConnAck 消息
@@ -996,27 +937,27 @@ class ServerSessionHandlerTest {
         // given
         final Broker broker = createBroker();
         final String strReceiver01 = "receiver1";
-        sReceiver1 = new Session0(strReceiver01);
         receiver1 = new EmbeddedChannel();
+        sReceiver1 = new Session0(strReceiver01, receiver1);
         // receiver1 Connect to the Broker
         receiver1.pipeline().addLast(new MqttCodec())
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
+            .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, packet -> 0x00, 3));
         // receiver 模拟接受 Connect 消息
         receiver1.writeInbound(Connect.from("receiver1", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(new ConnAck(receiver1.readOutbound())).isNotNull();
         receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
-                singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
+            singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
         // 读出 SubAck 消息
         new SubAck(receiver1.readOutbound());
         //
-        sPublish1 = new Session0("publish1");
         publish1 = createChannel(broker);
+        sPublish1 = new Session0("publish1", publish1);
         String willContent = "I'm a Will Message.";
         Connect willConnect = Connect.from(2, false,
-                (short) 64,
-                "publish1",
-                "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
+            (short) 64,
+            "publish1",
+            "will/1", Unpooled.copiedBuffer(willContent, UTF_8));
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(willConnect.toByteBuf());
         // 读出 ConnAck 消息
@@ -1028,28 +969,35 @@ class ServerSessionHandlerTest {
         // then
         Publish willMessage = new Publish(receiver1.readOutbound());
         then(willMessage).returns(2, Publish::qos)
-                .returns(willContent, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
+            .returns(willContent, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     public static class Session0 extends AbstractSession {
 
-        protected Session0(String clientIdentifier) {
-            super(clientIdentifier);
+        private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
+        private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
+
+        protected Session0(String clientIdentifier, Channel channel) {
+            super(clientIdentifier, true, channel);
         }
 
         @Override
-        protected boolean onPublish(Publish packet) {
-            return false;
+        protected void onPublish(Publish packet) {
+        }
+
+        @Override
+        protected Queue<ControlPacketContext> inQueue() {
+            return inQueue;
+        }
+
+        @Override
+        protected Queue<ControlPacketContext> outQueue() {
+            return outQueue;
         }
 
         @Override
         public Set<Subscribe.Subscription> subscriptions() {
             return null;
-        }
-
-        @Override
-        public void onSessionClose() {
-            // todo
         }
 
     }

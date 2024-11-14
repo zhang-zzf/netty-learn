@@ -1,9 +1,7 @@
 package org.example.mqtt.broker.cluster.node;
 
-import lombok.Getter;
-import lombok.extern.slf4j.Slf4j;
+import static java.util.stream.Collectors.toSet;
 
-import javax.annotation.Nullable;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -11,9 +9,9 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-
-import static java.util.Optional.ofNullable;
-import static java.util.stream.Collectors.toSet;
+import javax.annotation.Nullable;
+import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * Node 归属 Cluster， 由 Cluster 单线程更新 Node 状态
@@ -88,7 +86,7 @@ public class Node implements AutoCloseable {
         log.debug("removeNodeClient-> NodeClient: {}", nc);
         boolean clusterMessageClientRemoved = false;
         for (int i = 0; i < nodeClients.size(); i++) {
-            if (nodeClients.get(i).getClientIdentifier().equals(nc.getClientIdentifier())) {
+            if (nodeClients.get(i).clientIdentifier().equals(nc.clientIdentifier())) {
                 nodeClients.remove(i);
                 log.debug("removeNodeClient removed-> NodeClient: {}", nc);
                 if (clusterMessageClient.get() == nc) {
@@ -171,7 +169,7 @@ public class Node implements AutoCloseable {
 
     Set<String> nodeClientIdSet() {
         return nodeClients.stream()
-                .map(NodeClient::getClientIdentifier)
+                .map(NodeClient::clientIdentifier)
                 .collect(toSet());
     }
 
@@ -180,8 +178,7 @@ public class Node implements AutoCloseable {
     }
 
     NodeClient cmClient() {
-        return ofNullable(clusterMessageClient.get())
-                .orElse(null);
+        return clusterMessageClient.get();
     }
 
     void checkNodeClientAvailable() {

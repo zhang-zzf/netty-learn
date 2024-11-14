@@ -1,6 +1,7 @@
 package org.example.mqtt.broker.cluster;
 
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelPromise;
 import java.util.Collections;
 import java.util.Set;
 import org.example.mqtt.model.ControlPacket;
@@ -59,7 +60,7 @@ public class ClusterServerSessionRemoteNodeImpl implements ClusterServerSession 
     }
 
     @Override
-    public void send(ControlPacket message) {
+    public ChannelPromise send(ControlPacket message) {
         throw new UnsupportedOperationException();
     }
 

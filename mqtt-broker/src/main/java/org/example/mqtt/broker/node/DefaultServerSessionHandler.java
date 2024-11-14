@@ -93,13 +93,13 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 closeSession(ctx);
                 return;
             }
-            log.debug("Client receive Connect-> cId: {}, packet: {}", connect.clientIdentifier(), connect);
+            log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
             // The Server MUST respond to the CONNECT Packet
             // with a CONNACK return code 0x01 (unacceptable protocol level) and then
             // disconnect the Client if the Protocol Level is not supported by the Server
             Set<Integer> supportProtocolLevel = broker.supportProtocolLevel();
             if (!supportProtocolLevel.contains(connect.protocolLevel())) {
-                log.error("not support protocol level, now send ConnAck and close channel");
+                log.error("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
                 ctx.writeAndFlush(ConnAck.notSupportProtocolLevel());
                 closeSession(ctx);
                 return;
@@ -107,7 +107,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // authenticate
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
-                log.error("Connect authenticate failed, now send ConnAck and close channel. {}", authenticate);
+                log.error("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
                 ctx.writeAndFlush(ConnAck.from(authenticate));
                 closeSession(ctx);
                 return;

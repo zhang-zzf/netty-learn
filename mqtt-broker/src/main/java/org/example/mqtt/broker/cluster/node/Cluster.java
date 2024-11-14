@@ -11,6 +11,7 @@ import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
+import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.Publish;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.stereotype.Component;
@@ -243,7 +244,7 @@ public class Cluster implements AutoCloseable {
         try {
             return new NodeClient(remoteNode, clientEventLoopGroup, this);
         } catch (Exception e) {
-            log.error("Cluster buildChannelToNode failed-> remoteNode: {}", remoteNode);
+            log.error("Cluster buildChannelToNode failed -> remoteNode: {}", remoteNode);
             log.error("Cluster buildChannelToNode failed", e);
             // 连接节点失败，添加统计
             if (remoteNode.connectFailed() > CONNECT_FAILED_THRESHOLD) {
@@ -335,7 +336,7 @@ public class Cluster implements AutoCloseable {
                 .setId(n.getId())
                 .setAddress(n.getAddress())
                 .setNodeClientIds(n.nodeClientIdSet())
-                .setCmNodeClientId(ofNullable(n.cmClient()).map(NodeClient::getClientIdentifier).orElse(null))
+                .setCmNodeClientId(ofNullable(n.cmClient()).map(NodeClient::clientIdentifier).orElse(null))
                 .setSubscribers(channelsToOtherNodes.get(n.getId()))
                 ;
     }
@@ -394,8 +395,7 @@ public class Cluster implements AutoCloseable {
                 log.info("Cluster start sync Local Node with remote Node-> local: {}, remote: {}", localNode, anotherNodeAddress);
                 NodeMessage nm = wrapClusterNodes(broker().nodeId(), localNode);
                 // no need to wait for ack
-                nodes.get(NODE_ID_UNKNOWN).nodeClient()
-                        .sendAsync(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
+                nodes.get(NODE_ID_UNKNOWN).nodeClient().publish(Publish.AT_LEAST_ONCE, $_SYS_TOPIC, nm.toByteBuf());
                 log.info("Cluster sync done");
             }
         }).get();

@@ -26,6 +26,10 @@ public interface Client {
 
     void close();
 
+    /**
+     * publish a Publish Packet to peer
+     * @return a future that will be completed when the Publish Packet send complete
+     */
     CompletionStage<Void> publish(int qos, String topicName, ByteBuf payload);
 
     void onPublish(Publish publish);

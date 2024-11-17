@@ -14,11 +14,6 @@ public class PingResp extends ControlPacket {
         super(packet);
     }
 
-    @Override
-    protected void initPacket() {
-        // noop
-    }
-
     private PingResp() {
         super(_0_BYTE, 0x00);
     }

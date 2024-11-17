@@ -43,8 +43,10 @@ public class ConnAck extends ControlPacket {
         return new ConnAck(returnCode);
     }
 
-    public ConnAck(ByteBuf packet) {
-        super(packet);
+    public ConnAck(ByteBuf incoming) {
+        super(incoming);
+        this.sp = incoming.readByte() != 0x00;
+        this.returnCode = incoming.readByte();
     }
 
     public static ConnAck accepted() {
@@ -72,12 +74,6 @@ public class ConnAck extends ControlPacket {
         buf.writeByte(sp ? 0x01 : 0x00);
         buf.writeByte(returnCode);
         return buf;
-    }
-
-    @Override
-    protected void initPacket() {
-        this.sp = incoming.readByte() != 0x00;
-        this.returnCode = incoming.readByte();
     }
 
     public boolean sp() {

@@ -5,8 +5,8 @@ import io.netty.util.AbstractReferenceCounted;
 import lombok.extern.slf4j.Slf4j;
 
 /**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-17
  */
 @Slf4j
 public abstract class ControlPacket extends AbstractReferenceCounted {
@@ -34,7 +34,7 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
     /**
      * build packet from incoming ByteBuf
      */
-    protected ByteBuf incoming;
+    private ByteBuf incoming;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -48,16 +48,39 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
      */
     protected ControlPacket(ByteBuf incoming) {
         this.incoming = incoming;
+        this.byte0 = incoming.readByte();
+        this.remainingLength = readRemainingLength(incoming);
+    }
+
+    /**
+     * the content of the ControlPacket;
+     *
+     * @return the content
+     */
+    // public ByteBuf content() {
+    //     return this.incoming;
+    // }
+
+    /**
+     * ByteBuf to model
+     *
+     * @param incoming the data packet
+     * @return model
+     */
+    public static ControlPacket from(ByteBuf incoming) {
         incoming.markReaderIndex();
         try {
-            this.byte0 = incoming.readByte();
-            this.remainingLength = readRemainingLength(incoming);
+            ControlPacket controlPacket = buildControlPacketFrom(incoming);
             // should read all the bytes out of the packet.
-            initPacket();
             if (incoming.isReadable()) {
                 // control packet is illegal.
                 throw new IllegalArgumentException();
             }
+            if (!controlPacket.packetValidate()) {
+                log.error("ControlPacket validate failed->{}", controlPacket);
+                throw new IllegalArgumentException("packet validate failed: protocol violation.");
+            }
+            return controlPacket;
         } catch (Exception e) {
             throw new IllegalArgumentException(e);
         } finally {
@@ -66,66 +89,42 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
     }
 
     /**
-     * the content of the ControlPacket;
-     *
-     * @return the content
-     */
-    public ByteBuf content() {
-        return this.incoming;
-    }
-
-    /**
-     * ByteBuf to model
-     *
-     * @param buf the data packet
-     * @return model
-     */
-    public static ControlPacket from(ByteBuf buf) {
-        ControlPacket controlPacket = convertToControlPacket(buf);
-        if (!controlPacket.packetValidate()) {
-            log.error("ControlPacket validate failed->{}", controlPacket);
-            throw new IllegalArgumentException("packet validate failed: protocol violation.");
-        }
-        return controlPacket;
-    }
-
-    /**
      * convert ByteBuf to ControlPacket
      *
-     * @param packet ByteBuf
+     * @param incoming ByteBuf
      * @return ControlPacket
      */
-    public static ControlPacket convertToControlPacket(ByteBuf packet) {
-        byte _0byte = packet.getByte(packet.readerIndex());
+    private static ControlPacket buildControlPacketFrom(ByteBuf incoming) {
+        byte _0byte = incoming.getByte(incoming.readerIndex());
         switch (type(_0byte)) {
             case CONNECT:
-                return new Connect(packet);
+                return new Connect(incoming);
             case CONNACK:
-                return new ConnAck(packet);
+                return new ConnAck(incoming);
             case PUBLISH:
-                return new Publish(packet);
+                return new Publish(incoming);
             case PUBACK:
-                return new PubAck(packet);
+                return new PubAck(incoming);
             case PUBREC:
-                return new PubRec(packet);
+                return new PubRec(incoming);
             case PUBREL:
-                return new PubRel(packet);
+                return new PubRel(incoming);
             case PUBCOMP:
-                return new PubComp(packet);
+                return new PubComp(incoming);
             case SUBSCRIBE:
-                return new Subscribe(packet);
+                return new Subscribe(incoming);
             case SUBACK:
-                return new SubAck(packet);
+                return new SubAck(incoming);
             case UNSUBSCRIBE:
-                return new Unsubscribe(packet);
+                return new Unsubscribe(incoming);
             case UNSUBACK:
-                return new UnsubAck(packet);
+                return new UnsubAck(incoming);
             case PINGREQ:
-                return new PingReq(packet);
+                return new PingReq(incoming);
             case PINGRESP:
-                return new PingResp(packet);
+                return new PingResp(incoming);
             case DISCONNECT:
-                return new Disconnect(packet);
+                return new Disconnect(incoming);
             default:
                 throw new IllegalArgumentException();
         }
@@ -165,11 +164,6 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
     protected boolean packetValidate() {
         return true;
     }
-
-    /**
-     * build incoming Packet
-     */
-    protected abstract void initPacket();
 
     public static byte type(byte _0byte) {
         return (byte) (_0byte & 0xF0);

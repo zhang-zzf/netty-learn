@@ -32,9 +32,4 @@ public class Disconnect extends ControlPacket {
         return this.byte0 == _0_BYTE;
     }
 
-    @Override
-    protected void initPacket() {
-        // noop
-    }
-
 }

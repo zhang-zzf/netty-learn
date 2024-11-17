@@ -5,6 +5,7 @@ import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import org.example.mqtt.model.Subscribe.Subscription;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -30,17 +31,12 @@ public class SubAck extends ControlPacket {
         this.subscriptions = subscriptions;
     }
 
-    public SubAck(ByteBuf packet) {
-        super(packet);
-    }
-
-    @Override
-    protected void initPacket() {
-        ByteBuf _buf = incoming;
-        this.packetIdentifier = _buf.readShort();
+    public SubAck(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
         this.subscriptions = new ArrayList<>();
-        while (_buf.isReadable()) {
-            this.subscriptions.add(new Subscribe.Subscription(null, _buf.readByte()));
+        while (incoming.isReadable()) {
+            this.subscriptions.add(new Subscription(null, incoming.readByte()));
         }
     }
 

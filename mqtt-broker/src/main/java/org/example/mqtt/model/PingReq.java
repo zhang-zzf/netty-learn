@@ -32,9 +32,4 @@ public class PingReq extends ControlPacket {
         return byte0 == _0_BYTE;
     }
 
-    @Override
-    protected void initPacket() {
-        // noop
-    }
-
 }

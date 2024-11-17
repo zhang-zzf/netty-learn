@@ -21,8 +21,16 @@ public class Subscribe extends ControlPacket {
     private short packetIdentifier;
     private List<Subscription> subscriptions;
 
-    public Subscribe(ByteBuf buf) {
-        super(buf);
+    public Subscribe(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
+        this.subscriptions = new ArrayList<>();
+        while (incoming.isReadable()) {
+            String topic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+            byte qos = incoming.readByte();
+            // todo TopicFilter rule check
+            this.subscriptions.add(new Subscription(topic, qos));
+        }
     }
 
     public static Subscribe from(List<Subscription> subscriptions) {
@@ -67,19 +75,6 @@ public class Subscribe extends ControlPacket {
 
     public short packetIdentifier() {
         return this.packetIdentifier;
-    }
-
-    @Override
-    protected void initPacket() {
-        final ByteBuf buf = incoming;
-        this.packetIdentifier = buf.readShort();
-        this.subscriptions = new ArrayList<>();
-        while (buf.isReadable()) {
-            String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            byte qos = buf.readByte();
-            // todo TopicFilter rule check
-            this.subscriptions.add(new Subscription(topic, qos));
-        }
     }
 
     @Override

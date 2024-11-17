@@ -10,8 +10,9 @@ public class PubAck extends ControlPacket {
 
     private short packetIdentifier;
 
-    public PubAck(ByteBuf buf) {
-        super(buf);
+    public PubAck(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
     }
 
     public static PubAck from(short packetIdentifier) {
@@ -28,11 +29,6 @@ public class PubAck extends ControlPacket {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
-    }
-
-    @Override
-    protected void initPacket() {
-        this.packetIdentifier = incoming.readShort();
     }
 
     @Override

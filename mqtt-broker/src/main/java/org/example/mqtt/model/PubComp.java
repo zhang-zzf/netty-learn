@@ -10,8 +10,9 @@ public class PubComp extends ControlPacket {
 
     private short packetIdentifier;
 
-    public PubComp(ByteBuf buf) {
-        super(buf);
+    public PubComp(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
     }
 
     private PubComp(short packetIdentifier) {
@@ -28,11 +29,6 @@ public class PubComp extends ControlPacket {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
-    }
-
-    @Override
-    protected void initPacket() {
-        this.packetIdentifier = incoming.readShort();
     }
 
     @Override

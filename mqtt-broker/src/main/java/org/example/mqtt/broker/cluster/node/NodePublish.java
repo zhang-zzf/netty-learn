@@ -1,13 +1,17 @@
 package org.example.mqtt.broker.cluster.node;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.example.mqtt.model.Publish.META_NM_RECEIVE;
+import static org.example.mqtt.model.Publish.META_NM_WRAP;
+import static org.example.mqtt.model.Publish.META_P_RECEIVE_MILLIS;
+import static org.example.mqtt.model.Publish.META_P_SOURCE;
+import static org.example.mqtt.model.Publish.META_P_SOURCE_BROKER;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.Data;
 import lombok.experimental.Accessors;
 import org.example.mqtt.model.Publish;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.example.mqtt.model.Publish.*;
 
 /**
  * 性能考虑
@@ -56,9 +60,11 @@ public class NodePublish extends NodeMessage {
         // create view of two ByteBuf.
         // NO COPY
         return Unpooled.compositeBuffer()
-                .addComponent(true, meta)
-                // origin Packet
-                .addComponent(true, publishPacket.content());
+            .addComponent(true, meta)
+            // origin Packet
+            // todo
+            //     .addComponent(true, publishPacket.content())
+            ;
     }
 
     public static NodePublish wrapPublish(String nodeId, Publish packet) {

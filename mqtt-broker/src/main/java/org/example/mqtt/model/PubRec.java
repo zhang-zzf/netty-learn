@@ -10,8 +10,9 @@ public class PubRec extends ControlPacket {
 
     private short packetIdentifier;
 
-    public PubRec(ByteBuf buf) {
-        super(buf);
+    public PubRec(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
     }
 
     private PubRec(short packetIdentifier) {
@@ -28,11 +29,6 @@ public class PubRec extends ControlPacket {
         ByteBuf buf = fixedHeaderByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
-    }
-
-    @Override
-    protected void initPacket() {
-        this.packetIdentifier = incoming.readShort();
     }
 
     @Override

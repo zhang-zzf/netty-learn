@@ -28,10 +28,15 @@ public class Publish extends ControlPacket {
     /**
      * inbound packet convert to model
      *
-     * @param receivedPacket inbound packet
+     * @param incoming inbound packet
      */
-    public Publish(ByteBuf receivedPacket) {
-        super(receivedPacket);
+    public Publish(ByteBuf incoming) {
+        super(incoming);
+        this.topicName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        if (needAck()) {
+            this.packetIdentifier = incoming.readShort();
+        }
+        this.payload = incoming.readSlice(incoming.readableBytes());
         initMetricMetaData();
     }
 
@@ -136,16 +141,6 @@ public class Publish extends ControlPacket {
             _0Byte |= 0x08;
         }
         return _0Byte;
-    }
-
-    @Override
-    protected void initPacket() {
-        ByteBuf buf = incoming;
-        this.topicName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-        if (needAck()) {
-            this.packetIdentifier = buf.readShort();
-        }
-        this.payload = buf.readSlice(buf.readableBytes());
     }
 
     @Override

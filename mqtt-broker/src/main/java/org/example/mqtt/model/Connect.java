@@ -6,8 +6,8 @@ import io.netty.buffer.Unpooled;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
+ * @author zhanfeng.zhang@icloud.com
+ * @date 2024-11-17
  */
 public class Connect extends ControlPacket {
 
@@ -26,8 +26,25 @@ public class Connect extends ControlPacket {
     private String username;
     private ByteBuf password;
 
-    public Connect(ByteBuf buf) {
-        super(buf);
+    public Connect(ByteBuf incoming) {
+        super(incoming);
+        protocolName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        protocolLevel = incoming.readByte();
+        connectFlags = incoming.readByte();
+        keepAlive = incoming.readShort();
+        clientIdentifier = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        if (willFlag()) {
+            willTopic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+            willMessage = Unpooled.buffer(incoming.readShort());
+            incoming.readBytes(willMessage);
+        }
+        if (usernameFlag()) {
+            username = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        }
+        if (passwordFlag()) {
+            password = Unpooled.buffer(incoming.readShort());
+            incoming.readBytes(password);
+        }
     }
 
     public static Connect from(String clientIdentifier, short keepAlive) {
@@ -228,28 +245,6 @@ public class Connect extends ControlPacket {
 
     public ByteBuf willMessage() {
         return willMessage;
-    }
-
-    @Override
-    protected void initPacket() {
-        ByteBuf buf = incoming;
-        protocolName = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-        protocolLevel = buf.readByte();
-        connectFlags = buf.readByte();
-        keepAlive = buf.readShort();
-        clientIdentifier = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-        if (willFlag()) {
-            willTopic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-            willMessage = Unpooled.buffer(buf.readShort());
-            buf.readBytes(willMessage);
-        }
-        if (usernameFlag()) {
-            username = buf.readCharSequence(buf.readShort(), UTF_8).toString();
-        }
-        if (passwordFlag()) {
-            password = Unpooled.buffer(buf.readShort());
-            buf.readBytes(password);
-        }
     }
 
     public boolean passwordFlag() {

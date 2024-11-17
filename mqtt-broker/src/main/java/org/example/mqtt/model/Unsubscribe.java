@@ -23,17 +23,12 @@ public class Unsubscribe extends ControlPacket {
         return this.subscriptions;
     }
 
-    public Unsubscribe(ByteBuf buf) {
-        super(buf);
-    }
-
-    @Override
-    protected void initPacket() {
-        final ByteBuf buf = incoming;
-        this.packetIdentifier = buf.readShort();
+    public Unsubscribe(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
         this.subscriptions = new ArrayList<>();
-        while (buf.isReadable()) {
-            String topic = buf.readCharSequence(buf.readShort(), UTF_8).toString();
+        while (incoming.isReadable()) {
+            String topic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
             this.subscriptions.add(new Subscribe.Subscription(topic, 0));
         }
     }

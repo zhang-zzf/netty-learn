@@ -13,8 +13,9 @@ public class PubRel extends ControlPacket {
 
     private short packetIdentifier;
 
-    public PubRel(ByteBuf buf) {
-        super(buf);
+    public PubRel(ByteBuf incoming) {
+        super(incoming);
+        this.packetIdentifier = incoming.readShort();
     }
 
     private PubRel(short packetIdentifier) {
@@ -33,11 +34,6 @@ public class PubRel extends ControlPacket {
         buf.writeByte(this.remainingLength);
         buf.writeShort(packetIdentifier);
         return buf;
-    }
-
-    @Override
-    protected void initPacket() {
-        this.packetIdentifier = incoming.readShort();
     }
 
     public short packetIdentifier() {

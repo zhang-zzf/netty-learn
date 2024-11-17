@@ -1,12 +1,12 @@
 package org.example.mqtt.model;
 
+import static org.assertj.core.api.BDDAssertions.then;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.session.AbstractSession;
 import org.junit.jupiter.api.Test;
-
-import static org.assertj.core.api.BDDAssertions.then;
 
 /**
  * @author zhanfeng.zhang@icloud.com

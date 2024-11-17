@@ -1,14 +1,13 @@
 package org.example.mqtt.model;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-
-import javax.annotation.Nullable;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
+import javax.annotation.Nullable;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -23,7 +22,7 @@ public class Publish extends ControlPacket {
 
     private String topicName;
     private short packetIdentifier;
-    private final ByteBuf payload;
+    protected final ByteBuf payload;
 
     /**
      * inbound packet convert to model
@@ -36,7 +35,6 @@ public class Publish extends ControlPacket {
         if (needAck()) {
             this.packetIdentifier = incoming.readShort();
         }
-        // todo 和 incoming 公用 bytes
         this.payload = incoming.readRetainedSlice(incoming.readableBytes());
         initMetricMetaData();
     }
@@ -47,10 +45,21 @@ public class Publish extends ControlPacket {
         addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }
 
+
+    /**
+     * outgoing Publish Message
+     */
+    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
+        super(_0byte, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.topicName = topicName;
+        this.payload = payload;
+    }
+
     /**
      * Publish to Publish use Zero-Copy of ByteBuf for payload
      *
-     * @param origin source
+     * @param origin           source
      * @param packetIdentifier packet ID
      * @return a Publish Packet that have the save data as source
      */
@@ -68,7 +77,7 @@ public class Publish extends ControlPacket {
     /**
      * Publish to Publish use Zero-Copy of ByteBuf for payload
      *
-     * @param origin source
+     * @param origin           source
      * @param packetIdentifier packet ID
      * @return a new Publish Packet that have the save data as source
      */
@@ -81,7 +90,7 @@ public class Publish extends ControlPacket {
     }
 
     public static Publish outgoing(boolean retain, int qos, boolean dup,
-                                   String topicName, short packetIdentifier, ByteBuf payload) {
+        String topicName, short packetIdentifier, ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.length() + 2;
         // remainingLength field
@@ -100,8 +109,9 @@ public class Publish extends ControlPacket {
             header.writeShort(packetIdentifier);
         }
         return Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, this.payload);
+            .addComponent(true, header)
+            // todo test
+            .addComponent(true, this.payload);
     }
 
     /**
@@ -120,16 +130,6 @@ public class Publish extends ControlPacket {
      */
     public boolean needAck() {
         return needAck(qos());
-    }
-
-    /**
-     * outgoing Publish Message
-     */
-    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
-        super(_0byte, remainingLength);
-        this.packetIdentifier = packetIdentifier;
-        this.topicName = topicName;
-        this.payload = payload;
     }
 
     static byte build_0Byte(boolean retain, int qos, boolean dup) {
@@ -251,7 +251,8 @@ public class Publish extends ControlPacket {
     public Publish dup(boolean dup) {
         if (dup) {
             this.byte0 |= 0x08;
-        } else {
+        }
+        else {
             this.byte0 &= 0xF7;
         }
         return this;
@@ -274,7 +275,8 @@ public class Publish extends ControlPacket {
     public Publish retainFlag(boolean flag) {
         if (flag) {
             byte0 |= 0x01;
-        } else {
+        }
+        else {
             byte0 &= 0xFE;
         }
         return this;

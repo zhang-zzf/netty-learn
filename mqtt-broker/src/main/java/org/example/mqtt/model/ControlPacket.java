@@ -93,7 +93,7 @@ public abstract class ControlPacket {
             case CONNACK:
                 return new ConnAck(incoming);
             case PUBLISH:
-                return new Publish(incoming);
+                return new PublishInbound(incoming);
             case PUBACK:
                 return new PubAck(incoming);
             case PUBREC:

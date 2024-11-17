@@ -106,6 +106,7 @@ public abstract class AbstractSession implements Session {
             log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
             /**
              *  {@link AbstractSession#publishPacketSentComplete(ControlPacketContext)}  will release the payload
+             *  todo if send failed, memory leak?
              */
             publish.payload().retain();
             log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());

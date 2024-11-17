@@ -9,7 +9,7 @@ import lombok.extern.slf4j.Slf4j;
  * @date 2024-11-17
  */
 @Slf4j
-public abstract class ControlPacket extends AbstractReferenceCounted {
+public abstract class ControlPacket {
 
     public static final int _0_BYTE_LENGTH = 1;
     public static final int MIN_PACKET_LENGTH = 2;
@@ -51,15 +51,6 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
         this.byte0 = incoming.readByte();
         this.remainingLength = readRemainingLength(incoming);
     }
-
-    /**
-     * the content of the ControlPacket;
-     *
-     * @return the content
-     */
-    // public ByteBuf content() {
-    //     return this.incoming;
-    // }
 
     /**
      * ByteBuf to model
@@ -231,49 +222,5 @@ public abstract class ControlPacket extends AbstractReferenceCounted {
         return Integer.valueOf(hexPId.substring(2), 16).shortValue();
     }
 
-    @Override
-    public int refCnt() {
-        if (incoming == null) {
-            throw new IllegalStateException();
-        }
-        return incoming.refCnt();
-    }
-
-    @Override
-    public ByteBuf retain() {
-        if (incoming == null) {
-            throw new IllegalStateException();
-        }
-        return incoming.retain();
-    }
-
-    @Override
-    public ByteBuf retain(int increment) {
-        return incoming.retain(increment);
-    }
-
-    @Override
-    public boolean release() {
-        if (incoming == null) {
-            return true;
-        }
-        return incoming.release();
-    }
-
-    @Override
-    public boolean release(int decrement) {
-        return incoming.release(decrement);
-    }
-
-    @Override
-    protected void deallocate() {
-        // help GC
-        this.incoming = null;
-    }
-
-    @Override
-    public ControlPacket touch(Object hint) {
-        return this;
-    }
 }
 

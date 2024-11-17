@@ -23,7 +23,7 @@ public class Publish extends ControlPacket {
 
     private String topicName;
     private short packetIdentifier;
-    private ByteBuf payload;
+    private final ByteBuf payload;
 
     /**
      * inbound packet convert to model
@@ -36,7 +36,8 @@ public class Publish extends ControlPacket {
         if (needAck()) {
             this.packetIdentifier = incoming.readShort();
         }
-        this.payload = incoming.readSlice(incoming.readableBytes());
+        // todo 和 incoming 公用 bytes
+        this.payload = incoming.readRetainedSlice(incoming.readableBytes());
         initMetricMetaData();
     }
 

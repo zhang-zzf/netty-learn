@@ -199,12 +199,14 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
         packet.retainFlag(false);
         int times = nodeBroker.forward(packet);
         // must retain the Publish.packet for async callback
-        packet.retain();
+        // todo
+        // packet.retain();
         clusterBrokerState.matchTopicAsync(packet.topicName())
                 .thenAccept((topics) -> forwardToBrokerAndOfflineSession(packet, topics))
                 .whenComplete((v, t) -> {
                     // must release PublishPacket anyway
-                    packet.release();
+                    // todo
+                    // packet.release();
                     if (t != null) {
                         log.error("forward Publish failed-> Publish: {}", packet);
                         log.error("unExpected Exception", t);

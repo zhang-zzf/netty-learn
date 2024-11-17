@@ -35,13 +35,15 @@ public class Connect extends ControlPacket {
         clientIdentifier = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
         if (willFlag()) {
             willTopic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
-            willMessage = Unpooled.buffer(incoming.readShort());
+            // heapBuffer no memory leak
+            willMessage = Unpooled.buffer(incoming.readShort()); // heapBuffer
             incoming.readBytes(willMessage);
         }
         if (usernameFlag()) {
             username = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
         }
         if (passwordFlag()) {
+            // heapBuffer no memory leak
             password = Unpooled.buffer(incoming.readShort());
             incoming.readBytes(password);
         }

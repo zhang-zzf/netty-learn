@@ -99,12 +99,14 @@ public class NodePublish extends NodeMessage {
     }
 
     public NodePublish retainPublishPacket() {
-        publishPacket.retain();
+        // todo
+        // publishPacket.retain();
         return this;
     }
 
     public NodePublish releasePublishPacket() {
-        publishPacket.release();
+        // todo
+        // publishPacket.release();
         return this;
     }
 

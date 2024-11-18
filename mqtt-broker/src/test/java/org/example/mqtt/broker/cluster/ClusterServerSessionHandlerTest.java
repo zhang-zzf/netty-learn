@@ -21,6 +21,7 @@ import java.util.Queue;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.broker.node.DefaultBroker;
@@ -52,11 +53,11 @@ class ClusterServerSessionHandlerTest {
     Cluster cluster;
 
     // publish
-    Session0 mqttClientA;
+    ServerSession mqttClientA;
     EmbeddedChannel clientA;
 
     // receive
-    Session0 mqttClientB;
+    ServerSession mqttClientB;
     EmbeddedChannel clientB;
 
     @BeforeEach
@@ -65,16 +66,17 @@ class ClusterServerSessionHandlerTest {
         ClusterBroker broker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
         cluster.bind(broker);
         clientA = createChannel(cluster);
-        mqttClientA = new Session0(MQTT_CLIENT_A, clientA);
         // clientA 模拟接受 Connect 消息
         clientA.writeInbound(Connect.from(MQTT_CLIENT_A, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(((ConnAck) ControlPacket.from(clientA.readOutbound()))).isNotNull();
+        mqttClientA = broker.session(MQTT_CLIENT_A);
+        //
         clientB = createChannel(cluster);
-        mqttClientB = new Session0(MQTT_CLIENT_B, clientB);
         clientB.writeInbound(Connect.from(MQTT_CLIENT_B, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
         then(((ConnAck) ControlPacket.from(clientB.readOutbound()))).isNotNull();
+        mqttClientB = broker.session(MQTT_CLIENT_B);
         // topicFilter 匹配自己
         ClusterTopic any = new ClusterTopic("any")
             .setNodes(new HashSet<>() {{
@@ -636,37 +638,6 @@ class ClusterServerSessionHandlerTest {
             .addLast(new MqttCodec())
             .addLast(HANDLER_NAME, new ClusterServerSessionHandler(cp -> 0x00, 3, cluster));
         return c;
-    }
-
-    public static class Session0 extends AbstractSession {
-
-        protected Session0(String clientIdentifier, Channel channel) {
-            super(clientIdentifier, true, channel);
-        }
-
-        @Override
-        protected void onPublish(Publish packet) {
-        }
-
-        private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
-        private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
-
-        @Override
-        protected Queue<ControlPacketContext> inQueue() {
-            return inQueue;
-        }
-
-        @Override
-        protected Queue<ControlPacketContext> outQueue() {
-            return outQueue;
-        }
-
-        @Override
-        public Set<Subscribe.Subscription> subscriptions() {
-            return null;
-        }
-
-
     }
 
 }

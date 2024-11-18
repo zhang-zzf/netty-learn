@@ -2,7 +2,6 @@ package org.example.mqtt.session;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import io.netty.channel.ChannelPromise;
 import java.util.Set;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Subscribe;
@@ -14,24 +13,21 @@ import org.example.mqtt.model.Subscribe;
 public interface Session {
 
     /**
-     * clientId
+     * clientIdentifier
      *
-     * @return clientId
+     * @return clientIdentifier
      */
     String clientIdentifier();
 
     /**
      * send a message to peer
-     * <p>Sender send a message to Receiver</p>
      *
      * @param message message
-     * @return
      */
     ChannelFuture send(ControlPacket message);
 
     /**
      * receive a message from peer
-     * <p>Receiver receive a message from Sender</p>
      *
      * @param message message
      */
@@ -44,6 +40,9 @@ public interface Session {
      */
     Channel channel();
 
+    /**
+     * session is active
+     */
     boolean isActive();
 
     /**

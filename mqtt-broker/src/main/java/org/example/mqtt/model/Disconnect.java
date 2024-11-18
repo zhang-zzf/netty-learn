@@ -19,11 +19,6 @@ public class Disconnect extends ControlPacket {
     }
 
     @Override
-    public ByteBuf toByteBuf() {
-        return fixedHeaderByteBuf();
-    }
-
-    @Override
     public boolean packetValidate() {
         return this.byte0 == _0_BYTE;
     }

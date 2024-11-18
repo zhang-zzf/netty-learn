@@ -41,8 +41,7 @@ public class SubAck extends ControlPacket {
 
     @Override
     public ByteBuf toByteBuf() {
-        packetValidate();
-        ByteBuf buf = fixedHeaderByteBuf();
+        ByteBuf buf = super.toByteBuf();
         buf.writeShort(packetIdentifier);
         for (Subscribe.Subscription s : subscriptions) {
             buf.writeByte(s.qos());

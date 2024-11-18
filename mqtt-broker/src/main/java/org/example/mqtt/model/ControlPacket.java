@@ -2,7 +2,9 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
+import io.netty.channel.nio.AbstractNioByteChannel;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -180,13 +182,29 @@ public abstract class ControlPacket {
      *
      * @return ByteBuf
      */
-    public abstract ByteBuf toByteBuf();
-
-    protected ByteBuf fixedHeaderByteBuf() {
-        ByteBuf buf = Unpooled.buffer(8);
+    public ByteBuf toByteBuf() {
+        // use direct buf will optimize netty zero-copy when write to Channel
+        /** {@link Publish#toByteBuf()} */
+        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
+        ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
+        int packetLength = 1 + remainingLengthByteBuf.readableBytes() + remainingLength;
+        ByteBuf buf = PooledByteBufAllocator.DEFAULT.directBuffer(packetLength);
         buf.writeByte(this.byte0);
         // remainingLength field
-        buf.writeBytes(remainingLengthToByteBuf(this.remainingLength));
+        buf.writeBytes(remainingLengthByteBuf);
+        return buf;
+    };
+
+    protected ByteBuf fixedHeaderByteBuf() {
+        // use direct buf will optimize netty zero-copy when write to Channel
+        /** {@link Publish#toByteBuf()} */
+        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
+        ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
+        int fixedHeaderLength = 1 + remainingLengthByteBuf.readableBytes();
+        ByteBuf buf = PooledByteBufAllocator.DEFAULT.directBuffer(fixedHeaderLength);
+        buf.writeByte(this.byte0);
+        // remainingLength field
+        buf.writeBytes(remainingLengthByteBuf);
         return buf;
     }
 

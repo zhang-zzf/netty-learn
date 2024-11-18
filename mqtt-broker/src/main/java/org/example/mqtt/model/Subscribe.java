@@ -51,21 +51,22 @@ public class Subscribe extends ControlPacket {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;
+        if (!packetValidate()) {
+            throw new IllegalArgumentException("Invalid packet");
+        }
     }
 
     @Override
     public ByteBuf toByteBuf() {
-        packetValidate();
-        ByteBuf header = fixedHeaderByteBuf();
-        header.writeShort(packetIdentifier);
-        ByteBuf payload = Unpooled.buffer(this.remainingLength);
+        ByteBuf buf = super.toByteBuf();
+        buf.writeShort(packetIdentifier);
         for (Subscription s : subscriptions) {
             byte[] bytes = s.topicFilter().getBytes(UTF_8);
-            payload.writeShort(bytes.length);
-            payload.writeBytes(bytes);
-            payload.writeByte(s.qos());
+            buf.writeShort(bytes.length);
+            buf.writeBytes(bytes);
+            buf.writeByte(s.qos());
         }
-        return Unpooled.compositeBuffer().addComponents(true, header, payload);
+        return buf;
     }
 
     public List<Subscription> subscriptions() {

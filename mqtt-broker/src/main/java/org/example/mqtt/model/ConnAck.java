@@ -66,7 +66,7 @@ public class ConnAck extends ControlPacket {
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf buf = fixedHeaderByteBuf();
+        ByteBuf buf = super.toByteBuf();
         buf.writeByte(sp ? 0x01 : 0x00);
         buf.writeByte(returnCode);
         return buf;

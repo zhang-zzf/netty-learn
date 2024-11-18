@@ -3,7 +3,7 @@ package org.example.mqtt.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import java.util.HashMap;
 import java.util.Map;
@@ -25,6 +25,8 @@ public class Publish extends ControlPacket {
     private short packetIdentifier;
     private final ByteBuf payload;
 
+    private int variableHeaderLength = 0;
+
     /**
      * <pre>
      *      inbound packet convert to model
@@ -35,9 +37,12 @@ public class Publish extends ControlPacket {
      */
     Publish(ByteBuf incoming) {
         super(incoming);
-        this.topicName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        short topicNameLng = incoming.readShort();
+        this.topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
+        variableHeaderLength += 2 + topicNameLng;
         if (needAck()) {
             this.packetIdentifier = incoming.readShort();
+            variableHeaderLength += 2;
         }
         this.payload = incoming.readSlice(incoming.readableBytes());
         initMetricMetaData();
@@ -58,6 +63,10 @@ public class Publish extends ControlPacket {
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
         this.payload = payload;
+        this.variableHeaderLength = remainingLength - payload.readableBytes();
+        if (!packetValidate()) {
+            throw new IllegalArgumentException("Invalid packet");
+        }
     }
 
     /**
@@ -96,26 +105,29 @@ public class Publish extends ControlPacket {
     public static Publish outgoing(boolean retain, int qos, boolean dup,
         String topicName, short packetIdentifier, ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
-        int topicLength = topicName.length() + 2;
-        // remainingLength field
+        int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
+        // remainingLength field
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
         return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
     }
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf header = fixedHeaderByteBuf();
+        // fixed header
+        ByteBuf fixedHeader = fixedHeaderByteBuf();
+        // variable header
+        ByteBuf varHeader = PooledByteBufAllocator.DEFAULT.directBuffer(variableHeaderLength);
         byte[] topicNameBytes = topicName.getBytes(UTF_8);
-        header.writeShort(topicNameBytes.length);
-        header.writeBytes(topicNameBytes);
+        varHeader.writeShort(topicNameBytes.length);
+        varHeader.writeBytes(topicNameBytes);
         if (needAck()) {
-            header.writeShort(packetIdentifier);
+            varHeader.writeShort(packetIdentifier);
         }
+        // packet
+        // todo test
         return Unpooled.compositeBuffer()
-            .addComponent(true, header)
-            // todo test
-            .addComponent(true, this.payload);
+            .addComponents(true, fixedHeader, varHeader, payload);
     }
 
     /**

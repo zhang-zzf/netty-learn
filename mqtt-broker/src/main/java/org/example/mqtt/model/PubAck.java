@@ -22,7 +22,7 @@ public class PubAck extends ControlPacket {
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf buf = fixedHeaderByteBuf();
+        ByteBuf buf = super.toByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
     }

@@ -25,9 +25,7 @@ public class PubRel extends ControlPacket {
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf buf = Unpooled.buffer(4);
-        buf.writeByte(this.byte0);
-        buf.writeByte(this.remainingLength);
+        ByteBuf buf = super.toByteBuf();
         buf.writeShort(packetIdentifier);
         return buf;
     }

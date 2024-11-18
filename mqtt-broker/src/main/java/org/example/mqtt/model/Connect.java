@@ -1,10 +1,10 @@
 package org.example.mqtt.model;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -17,6 +17,7 @@ public class Connect extends ControlPacket {
      * version 3.1.1
      */
     public static final byte PROTOCOL_LEVEL_3_1_1 = (byte) 4;
+    public static final int VARIABLE_HEADER_LENGTH = 10;
     private String protocolName;
     private byte protocolLevel;
     private byte connectFlags;
@@ -27,62 +28,74 @@ public class Connect extends ControlPacket {
     private String username;
     private ByteBuf password;
 
+
+    private int payloadLength = 0;
+
     Connect(ByteBuf incoming) {
         super(incoming);
         protocolName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
         protocolLevel = incoming.readByte();
         connectFlags = incoming.readByte();
         keepAlive = incoming.readShort();
-        clientIdentifier = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+        short cIdLng = incoming.readShort();
+        clientIdentifier = incoming.readCharSequence(cIdLng, UTF_8).toString();
+        payloadLength += 2 + cIdLng;
         if (willFlag()) {
-            willTopic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+            short willFlagLng = incoming.readShort();
+            willTopic = incoming.readCharSequence(willFlagLng, UTF_8).toString();
+            payloadLength += 2 + willFlagLng;
             // heapBuffer no memory leak
             willMessage = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
             incoming.readBytes(willMessage);
+            payloadLength += willMessage.readableBytes();
         }
         if (usernameFlag()) {
-            username = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
+            short userNameLng = incoming.readShort();
+            username = incoming.readCharSequence(userNameLng, UTF_8).toString();
+            payloadLength += 2 + userNameLng;
         }
         if (passwordFlag()) {
             // heapBuffer no memory leak
             password = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
             incoming.readBytes(password);
+            payloadLength += password.readableBytes();
         }
     }
 
     public static Connect from(String clientIdentifier, short keepAlive) {
-        return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1, (byte) 0x02, keepAlive, clientIdentifier, null, null, null, null);
+        return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1, (byte) 0x02, keepAlive, clientIdentifier, null, null, null,
+            null);
     }
 
     public static Connect from(String clientIdentifier, boolean cleanSession, short keepAlive) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1,
-                cleanSession, false, 0, false,
-                false, false,
-                keepAlive,
-                clientIdentifier,
-                null, null,
-                null, null);
+            cleanSession, false, 0, false,
+            false, false,
+            keepAlive,
+            clientIdentifier,
+            null, null,
+            null, null);
     }
 
     public static Connect from(int willQos, boolean willRetain,
-                               short keepAlive,
-                               String clientIdentifier,
-                               String willTopic, ByteBuf willMessage) {
+        short keepAlive,
+        String clientIdentifier,
+        String willTopic, ByteBuf willMessage) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1,
-                true, true, willQos, willRetain, false, false,
-                keepAlive,
-                clientIdentifier,
-                willTopic, willMessage,
-                null, null);
+            true, true, willQos, willRetain, false, false,
+            keepAlive,
+            clientIdentifier,
+            willTopic, willMessage,
+            null, null);
     }
 
     public static Connect from(String protocolName, byte protocolLevel,
-                               boolean cleanSession, boolean willFlag, int willQos, boolean willRetain,
-                               boolean passwordFlag, boolean usernameFlag,
-                               short keepAlive,
-                               String clientIdentifier,
-                               String willTopic, ByteBuf willMessage,
-                               String username, ByteBuf password) {
+        boolean cleanSession, boolean willFlag, int willQos, boolean willRetain,
+        boolean passwordFlag, boolean usernameFlag,
+        short keepAlive,
+        String clientIdentifier,
+        String willTopic, ByteBuf willMessage,
+        String username, ByteBuf password) {
         if (willQos < 0 || willQos > 2) {
             throw new IllegalArgumentException("willQoS is illegal");
         }
@@ -104,29 +117,29 @@ public class Connect extends ControlPacket {
             connectFlags |= 0x80;
         }
         return from(protocolName, protocolLevel, connectFlags, keepAlive,
-                clientIdentifier, willTopic, willMessage, username, password);
+            clientIdentifier, willTopic, willMessage, username, password);
     }
 
     public static Connect from(String protocolName,
-                               byte protocolLevel, byte connectFlags, short keepAlive,
-                               String clientIdentifier, String willTopic, ByteBuf willMessage,
-                               String username, ByteBuf password) {
-        int remainingLength = protocolName.length() + 2 + 1 + 1 + 2
-                + (clientIdentifier == null ? 2 : clientIdentifier.length() + 2)
-                + (willTopic == null ? 0 : willTopic.length() + 2)
-                + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
-                + (username == null ? 0 : username.length() + 2)
-                + (password == null ? 0 : password.readableBytes() + 2);
+        byte protocolLevel, byte connectFlags, short keepAlive,
+        String clientIdentifier, String willTopic, ByteBuf willMessage,
+        String username, ByteBuf password) {
+        int remainingLength = VARIABLE_HEADER_LENGTH
+            + (clientIdentifier == null ? 2 : clientIdentifier.getBytes(UTF_8).length + 2)
+            + (willTopic == null ? 0 : willTopic.getBytes(UTF_8).length + 2)
+            + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
+            + (username == null ? 0 : username.getBytes(UTF_8).length + 2)
+            + (password == null ? 0 : password.readableBytes() + 2);
         return new Connect(CONNECT, remainingLength, protocolName,
-                protocolLevel, connectFlags, keepAlive, clientIdentifier,
-                willTopic, willMessage,
-                username, password);
+            protocolLevel, connectFlags, keepAlive, clientIdentifier,
+            willTopic, willMessage,
+            username, password);
     }
 
     private Connect(byte _0byte, int remainingLength, String protocolName,
-                    byte protocolLevel, byte connectFlags, short keepAlive,
-                    String clientIdentifier, String willTopic, ByteBuf willMessage,
-                    String username, ByteBuf password) {
+        byte protocolLevel, byte connectFlags, short keepAlive,
+        String clientIdentifier, String willTopic, ByteBuf willMessage,
+        String username, ByteBuf password) {
         super(_0byte, remainingLength);
         this.protocolName = protocolName;
         this.protocolLevel = protocolLevel;
@@ -137,21 +150,28 @@ public class Connect extends ControlPacket {
         this.willMessage = willMessage;
         this.username = username;
         this.password = password;
+        this.payloadLength = remainingLength - VARIABLE_HEADER_LENGTH;
+        if (!packetValidate()) {
+            throw new IllegalArgumentException("Invalid packet");
+        }
     }
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf header = fixedHeaderByteBuf();
-        header.writeShort(protocolName.length());
-        header.writeCharSequence(protocolName, UTF_8);
-        header.writeByte(protocolLevel);
-        header.writeByte(connectFlags);
-        header.writeShort(keepAlive);
+        ByteBuf fixedHeader = fixedHeaderByteBuf();
+        // variable header
+        ByteBuf varHeader = PooledByteBufAllocator.DEFAULT.directBuffer(VARIABLE_HEADER_LENGTH);
+        varHeader.writeShort(protocolName.length()); // MQTT
+        varHeader.writeCharSequence(protocolName, UTF_8);
+        varHeader.writeByte(protocolLevel);
+        varHeader.writeByte(connectFlags);
+        varHeader.writeShort(keepAlive);
         // Payload
+        ByteBuf payload = PooledByteBufAllocator.DEFAULT.directBuffer(payloadLength);
         // Client Identifier
-        ByteBuf payload = Unpooled.buffer();
-        payload.writeShort(clientIdentifier.length());
-        payload.writeCharSequence(clientIdentifier, UTF_8);
+        byte[] cIdBytes = clientIdentifier.getBytes(UTF_8); // 兼容中文
+        payload.writeShort(cIdBytes.length);
+        payload.writeBytes(cIdBytes);
         if (willFlag()) {
             byte[] bytes = willTopic.getBytes(UTF_8);
             payload.writeShort(bytes.length);
@@ -168,10 +188,9 @@ public class Connect extends ControlPacket {
             payload.writeShort(password.readableBytes());
             payload.writeBytes(password);
         }
+        // all direct ByteBuf
         return Unpooled.compositeBuffer()
-                .addComponent(true, header)
-                .addComponent(true, payload);
-
+            .addComponents(true, fixedHeader, varHeader, payload);
     }
 
     public int keepAlive() {
@@ -287,9 +306,11 @@ public class Connect extends ControlPacket {
             String objectStr = willMessage.toString().trim();
             if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
                 sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+            }
+            else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
                 sb.append(objectStr);
-            } else {
+            }
+            else {
                 sb.append("\"").append(objectStr).append("\"");
             }
             sb.append(',');
@@ -302,9 +323,11 @@ public class Connect extends ControlPacket {
             String objectStr = password.toString().trim();
             if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
                 sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+            }
+            else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
                 sb.append(objectStr);
-            } else {
+            }
+            else {
                 sb.append("\"").append(objectStr).append("\"");
             }
             sb.append(',');

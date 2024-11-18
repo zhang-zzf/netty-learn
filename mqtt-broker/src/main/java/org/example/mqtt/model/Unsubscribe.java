@@ -54,19 +54,21 @@ public class Unsubscribe extends ControlPacket {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;
+        if (!packetValidate()) {
+            throw new IllegalArgumentException("Invalid packet");
+        }
     }
 
     @Override
     public ByteBuf toByteBuf() {
-        ByteBuf header = fixedHeaderByteBuf();
-        header.writeShort(packetIdentifier);
-        ByteBuf payload = Unpooled.buffer(this.remainingLength);
+        ByteBuf buf = super.toByteBuf();
+        buf.writeShort(packetIdentifier);
         for (Subscribe.Subscription s : subscriptions) {
             byte[] bytes = s.topicFilter().getBytes(UTF_8);
-            payload.writeShort(bytes.length);
-            payload.writeBytes(bytes);
+            buf.writeShort(bytes.length);
+            buf.writeBytes(bytes);
         }
-        return Unpooled.compositeBuffer().addComponents(true, header, payload);
+        return buf;
     }
 
     public short packetIdentifier() {

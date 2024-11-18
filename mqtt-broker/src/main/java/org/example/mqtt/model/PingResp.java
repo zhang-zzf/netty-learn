@@ -18,9 +18,4 @@ public class PingResp extends ControlPacket {
         super(_0_BYTE, 0x00);
     }
 
-    @Override
-    public ByteBuf toByteBuf() {
-        return fixedHeaderByteBuf();
-    }
-
 }

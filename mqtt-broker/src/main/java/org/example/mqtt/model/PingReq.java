@@ -19,11 +19,6 @@ public class PingReq extends ControlPacket {
     }
 
     @Override
-    public ByteBuf toByteBuf() {
-        return fixedHeaderByteBuf();
-    }
-
-    @Override
     public boolean packetValidate() {
         return byte0 == _0_BYTE;
     }

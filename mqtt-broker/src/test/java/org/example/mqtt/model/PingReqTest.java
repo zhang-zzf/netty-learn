@@ -16,7 +16,7 @@ class PingReqTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PingReq out = PingReq.from();
+        PingReq out = new PingReq();
         then(out.remainingLength).isEqualTo(0);
         ByteBuf packet = out.toByteBuf();
         PingReq in = (PingReq) PingReq.from(packet);

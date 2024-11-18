@@ -45,7 +45,7 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubAck() {
-        return PubAck.from(packet().packetIdentifier());
+        return new PubAck(packet().packetIdentifier());
     }
 
     public ControlPacketContext markStatus(Status update) {
@@ -68,15 +68,15 @@ public class ControlPacketContext {
     }
 
     public ControlPacket pubRec() {
-        return PubRec.from(packet().packetIdentifier());
+        return new PubRec(packet().packetIdentifier());
     }
 
     public ControlPacket pubRel() {
-        return PubRel.from(packet().packetIdentifier());
+        return new PubRel(packet().packetIdentifier());
     }
 
     public ControlPacket pubComp() {
-        return PubComp.from(packet().packetIdentifier());
+        return new PubComp(packet().packetIdentifier());
     }
 
     @Override

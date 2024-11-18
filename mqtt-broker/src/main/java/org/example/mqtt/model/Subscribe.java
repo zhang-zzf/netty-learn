@@ -1,16 +1,15 @@
 package org.example.mqtt.model;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.experimental.Accessors;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static java.nio.charset.StandardCharsets.UTF_8;
+import lombok.AllArgsConstructor;
+import lombok.NoArgsConstructor;
+import lombok.experimental.Accessors;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
@@ -21,7 +20,7 @@ public class Subscribe extends ControlPacket {
     private short packetIdentifier;
     private List<Subscription> subscriptions;
 
-    public Subscribe(ByteBuf incoming) {
+    Subscribe(ByteBuf incoming) {
         super(incoming);
         this.packetIdentifier = incoming.readShort();
         this.subscriptions = new ArrayList<>();
@@ -101,7 +100,8 @@ public class Subscribe extends ControlPacket {
             }
             if (qos == 0 || qos == 1 || qos == 2) {
                 continue;
-            } else {
+            }
+            else {
                 return false;
             }
         }
@@ -164,16 +164,6 @@ public class Subscribe extends ControlPacket {
         }
 
         @Override
-        public String toString() {
-            final StringBuilder sb = new StringBuilder("{");
-            if (topicFilter != null) {
-                sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
-            }
-            sb.append("\"qos\":").append(qos).append(',');
-            return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-        }
-
-        @Override
         public boolean equals(Object o) {
             if (this == o) {
                 return true;
@@ -195,6 +185,15 @@ public class Subscribe extends ControlPacket {
             return this;
         }
 
+        @Override
+        public String toString() {
+            final StringBuilder sb = new StringBuilder("{");
+            if (topicFilter != null) {
+                sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
+            }
+            sb.append("\"qos\":").append(qos).append(',');
+            return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
     }
 
     @Override
@@ -210,16 +209,19 @@ public class Subscribe extends ControlPacket {
                     final Object listValue = (subscriptions).get(i);
                     if (listValue instanceof CharSequence) {
                         sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
-                    } else {
+                    }
+                    else {
                         sb.append(Objects.toString(listValue, ""));
                     }
                     if (i < listSize - 1) {
                         sb.append(",");
-                    } else {
+                    }
+                    else {
                         sb.append("]");
                     }
                 }
-            } else {
+            }
+            else {
                 sb.append("[]");
             }
             sb.append(',');

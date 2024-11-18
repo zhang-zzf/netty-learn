@@ -11,7 +11,6 @@ import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.concurrent.DefaultThreadFactory;
-import io.netty.util.concurrent.Future;
 import io.netty.util.concurrent.GenericFutureListener;
 import java.net.InetSocketAddress;
 import java.net.URI;
@@ -140,7 +139,7 @@ public abstract class AbstractClient implements Client {
     @Override
     public void disconnect() {
         // todo 状态清理
-        session.send(Disconnect.from());
+        session.send(new Disconnect());
         close();
     }
 

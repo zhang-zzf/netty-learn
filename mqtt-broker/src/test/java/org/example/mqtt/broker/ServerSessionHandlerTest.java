@@ -22,6 +22,7 @@ import org.example.mqtt.model.PubComp;
 import org.example.mqtt.model.PubRec;
 import org.example.mqtt.model.PubRel;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.PublishInbound;
 import org.example.mqtt.model.SubAck;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.UnsubAck;
@@ -50,7 +51,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         this.receiver1.writeInbound(Connect.from(strReceiver01, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(this.receiver1.readOutbound())).isNotNull();
+        then(((ConnAck) ControlPacket.from(receiver1.readOutbound()))).isNotNull();
         // get Session from Broker
         this.sReceiver1 = this.broker.session(strReceiver01);
         //
@@ -59,7 +60,7 @@ class ServerSessionHandlerTest {
         String strPublisher01 = "publish1";
         this.publish1.writeInbound(Connect.from(strPublisher01, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(this.publish1.readOutbound())).isNotNull();
+        then((ConnAck) ControlPacket.from(this.publish1.readOutbound())).isNotNull();
         // get Session from Broker
         this.sPublish1 = this.broker.session(strPublisher01);
     }
@@ -100,7 +101,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -119,7 +120,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
@@ -128,7 +129,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -147,7 +148,7 @@ class ServerSessionHandlerTest {
         // cleanSession=0
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
@@ -156,7 +157,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -175,18 +176,18 @@ class ServerSessionHandlerTest {
         // cleanSession=0
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // Disconnect
-        c1.writeInbound(Disconnect.from().toByteBuf());
+        c1.writeInbound(new Disconnect().toByteBuf());
         // cc1 same clientIdentifier with c1
         // that is the same client
         EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -204,7 +205,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         then(broker.session(clientIdentifier)).isNotNull()
@@ -228,9 +229,9 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        new ConnAck(c1.readOutbound());
+        ControlPacket.from(c1.readOutbound());
         // Disconnect
-        c1.writeInbound(Disconnect.from().toByteBuf());
+        c1.writeInbound(new Disconnect().toByteBuf());
         // Channel was closed
         then(c1.isActive()).isFalse();
         // 依旧可以从 Broker 中获取 Session 信息
@@ -243,7 +244,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns(true, ConnAck::sp);
         // 从 Broker 中获取 Session 信息
         then(broker.session(clientIdentifier)).isNotNull()
@@ -265,7 +266,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, true, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -275,7 +276,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -293,7 +294,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -303,7 +304,7 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(true, ConnAck::sp);
     }
@@ -320,7 +321,7 @@ class ServerSessionHandlerTest {
         Connect connect = Connect.from("strReceiver01", (short) 64);
         c1.writeInbound(connect.toByteBuf());
         // 读出 ConnAck 消息
-        new ConnAck(c1.readOutbound());
+        ControlPacket.from(c1.readOutbound());
         c1.writeInbound(connect.toByteBuf());
         // Channel was closed.
         then(c1.isActive()).isFalse();
@@ -339,18 +340,18 @@ class ServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // Disconnect
-        c1.writeInbound(Disconnect.from().toByteBuf());
+        c1.writeInbound(new Disconnect().toByteBuf());
         // cc1 same clientIdentifier with c1
         // that is the same client
         EmbeddedChannel cc1 = createChannel(broker);
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, false, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(true, ConnAck::sp);
     }
@@ -367,7 +368,7 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        new SubAck(receiver1.readOutbound());
+        ControlPacket.from(receiver1.readOutbound());
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
@@ -375,7 +376,7 @@ class ServerSessionHandlerTest {
             sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -393,7 +394,7 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        new SubAck(receiver1.readOutbound());
+        ControlPacket.from(receiver1.readOutbound());
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 1;
@@ -401,17 +402,17 @@ class ServerSessionHandlerTest {
             sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
-        receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier).toByteBuf());
     }
 
 
     /**
-     * // given receiver1 subscribe t/0 (QoS 0) // when publish1 publish QoS0 Message to t/0 // then receiver1 receive a
-     * QoS0 Message from t/0
+     * // given receiver1 subscribe t/0 (QoS 0) // when publish1 publish QoS0 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
@@ -419,7 +420,7 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -428,15 +429,14 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given receiver1 subscribe t/0(QoS 0) // when publish1 publish QoS1 Message to t/0 // then receiver1 receive a
-     * QoS0 Message from t/0
+     * // given receiver1 subscribe t/0(QoS 0) // when publish1 publish QoS1 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS1_thenReceiver1ReceiveQoS0() {
@@ -444,7 +444,7 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -452,15 +452,14 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given receiver1 subscribe t/0 QoS 0 // when publish1 publish QoS2 Message to t/0 // then receiver1 receive a
-     * QoS0 Message from t/0
+     * // given receiver1 subscribe t/0 QoS 0 // when publish1 publish QoS2 Message to t/0 // then receiver1 receive a QoS0 Message from t/0
      */
     @Test
     void givenSubscribeQoS0_whenPublishQoS2_thenReceiver1ReceiveQoS0() {
@@ -468,7 +467,7 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -476,22 +475,21 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given receiver1 subscribe t/1 (QoS 1) // when publish1 publish QoS1 Message to t/1 // then receiver1 receive a
-     * QoS1 Message from t/1
+     * // given receiver1 subscribe t/1 (QoS 1) // when publish1 publish QoS1 Message to t/1 // then receiver1 receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -500,27 +498,27 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
-        receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier).toByteBuf());
         // publish1 收到 PubAck 消息
-        PubAck pubAck = new PubAck(publish1.readOutbound());
+        PubAck pubAck = ((PubAck) ControlPacket.from(publish1.readOutbound()));
         then(pubAck.packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     /**
-     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS0 Message to t/1 // then receiver1 receive a
-     * QoS0 Message from t/1
+     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS0 Message to t/1 // then receiver1 receive a QoS0 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -529,22 +527,21 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS2 Message to t/1 // then receiver1 receive a
-     * QoS1 Message from t/1
+     * // given receiver1 subscribe t/1 QoS 1 // when publish1 publish QoS2 Message to t/1 // then receiver1 receive a QoS1 Message from t/1
      */
     @Test
     void givenSubscribeQoS1_whenPublishQoS2_thenReceiver1ReceiveQoS1() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -553,29 +550,29 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receiver1 receive QoS1 Message, should send a PubAck
-        receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier).toByteBuf());
         // publish1 receive PubRec, should send a PubRel
-        then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
-        publish1.writeInbound(PubRel.from(publish1PacketId).toByteBuf());
+        then(((PubRec) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
+        publish1.writeInbound(new PubRel(publish1PacketId).toByteBuf());
         // publish1 receive PubComp
-        then(new PubComp(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubComp) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     /**
-     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS2 Message to t/2 // then receiver1 receive a
-     * QoS2 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS2 Message to t/2 // then receiver1 receive a QoS2 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS2_thenReceiver1ReceiveQoS2() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -584,33 +581,34 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(2, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubRec 消息
-        receiver1.writeInbound(PubRec.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier1 = packet.packetIdentifier();
+        receiver1.writeInbound(new PubRec(packetIdentifier1).toByteBuf());
         // receiver1 收到 PubRel
-        then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(packet.packetIdentifier());
+        then(((PubRel) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(packet.packetIdentifier());
         // Receiver1 回复 PubComp
-        receiver1.writeInbound(PubComp.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        receiver1.writeInbound(new PubComp(packetIdentifier).toByteBuf());
         //
         // publish1 收到 PubRec 消息
-        then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
-        publish1.writeInbound(PubRel.from(publish1PacketId).toByteBuf());
-        then(new PubComp(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubRec) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
+        publish1.writeInbound(new PubRel(publish1PacketId).toByteBuf());
+        then(((PubComp) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     /**
-     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS0 Message to t/2 // then receiver1 receive a
-     * QoS0 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS0 Message to t/2 // then receiver1 receive a QoS0 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS0_thenReceiver1ReceiveQoS0() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -619,22 +617,21 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
 
     /**
-     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS1 Message to t/2 // then receiver1 receive a
-     * QoS1 Message from t/2
+     * // given receiver1 subscribe t/2 QoS 2 // when publish1 publish QoS1 Message to t/2 // then receiver1 receive a QoS1 Message from t/2
      */
     @Test
     void givenSubscribeQoS2_whenPublishQoS1_thenReceiver1ReceiveQoS1() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(receiver1.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(receiver1.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -643,15 +640,16 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish packet = new Publish(receiver1.readOutbound());
+        Publish packet = new PublishInbound(receiver1.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
-        receiver1.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier).toByteBuf());
         //
         // publish1 收到 PubAck
-        then(new PubAck(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubAck) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     /**
@@ -666,7 +664,7 @@ class ServerSessionHandlerTest {
         List<Subscribe.Subscription> subscriptions = singletonList(new Subscribe.Subscription("t/0", 0));
         receiver1.writeInbound(Subscribe.from(pId, subscriptions).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId);
         // when
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -676,14 +674,14 @@ class ServerSessionHandlerTest {
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
-        Publish m = new Publish(receiver1.readOutbound());
+        Publish m = new PublishInbound(receiver1.readOutbound());
         then(m).isNotNull()
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // 取消订阅
         // given
         receiver1.writeInbound(Unsubscribe.from(sReceiver1.nextPacketIdentifier(), subscriptions).toByteBuf());
-        then(new UnsubAck(receiver1.readOutbound())).isNotNull();
+        then((UnsubAck) ControlPacket.from(receiver1.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
             sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
@@ -712,8 +710,7 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given receiver1 subscribe t/0 QoS 0 receiver1 subscribe t/0/# QoS 0 // when publish1 publish QoS0 Message to
-     * t/0 // then receiver1 receive a QoS0 message from t/0 receiver1 receive a QoS0 message from t/0/#
+     * // given receiver1 subscribe t/0 QoS 0 receiver1 subscribe t/0/# QoS 0 // when publish1 publish QoS0 Message to t/0 // then receiver1 receive a QoS0 message from t/0 receiver1 receive a QoS0 message from t/0/#
      */
     @Test
     void givenSubscribe2TopicQoS0_whenPublish_thenReceive2Message() {
@@ -721,12 +718,12 @@ class ServerSessionHandlerTest {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId);
         // receiver1 subscribe t/0/# QoS0
         short pId2 = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId2, singletonList(new Subscribe.Subscription("t/0/#", 0))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId2);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId2);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
@@ -734,12 +731,12 @@ class ServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish publishMessage1 = new Publish(receiver1.readOutbound());
+        Publish publishMessage1 = new PublishInbound(receiver1.readOutbound());
         then(publishMessage1)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish publishMessage2 = new Publish(receiver1.readOutbound());
+        Publish publishMessage2 = new PublishInbound(receiver1.readOutbound());
         then(publishMessage2)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -748,19 +745,18 @@ class ServerSessionHandlerTest {
     }
 
     /**
-     * // given receiver1 subscribe t/1 QoS 1 receiver1 subscribe t/1/# QoS 1 // when publish1 publish QoS1 Message to
-     * t/1 // then receiver1 receive a QoS1 message from t/1 receiver1 receive a QoS1 message from t/1/#
+     * // given receiver1 subscribe t/1 QoS 1 receiver1 subscribe t/1/# QoS 1 // when publish1 publish QoS1 Message to t/1 // then receiver1 receive a QoS1 message from t/1 receiver1 receive a QoS1 message from t/1/#
      */
     @Test
     void givenSubscribe2TopicQoS1_whenPublish_thenReceive2Message() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId);
         short pId2 = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId2, singletonList(new Subscribe.Subscription("t/1/#", 1))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId2);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId2);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", sPublish1.nextPacketIdentifier(),
@@ -771,60 +767,66 @@ class ServerSessionHandlerTest {
         then(publishMessage1)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
-        receiver1.writeInbound(PubAck.from(publishMessage1.packetIdentifier()).toByteBuf());
+        short packetIdentifier1 = publishMessage1.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier1).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish publishMessage2 = new Publish(receiver1.readOutbound());
+        Publish publishMessage2 = new PublishInbound(receiver1.readOutbound());
         then(publishMessage2)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
         //
-        receiver1.writeInbound(PubAck.from(publishMessage2.packetIdentifier()).toByteBuf());
-        then(new PubAck(publish1.readOutbound())).isNotNull();
+        short packetIdentifier = publishMessage2.packetIdentifier();
+        receiver1.writeInbound(new PubAck(packetIdentifier).toByteBuf());
+        then(((PubAck) ControlPacket.from(publish1.readOutbound()))).isNotNull();
     }
 
     /**
-     * // given receiver1 subscribe t/2 QoS 2 receiver1 subscribe t/2/# QoS 2 // when publish1 publish QoS2 Message to
-     * t/2 // then receiver1 receive a QoS2 message from t/2 receiver1 receive a QoS2 message from t/2/#
+     * // given receiver1 subscribe t/2 QoS 2 receiver1 subscribe t/2/# QoS 2 // when publish1 publish QoS2 Message to t/2 // then receiver1 receive a QoS2 message from t/2 receiver1 receive a QoS2 message from t/2/#
      */
     @Test
     void givenSubscribe2TopicQoS2_whenPublish_thenReceive2Message() {
         short pId = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId);
         short pId2 = sReceiver1.nextPacketIdentifier();
         receiver1.writeInbound(Subscribe.from(pId2, singletonList(new Subscribe.Subscription("t/2/#", 2))).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId2);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId2);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", sPublish1.nextPacketIdentifier(),
             Unpooled.copiedBuffer(strPayload, UTF_8));
         publish1.writeInbound(publish.toByteBuf());
         // publish1 收到 PubRec 消息
-        then(new PubRec(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
-        publish1.writeInbound(PubRel.from(publish.packetIdentifier()).toByteBuf());
-        then(new PubComp(publish1.readOutbound()).packetIdentifier()).isEqualTo(publish.packetIdentifier());
+        then(((PubRec) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish.packetIdentifier());
+        short packetIdentifier4 = publish.packetIdentifier();
+        publish1.writeInbound(new PubRel(packetIdentifier4).toByteBuf());
+        then(((PubComp) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish.packetIdentifier());
         //
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish publishMessage1 = new Publish(receiver1.readOutbound());
+        Publish publishMessage1 = new PublishInbound(receiver1.readOutbound());
         then(publishMessage1)
             .returns(2, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
-        receiver1.writeInbound(PubRec.from(publishMessage1.packetIdentifier()).toByteBuf());
-        then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage1.packetIdentifier());
-        receiver1.writeInbound(PubComp.from(publishMessage1.packetIdentifier()).toByteBuf());
+        short packetIdentifier3 = publishMessage1.packetIdentifier();
+        receiver1.writeInbound(new PubRec(packetIdentifier3).toByteBuf());
+        then(((PubRel) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(publishMessage1.packetIdentifier());
+        short packetIdentifier1 = publishMessage1.packetIdentifier();
+        receiver1.writeInbound(new PubComp(packetIdentifier1).toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
-        Publish publishMessage2 = new Publish(receiver1.readOutbound());
+        Publish publishMessage2 = new PublishInbound(receiver1.readOutbound());
         then(publishMessage2)
             .returns(2, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         then(publishMessage1.packetIdentifier()).isNotEqualTo(publishMessage2.packetIdentifier());
         // receiver1
-        receiver1.writeInbound(PubRec.from(publishMessage2.packetIdentifier()).toByteBuf());
-        then(new PubRel(receiver1.readOutbound()).packetIdentifier()).isEqualTo(publishMessage2.packetIdentifier());
-        receiver1.writeInbound(PubComp.from(publishMessage2.packetIdentifier()).toByteBuf());
+        short packetIdentifier2 = publishMessage2.packetIdentifier();
+        receiver1.writeInbound(new PubRec(packetIdentifier2).toByteBuf());
+        then(((PubRel) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(publishMessage2.packetIdentifier());
+        short packetIdentifier = publishMessage2.packetIdentifier();
+        receiver1.writeInbound(new PubComp(packetIdentifier).toByteBuf());
     }
 
     /**
@@ -838,7 +840,7 @@ class ServerSessionHandlerTest {
         Subscribe sub1 = Subscribe.from(pId, singletonList(new Subscribe.Subscription("retain/#", 0)));
         receiver1.writeInbound(sub1.toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(receiver1.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound())).packetIdentifier()).isEqualTo(pId);
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
@@ -846,15 +848,15 @@ class ServerSessionHandlerTest {
         publish1.writeInbound(retain.toByteBuf());
         // receiver1 接受 Publish
         // 正常 forward 路由的 Publish
-        then(new Publish(receiver1.readOutbound()).retainFlag()).isFalse();
+        then(new PublishInbound(receiver1.readOutbound()).retainFlag()).isFalse();
         //
         // 后续订阅
         Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(),
             singletonList(new Subscribe.Subscription("retain/1", 0)));
         receiver1.writeInbound(sub2.toByteBuf());
-        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound()))).isNotNull();
         // 收到 retain 消息
-        then(new Publish(receiver1.readOutbound()).retainFlag()).isTrue();
+        then(new PublishInbound(receiver1.readOutbound()).retainFlag()).isTrue();
     }
 
     /**
@@ -879,9 +881,9 @@ class ServerSessionHandlerTest {
         Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(),
             singletonList(new Subscribe.Subscription("retain/1", 0)));
         receiver1.writeInbound(sub2.toByteBuf());
-        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound()))).isNotNull();
         // 收到 retain 消息
-        then(new Publish(receiver1.readOutbound()))
+        then(new PublishInbound(receiver1.readOutbound()))
             .returns(true, Publish::retainFlag)
             .returns(retain2Payload, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }
@@ -907,7 +909,7 @@ class ServerSessionHandlerTest {
         Subscribe sub2 = Subscribe.from(sReceiver1.nextPacketIdentifier(),
             singletonList(new Subscribe.Subscription("retain/1", 0)));
         receiver1.writeInbound(sub2.toByteBuf());
-        then(new SubAck(receiver1.readOutbound())).isNotNull();
+        then(((SubAck) ControlPacket.from(receiver1.readOutbound()))).isNotNull();
         // 不会收到 retain 消息
         ByteBuf buf = receiver1.readOutbound();
         then(buf).isNull();
@@ -924,7 +926,7 @@ class ServerSessionHandlerTest {
         receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
             singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
         // 读出 SubAck 消息
-        new SubAck(receiver1.readOutbound());
+        ControlPacket.from(receiver1.readOutbound());
         //
         publish1 = createChannel(broker);
         String willContent = "I'm a Will Message.";
@@ -935,10 +937,10 @@ class ServerSessionHandlerTest {
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(willConnect.toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(publish1.readOutbound())).isNotNull();
+        then(((ConnAck) ControlPacket.from(publish1.readOutbound()))).isNotNull();
         // when
         // Disconnect from Peer
-        publish1.writeInbound(Disconnect.from().toByteBuf());
+        publish1.writeInbound(new Disconnect().toByteBuf());
         // then
         then(receiver1.<ByteBuf>readOutbound()).isNull();
     }
@@ -954,7 +956,7 @@ class ServerSessionHandlerTest {
         receiver1.writeInbound(Subscribe.from(sReceiver1.nextPacketIdentifier(),
             singletonList(new Subscribe.Subscription("will/1", 2))).toByteBuf());
         // 读出 SubAck 消息
-        new SubAck(receiver1.readOutbound());
+        ControlPacket.from(receiver1.readOutbound());
         //
         publish1 = createChannel(broker);
         String willContent = "I'm a Will Message.";
@@ -965,13 +967,13 @@ class ServerSessionHandlerTest {
         // publish1 模拟接受 Connect 消息
         publish1.writeInbound(willConnect.toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(publish1.readOutbound())).isNotNull();
+        then(((ConnAck) ControlPacket.from(publish1.readOutbound()))).isNotNull();
         //
         // when
         // close the Channel before receive Disconnect from Peer
         publish1.close();
         // then
-        Publish willMessage = new Publish(receiver1.readOutbound());
+        Publish willMessage = new PublishInbound(receiver1.readOutbound());
         then(willMessage).returns(2, Publish::qos)
             .returns(willContent, p -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
     }

@@ -23,7 +23,7 @@ public class Unsubscribe extends ControlPacket {
         return this.subscriptions;
     }
 
-    public Unsubscribe(ByteBuf incoming) {
+    Unsubscribe(ByteBuf incoming) {
         super(incoming);
         this.packetIdentifier = incoming.readShort();
         this.subscriptions = new ArrayList<>();

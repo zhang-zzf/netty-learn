@@ -1,6 +1,7 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -26,7 +27,7 @@ public class Connect extends ControlPacket {
     private String username;
     private ByteBuf password;
 
-    public Connect(ByteBuf incoming) {
+    Connect(ByteBuf incoming) {
         super(incoming);
         protocolName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
         protocolLevel = incoming.readByte();
@@ -36,7 +37,7 @@ public class Connect extends ControlPacket {
         if (willFlag()) {
             willTopic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
             // heapBuffer no memory leak
-            willMessage = Unpooled.buffer(incoming.readShort()); // heapBuffer
+            willMessage = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
             incoming.readBytes(willMessage);
         }
         if (usernameFlag()) {
@@ -44,7 +45,7 @@ public class Connect extends ControlPacket {
         }
         if (passwordFlag()) {
             // heapBuffer no memory leak
-            password = Unpooled.buffer(incoming.readShort());
+            password = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
             incoming.readBytes(password);
         }
     }

@@ -16,7 +16,7 @@ class PubRelTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PubRel out = PubRel.from(Short.MAX_VALUE);
+        PubRel out = new PubRel(Short.MAX_VALUE);
         then(out.remainingLength).isEqualTo(2);
         ByteBuf packet = out.toByteBuf();
         PubRel in = (PubRel) PubRel.from(packet);

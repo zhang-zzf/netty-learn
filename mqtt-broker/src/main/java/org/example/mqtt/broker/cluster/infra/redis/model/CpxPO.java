@@ -8,6 +8,7 @@ import lombok.experimental.Accessors;
 import org.example.mqtt.broker.cluster.ClusterControlPacketContext;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.PublishInbound;
 import org.example.mqtt.session.ControlPacketContext;
 
 import javax.annotation.Nullable;
@@ -73,7 +74,7 @@ public class CpxPO {
     }
 
     public static Publish decodePublish(CpxPO po) {
-        return new Publish(Base64.decode(Unpooled.copiedBuffer(po.getPublish(), UTF_8)));
+        return new PublishInbound(Base64.decode(Unpooled.copiedBuffer(po.getPublish(), UTF_8)));
     }
 
     public static String encodePublish(ClusterControlPacketContext cpx) {

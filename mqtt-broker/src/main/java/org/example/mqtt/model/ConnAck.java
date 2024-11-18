@@ -20,15 +20,15 @@ public class ConnAck extends ControlPacket {
     private boolean sp;
     private int returnCode;
 
-    private ConnAck() {
+    public ConnAck() {
         this(false, 0x00);
     }
 
-    private ConnAck(int returnCode) {
+    public ConnAck(int returnCode) {
         this(false, returnCode);
     }
 
-    private ConnAck(boolean sp, int returnCode) {
+    public ConnAck(boolean sp, int returnCode) {
         super((byte) 0x20, 0x02);
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0
@@ -39,11 +39,7 @@ public class ConnAck extends ControlPacket {
         this.returnCode = returnCode;
     }
 
-    public static ConnAck from(int returnCode) {
-        return new ConnAck(returnCode);
-    }
-
-    public ConnAck(ByteBuf incoming) {
+    ConnAck(ByteBuf incoming) {
         super(incoming);
         this.sp = incoming.readByte() != 0x00;
         this.returnCode = incoming.readByte();

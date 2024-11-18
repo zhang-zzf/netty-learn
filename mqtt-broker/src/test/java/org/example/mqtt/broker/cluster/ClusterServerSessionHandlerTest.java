@@ -26,12 +26,14 @@ import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.broker.node.DefaultBroker;
 import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.Connect;
+import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.Disconnect;
 import org.example.mqtt.model.PubAck;
 import org.example.mqtt.model.PubComp;
 import org.example.mqtt.model.PubRec;
 import org.example.mqtt.model.PubRel;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.PublishInbound;
 import org.example.mqtt.model.SubAck;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.UnsubAck;
@@ -67,12 +69,12 @@ class ClusterServerSessionHandlerTest {
         // clientA 模拟接受 Connect 消息
         clientA.writeInbound(Connect.from(MQTT_CLIENT_A, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(clientA.readOutbound())).isNotNull();
+        then(((ConnAck) ControlPacket.from(clientA.readOutbound()))).isNotNull();
         clientB = createChannel(cluster);
         mqttClientB = new Session0(MQTT_CLIENT_B, clientB);
         clientB.writeInbound(Connect.from(MQTT_CLIENT_B, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(clientB.readOutbound())).isNotNull();
+        then(((ConnAck) ControlPacket.from(clientB.readOutbound()))).isNotNull();
         // topicFilter 匹配自己
         ClusterTopic any = new ClusterTopic("any")
             .setNodes(new HashSet<>() {{
@@ -98,11 +100,11 @@ class ClusterServerSessionHandlerTest {
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // Disconnect
-        c1.writeInbound(Disconnect.from().toByteBuf());
+        c1.writeInbound(new Disconnect().toByteBuf());
         then(c1.isActive()).isFalse();
     }
 
@@ -120,7 +122,7 @@ class ClusterServerSessionHandlerTest {
         //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -142,7 +144,7 @@ class ClusterServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         c1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // cc1 same clientIdentifier with c1
@@ -151,7 +153,7 @@ class ClusterServerSessionHandlerTest {
         // receiver 模拟接受 Connect 消息
         cc1.writeInbound(Connect.from(clientIdentifier, (short) 64).toByteBuf());
         // 读出 ConnAck 消息
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -169,13 +171,13 @@ class ClusterServerSessionHandlerTest {
         //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         cc1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // 删除 ClusterServerSession
@@ -200,7 +202,7 @@ class ClusterServerSessionHandlerTest {
             new ClusterServerSessionImpl(Connect.from(strReceiver01, false, (short) 64), cc1, clusterBroker);
         given(dbRepo.getSession(any())).willReturn(offlineSession);
         cc1.writeInbound(Connect.from(strReceiver01, true, (short) 64).toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         BDDMockito.then(dbRepo).should().deleteSession(offlineSession);
@@ -219,7 +221,7 @@ class ClusterServerSessionHandlerTest {
         //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -241,11 +243,11 @@ class ClusterServerSessionHandlerTest {
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
         c1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
         // Disconnect
-        c1.writeInbound(Disconnect.from().toByteBuf());
+        c1.writeInbound(new Disconnect().toByteBuf());
         then(c1.isActive()).isFalse();
     }
 
@@ -262,13 +264,13 @@ class ClusterServerSessionHandlerTest {
         //
         EmbeddedChannel c1 = createChannel(cluster);
         c1.writeInbound(Connect.from("strReceiver01", true, (short) 64).toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
         EmbeddedChannel cc1 = createChannel(cluster);
         cc1.writeInbound(Connect.from("strReceiver01", false, (short) 64).toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp);
     }
@@ -287,7 +289,7 @@ class ClusterServerSessionHandlerTest {
         EmbeddedChannel c1 = createChannel(cluster);
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
         c1.writeInbound(connect.toByteBuf());
-        then(new ConnAck(c1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(c1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(false, ConnAck::sp)
         ;
@@ -296,7 +298,7 @@ class ClusterServerSessionHandlerTest {
         // todo
         // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(true, ConnAck::sp)
         ;
@@ -318,7 +320,7 @@ class ClusterServerSessionHandlerTest {
         // todo
         // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(true, ConnAck::sp);
         cc1.writeInbound(connect.toByteBuf());
@@ -342,7 +344,7 @@ class ClusterServerSessionHandlerTest {
         // todo
         // given(dbRepo.getSession(any())).willReturn(ClusterServerSession.from(connect));
         cc1.writeInbound(connect.toByteBuf());
-        then(new ConnAck(cc1.readOutbound())).isNotNull()
+        then(((ConnAck) ControlPacket.from(cc1.readOutbound()))).isNotNull()
             .returns((int) ACCEPTED, ConnAck::returnCode)
             .returns(true, ConnAck::sp);
     }
@@ -359,7 +361,7 @@ class ClusterServerSessionHandlerTest {
         List<Subscribe.Subscription> subscriptions = singletonList(new Subscribe.Subscription("t/0", 0));
         clientB.writeInbound(Subscribe.from(pId, subscriptions).toByteBuf());
         // 读出 SubAck 消息
-        then(new SubAck(clientB.readOutbound()).packetIdentifier()).isEqualTo(pId);
+        then(((SubAck) ControlPacket.from(clientB.readOutbound())).packetIdentifier()).isEqualTo(pId);
         // when
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -369,14 +371,14 @@ class ClusterServerSessionHandlerTest {
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
-        Publish m = new Publish(clientB.readOutbound());
+        Publish m = new PublishInbound(clientB.readOutbound());
         then(m).isNotNull()
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // 取消订阅
         // given
         clientB.writeInbound(Unsubscribe.from(mqttClientB.nextPacketIdentifier(), subscriptions).toByteBuf());
-        then(new UnsubAck(clientB.readOutbound())).isNotNull();
+        then((UnsubAck) ControlPacket.from(clientB.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
             mqttClientA.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
@@ -394,7 +396,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -403,7 +405,7 @@ class ClusterServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns((int) qos, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -418,7 +420,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -426,9 +428,9 @@ class ClusterServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/0", sendPacketIdentifier,
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
-        then(new PubAck(clientA.readOutbound())).returns(sendPacketIdentifier, PubAck::packetIdentifier);
+        then((PubAck) ControlPacket.from(clientA.readOutbound())).returns(sendPacketIdentifier, PubAck::packetIdentifier);
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -443,7 +445,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/0", 0))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -451,11 +453,11 @@ class ClusterServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/0", sendPacketIdentifier,
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
-        then(new PubRec(clientA.readOutbound())).returns(sendPacketIdentifier, PubRec::packetIdentifier);
-        clientA.writeInbound(PubRel.from(sendPacketIdentifier).toByteBuf());
-        then(new PubComp(clientA.readOutbound())).returns(sendPacketIdentifier, PubComp::packetIdentifier);
+        then(((PubRec) ControlPacket.from(clientA.readOutbound()))).returns(sendPacketIdentifier, PubRec::packetIdentifier);
+        clientA.writeInbound(new PubRel(sendPacketIdentifier).toByteBuf());
+        then(((PubComp) ControlPacket.from(clientA.readOutbound()))).returns(sendPacketIdentifier, PubComp::packetIdentifier);
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -469,7 +471,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -477,14 +479,15 @@ class ClusterServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // clientA 收到 PubAck 消息
-        then(new PubAck(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubAck) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
-        clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        clientB.writeInbound(new PubAck(packetIdentifier).toByteBuf());
     }
 
     /**
@@ -495,7 +498,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -503,7 +506,7 @@ class ClusterServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -517,7 +520,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/1", 1))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -525,17 +528,18 @@ class ClusterServerSessionHandlerTest {
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // clientA receive PubRec, should send a PubRel
-        then(new PubRec(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
-        clientA.writeInbound(PubRel.from(publish1PacketId).toByteBuf());
+        then(((PubRec) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
+        clientA.writeInbound(new PubRel(publish1PacketId).toByteBuf());
         // clientA receive PubComp
-        then(new PubComp(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubComp) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // clientB receive QoS1 Message, should send a PubAck
-        clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        clientB.writeInbound(new PubAck(packetIdentifier).toByteBuf());
     }
 
     /**
@@ -546,7 +550,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -555,21 +559,23 @@ class ClusterServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(2, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubRec 消息
-        clientB.writeInbound(PubRec.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier1 = packet.packetIdentifier();
+        clientB.writeInbound(new PubRec(packetIdentifier1).toByteBuf());
         // clientB 收到 PubRel
-        then(new PubRel(clientB.readOutbound()).packetIdentifier()).isEqualTo(packet.packetIdentifier());
+        then(((PubRel) ControlPacket.from(clientB.readOutbound())).packetIdentifier()).isEqualTo(packet.packetIdentifier());
         // clientB 回复 PubComp
-        clientB.writeInbound(PubComp.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        clientB.writeInbound(new PubComp(packetIdentifier).toByteBuf());
         //
         // clientA 收到 PubRec 消息
-        then(new PubRec(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
-        clientA.writeInbound(PubRel.from(publish1PacketId).toByteBuf());
-        then(new PubComp(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubRec) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
+        clientA.writeInbound(new PubRel(publish1PacketId).toByteBuf());
+        then(((PubComp) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     /**
@@ -580,7 +586,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -589,7 +595,7 @@ class ClusterServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(0, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
@@ -603,7 +609,7 @@ class ClusterServerSessionHandlerTest {
         short pId = mqttClientB.nextPacketIdentifier();
         clientB.writeInbound(Subscribe.from(pId, singletonList(new Subscribe.Subscription("t/2", 2))).toByteBuf());
         // 读出 SubAck 消息
-        SubAck subAck = new SubAck(clientB.readOutbound());
+        SubAck subAck = ((SubAck) ControlPacket.from(clientB.readOutbound()));
         then(subAck.packetIdentifier()).isEqualTo(pId);
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
@@ -612,15 +618,16 @@ class ClusterServerSessionHandlerTest {
             Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
-        Publish packet = new Publish(clientB.readOutbound());
+        Publish packet = new PublishInbound(clientB.readOutbound());
         then(packet)
             .returns(1, Publish::qos)
             .returns(strPayload, (p) -> p.payload().readCharSequence(p.payload().readableBytes(), UTF_8));
         // receive1 收到 Publish 消息后回复 PubAck 消息
-        clientB.writeInbound(PubAck.from(packet.packetIdentifier()).toByteBuf());
+        short packetIdentifier = packet.packetIdentifier();
+        clientB.writeInbound(new PubAck(packetIdentifier).toByteBuf());
         //
         // clientA 收到 PubAck
-        then(new PubAck(clientA.readOutbound()).packetIdentifier()).isEqualTo(publish1PacketId);
+        then(((PubAck) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
     }
 
     private EmbeddedChannel createChannel(Cluster cluster) {

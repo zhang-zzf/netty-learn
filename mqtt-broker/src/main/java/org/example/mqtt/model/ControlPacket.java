@@ -1,7 +1,8 @@
 package org.example.mqtt.model;
 
-import io.netty.buffer.*;
-import io.netty.util.AbstractReferenceCounted;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -31,10 +32,6 @@ public abstract class ControlPacket {
 
     protected byte byte0;
     protected int remainingLength;
-    /**
-     * build packet from incoming ByteBuf
-     */
-    private ByteBuf incoming;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -47,7 +44,6 @@ public abstract class ControlPacket {
      * @param incoming packet
      */
     protected ControlPacket(ByteBuf incoming) {
-        this.incoming = incoming;
         this.byte0 = incoming.readByte();
         this.remainingLength = readRemainingLength(incoming);
     }
@@ -93,6 +89,7 @@ public abstract class ControlPacket {
             case CONNACK:
                 return new ConnAck(incoming);
             case PUBLISH:
+                // core
                 return new PublishInbound(incoming);
             case PUBACK:
                 return new PubAck(incoming);
@@ -222,5 +219,12 @@ public abstract class ControlPacket {
         return Integer.valueOf(hexPId.substring(2), 16).shortValue();
     }
 
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"byte0\":").append(byte0).append(',');
+        sb.append("\"remainingLength\":").append(remainingLength).append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
 }
 

@@ -16,7 +16,7 @@ class PubRecTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PubRec out = PubRec.from(Short.MAX_VALUE);
+        PubRec out = new PubRec(Short.MAX_VALUE);
         then(out.remainingLength).isEqualTo(2);
         ByteBuf packet = out.toByteBuf();
         PubRec in = (PubRec) PubRec.from(packet);

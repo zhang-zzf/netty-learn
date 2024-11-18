@@ -229,7 +229,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
         broker.unsubscribe(this, packet);
         packet.subscriptions().forEach(this.subscriptions::remove);
-        UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
+        UnsubAck unsubAck = new UnsubAck(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
         doSendPacket(unsubAck);
     }

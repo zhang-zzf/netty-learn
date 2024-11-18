@@ -10,16 +10,12 @@ public class PingResp extends ControlPacket {
 
     public static final byte _0_BYTE = (byte) 0xD0;
 
-    public PingResp(ByteBuf packet) {
+    PingResp(ByteBuf packet) {
         super(packet);
     }
 
-    private PingResp() {
+    public PingResp() {
         super(_0_BYTE, 0x00);
-    }
-
-    public static PingResp from() {
-        return new PingResp();
     }
 
     @Override

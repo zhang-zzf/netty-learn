@@ -72,7 +72,7 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
             else if (e.state() == IdleState.WRITER_IDLE) {
                 // send ping
                 log.debug("Client({}) send PingReq", session.clientIdentifier());
-                ctx.writeAndFlush(PingReq.from());
+                ctx.writeAndFlush(new PingReq());
             }
         }
         super.userEventTriggered(ctx, evt);

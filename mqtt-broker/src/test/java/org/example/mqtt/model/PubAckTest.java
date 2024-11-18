@@ -16,7 +16,7 @@ class PubAckTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PubAck out = PubAck.from(Short.MAX_VALUE);
+        PubAck out = new PubAck(Short.MAX_VALUE);
         then(out.remainingLength).isEqualTo(2);
         ByteBuf packet = out.toByteBuf();
         PubAck in = (PubAck) PubAck.from(packet);

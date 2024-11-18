@@ -110,7 +110,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             int authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 log.error("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
-                ctx.writeAndFlush(ConnAck.from(authenticate));
+                ctx.writeAndFlush(new ConnAck(authenticate));
                 closeSession(ctx);
                 return;
             }
@@ -129,7 +129,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
         else if (cp instanceof PingReq) {
             // no need to pass the packet to the session
-            ctx.writeAndFlush(PingResp.from());
+            ctx.writeAndFlush(new PingResp());
         }
         else {
             // let the session handle the packet

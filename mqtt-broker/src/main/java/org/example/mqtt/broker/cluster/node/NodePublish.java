@@ -12,6 +12,7 @@ import io.netty.buffer.Unpooled;
 import lombok.Data;
 import lombok.experimental.Accessors;
 import org.example.mqtt.model.Publish;
+import org.example.mqtt.model.PublishInbound;
 
 /**
  * 性能考虑
@@ -47,7 +48,7 @@ public class NodePublish extends NodeMessage {
         this.metaNmWrap = buf.readLong();
         // just a view of the origin buf
         // NO COPY
-        this.publishPacket = new Publish(buf);
+        this.publishPacket = new PublishInbound(buf);
     }
 
     public final ByteBuf toByteBuf() {

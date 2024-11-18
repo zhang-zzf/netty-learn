@@ -16,7 +16,7 @@ class PubCompTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PubComp out = PubComp.from(Short.MAX_VALUE);
+        PubComp out = new PubComp(Short.MAX_VALUE);
         then(out.remainingLength).isEqualTo(2);
         ByteBuf packet = out.toByteBuf();
         PubComp in = (PubComp) PubComp.from(packet);

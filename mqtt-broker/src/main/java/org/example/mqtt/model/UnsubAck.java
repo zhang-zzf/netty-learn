@@ -10,16 +10,12 @@ public class UnsubAck extends ControlPacket {
 
     private short packetIdentifier;
 
-    public UnsubAck(ByteBuf incoming) {
+    UnsubAck(ByteBuf incoming) {
         super(incoming);
         this.packetIdentifier = incoming.readShort();
     }
 
-    public static UnsubAck from(short packetIdentifier) {
-        return new UnsubAck(packetIdentifier);
-    }
-
-    private UnsubAck(short packetIdentifier) {
+    public UnsubAck(short packetIdentifier) {
         super((byte) 0xB0, 0x02);
         this.packetIdentifier = packetIdentifier;
     }

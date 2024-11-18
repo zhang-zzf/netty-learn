@@ -1,7 +1,6 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -31,7 +30,7 @@ public class SubAck extends ControlPacket {
         this.subscriptions = subscriptions;
     }
 
-    public SubAck(ByteBuf incoming) {
+    SubAck(ByteBuf incoming) {
         super(incoming);
         this.packetIdentifier = incoming.readShort();
         this.subscriptions = new ArrayList<>();
@@ -72,16 +71,19 @@ public class SubAck extends ControlPacket {
                     final Object listValue = (subscriptions).get(i);
                     if (listValue instanceof CharSequence) {
                         sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
-                    } else {
+                    }
+                    else {
                         sb.append(Objects.toString(listValue, ""));
                     }
                     if (i < listSize - 1) {
                         sb.append(",");
-                    } else {
+                    }
+                    else {
                         sb.append("]");
                     }
                 }
-            } else {
+            }
+            else {
                 sb.append("[]");
             }
             sb.append(',');

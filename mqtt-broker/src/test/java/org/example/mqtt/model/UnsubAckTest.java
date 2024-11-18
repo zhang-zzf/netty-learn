@@ -16,7 +16,7 @@ class UnsubAckTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        UnsubAck out = UnsubAck.from(Short.MAX_VALUE);
+        UnsubAck out = new UnsubAck(Short.MAX_VALUE);
         then(out.remainingLength).isEqualTo(2);
         ByteBuf packet = out.toByteBuf();
         UnsubAck in = (UnsubAck) UnsubAck.from(packet);

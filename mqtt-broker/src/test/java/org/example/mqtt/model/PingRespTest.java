@@ -16,7 +16,7 @@ class PingRespTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        PingResp out = PingResp.from();
+        PingResp out = new PingResp();
         then(out.remainingLength).isEqualTo(0);
         ByteBuf packet = out.toByteBuf();
         PingResp in = (PingResp) PingResp.from(packet);

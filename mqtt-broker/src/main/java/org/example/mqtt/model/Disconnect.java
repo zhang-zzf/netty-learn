@@ -10,16 +10,12 @@ public class Disconnect extends ControlPacket {
 
     public static final byte _0_BYTE = (byte) 0xE0;
 
-    public Disconnect(ByteBuf buf) {
+    Disconnect(ByteBuf buf) {
         super(buf);
     }
 
-    private Disconnect() {
+    public Disconnect() {
         super(_0_BYTE, 0x00);
-    }
-
-    public static Disconnect from() {
-        return new Disconnect();
     }
 
     @Override

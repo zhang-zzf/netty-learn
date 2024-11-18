@@ -10,16 +10,12 @@ public class PubAck extends ControlPacket {
 
     private short packetIdentifier;
 
-    public PubAck(ByteBuf incoming) {
+    PubAck(ByteBuf incoming) {
         super(incoming);
         this.packetIdentifier = incoming.readShort();
     }
 
-    public static PubAck from(short packetIdentifier) {
-        return new PubAck(packetIdentifier);
-    }
-
-    private PubAck(short packetIdentifier) {
+    public PubAck(short packetIdentifier) {
         super((byte) 0x40, 0x02);
         this.packetIdentifier = packetIdentifier;
     }
@@ -34,7 +30,9 @@ public class PubAck extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"packetIdentifier\":\"0x").append(Integer.toHexString(packetIdentifier & 0xffff)).append("\",");
+        sb.append("\"byte0\":").append(byte0).append(',');
+        sb.append("\"remainingLength\":").append(remainingLength).append(',');
+        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 

@@ -59,7 +59,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      * </pre>
      */
     private volatile Publish willMessage;
-    private volatile boolean closing = false;
 
     public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
         super(connect.clientIdentifier(), connect.cleanSession(), channel);
@@ -111,6 +110,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     public Broker broker() {
         return broker;
     }
+
+    private volatile boolean closing = false;
 
     @Override
     public void close() {

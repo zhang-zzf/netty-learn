@@ -22,20 +22,23 @@ public class Publish extends ControlPacket {
 
     private String topicName;
     private short packetIdentifier;
-    protected final ByteBuf payload;
+    private final ByteBuf payload;
 
     /**
-     * inbound packet convert to model
+     * <pre>
+     *      inbound packet convert to model
+     *      the incoming Publish need be used ad a PublishInbound, so the constructor is package-access.
+     * </pre>
      *
      * @param incoming inbound packet
      */
-    public Publish(ByteBuf incoming) {
+    Publish(ByteBuf incoming) {
         super(incoming);
         this.topicName = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
         if (needAck()) {
             this.packetIdentifier = incoming.readShort();
         }
-        this.payload = incoming.readRetainedSlice(incoming.readableBytes());
+        this.payload = incoming.readSlice(incoming.readableBytes());
         initMetricMetaData();
     }
 

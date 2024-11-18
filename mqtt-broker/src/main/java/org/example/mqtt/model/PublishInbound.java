@@ -9,21 +9,30 @@ import io.netty.util.ReferenceCounted;
  */
 public class PublishInbound extends Publish implements ReferenceCounted {
 
+    private final ByteBuf incoming;
+
     /**
      * inbound packet convert to model
      *
      * @param incoming inbound packet
      */
     public PublishInbound(ByteBuf incoming) {
-        // PublishInbound is a subclass of ReferencedCounted
-        // this.payload use in inbound case will be release by netty.
-        // todo test
         super(incoming);
+        /**
+         PublishInbound is a subclass of ReferencedCounted
+         todo test
+         todo retainedSlice zero-copy
+         watch out: memory leak
+         this.payload use in inbound case will be release by netty.
+         the PublishInbound is a ReferenceCounted,
+         so the payload will be released by the {@link io.netty.channel.DefaultChannelPipeline.TailContext.channelRead}
+         */
+        this.incoming = incoming.retain();
     }
 
     @Override
     public int refCnt() {
-        return payload.refCnt();
+        return incoming.refCnt();
     }
 
     @Override
@@ -33,7 +42,7 @@ public class PublishInbound extends Publish implements ReferenceCounted {
 
     @Override
     public PublishInbound retain(int i) {
-        payload.retain(i);
+        incoming.retain(i);
         return this;
     }
 
@@ -54,7 +63,7 @@ public class PublishInbound extends Publish implements ReferenceCounted {
 
     @Override
     public boolean release(int i) {
-        return payload.release(i);
+        return incoming.release(i);
     }
 
 }

@@ -69,9 +69,11 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             return;
         }
         channelRead0(ctx, cp);
-        // fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
-        // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
-        // will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
+        /**
+         fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
+         io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
+         will release the ByteBuf retained from {@link org.example.mqtt.model.PublishInbound#PublishInbound}
+         */
         ctx.fireChannelRead(cp);
     }
 

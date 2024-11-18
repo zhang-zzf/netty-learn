@@ -136,12 +136,18 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
         broker().state().saveSession(this);
     }
 
+    private volatile boolean closing = false;
+
     @Override
     public void close() {
+        if (closing) {
+            return;
+        }
+        this.closing = true;
         log.debug("Cluster now try to disconnect this Session from Node -> {}", this);
-        super.close();
         this.nodeId = null;
         broker().detachSession(this, false);
+        super.close();
         log.debug("Cluster disconnected this Session from Node -> {}", this);
     }
 

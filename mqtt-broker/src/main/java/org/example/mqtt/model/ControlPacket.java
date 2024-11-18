@@ -51,28 +51,21 @@ public abstract class ControlPacket {
     /**
      * ByteBuf to model
      *
-     * @param incoming the data packet
+     * @param incoming the data packet which have just only one and whole packet data
      * @return model
      */
     public static ControlPacket from(ByteBuf incoming) {
-        incoming.markReaderIndex();
-        try {
-            ControlPacket controlPacket = buildControlPacketFrom(incoming);
-            // should read all the bytes out of the packet.
-            if (incoming.isReadable()) {
-                // control packet is illegal.
-                throw new IllegalArgumentException();
-            }
-            if (!controlPacket.packetValidate()) {
-                log.error("ControlPacket validate failed->{}", controlPacket);
-                throw new IllegalArgumentException("packet validate failed: protocol violation.");
-            }
-            return controlPacket;
-        } catch (Exception e) {
-            throw new IllegalArgumentException(e);
-        } finally {
-            incoming.resetReaderIndex();
+        ControlPacket controlPacket = buildControlPacketFrom(incoming);
+        // should read all the bytes out of the packet.
+        if (incoming.isReadable()) {
+            // control packet is illegal.
+            throw new IllegalArgumentException();
         }
+        if (!controlPacket.packetValidate()) {
+            log.error("ControlPacket validate failed -> {}", controlPacket);
+            throw new IllegalArgumentException("packet validate failed: protocol violation.");
+        }
+        return controlPacket;
     }
 
     /**

@@ -25,6 +25,7 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
         if (packetLength == -1) {// can not decode a packet
             return;
         }
+        // in.readSlice can protect the in ByteBuf and check the packet protocol
         ControlPacket packet = ControlPacket.from(in.readSlice(packetLength));
         if (packet instanceof ReferenceCounted ref) {
             /**

@@ -21,7 +21,7 @@ class DefaultBrokerStateTest {
     @ParameterizedTest(name = "{0} match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenMatch(String topicName, String topicFilter) {
-        then(DefaultBrokerState.topicNameMatchTopicFilter(topicName, topicFilter)).isTrue();
+        then(DefaultBroker.DefaultBrokerState.topicNameMatchTopicFilter(topicName, topicFilter)).isTrue();
     }
 
     /**
@@ -30,12 +30,12 @@ class DefaultBrokerStateTest {
     @ParameterizedTest(name = "{0} will not match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_not_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenNotMatch(String topicName, String topicFilter) {
-        then(DefaultBrokerState.topicNameMatchTopicFilter(topicName, topicFilter)).isFalse();
+        then(DefaultBroker.DefaultBrokerState.topicNameMatchTopicFilter(topicName, topicFilter)).isFalse();
     }
 
     @Test
     void givenEmpty_whenTopic_then() {
-        DefaultBrokerState brokerState = new DefaultBrokerState();
+        DefaultBroker.DefaultBrokerState brokerState = new DefaultBroker.DefaultBrokerState();
         Optional<Topic> topic = brokerState.topic("/topic/abc");
         then(topic).isEmpty();
     }
@@ -43,7 +43,7 @@ class DefaultBrokerStateTest {
     @ParameterizedTest
     @CsvFileSource(resources = {"/broker/topic_filter.csv"})
     void givenNotEmpty_whenTopic_then(String topicFilter) throws ExecutionException, InterruptedException {
-        DefaultBrokerState brokerState = new DefaultBrokerState();
+        DefaultBroker.DefaultBrokerState brokerState = new DefaultBroker.DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription(topicFilter, 2);
         brokerState.subscribe(buildServerSession(), subscription).get();
         Optional<Topic> topic = brokerState.topic(topicFilter);
@@ -63,7 +63,7 @@ class DefaultBrokerStateTest {
      */
     @Test
     void givenNotEmpty_whenTopicNotExist_thenEmpty() throws ExecutionException, InterruptedException {
-        DefaultBrokerState brokerState = new DefaultBrokerState();
+        DefaultBroker.DefaultBrokerState brokerState = new DefaultBroker.DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription("topic/abc/#", 2);
         brokerState.subscribe(buildServerSession(), subscription).get();
         then(brokerState.topic("topic/abc")).isEmpty();
@@ -77,7 +77,7 @@ class DefaultBrokerStateTest {
     @Test
     void givenBroker_whenSubscribeAndUnsubscribe_then() throws ExecutionException, InterruptedException {
         String topicFilter = "topic/abc/#";
-        DefaultBrokerState brokerState = new DefaultBrokerState();
+        DefaultBroker.DefaultBrokerState brokerState = new DefaultBroker.DefaultBrokerState();
         Subscribe.Subscription subscription = new Subscribe.Subscription(topicFilter, 2);
         DefaultServerSession session = buildServerSession();
         brokerState.subscribe(session, subscription).get();

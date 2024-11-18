@@ -16,7 +16,7 @@ class TopicFilterTreeTest {
     @ParameterizedTest(name = "{0} match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenMatch(String topicName, String topicFilter) {
-        then(TopicFilterTree.from(new HashSet<>(singletonList(topicFilter))).match(topicName)).isNotEmpty();
+        then(DefaultBroker.TopicFilterTree.from(new HashSet<>(singletonList(topicFilter))).match(topicName)).isNotEmpty();
     }
 
     /**
@@ -25,7 +25,7 @@ class TopicFilterTreeTest {
     @ParameterizedTest(name = "{0} will not match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_not_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenNotMatch(String topicName, String topicFilter) {
-        then(TopicFilterTree.from(new HashSet<>(singletonList(topicFilter))).match(topicName)).isEmpty();
+        then(DefaultBroker.TopicFilterTree.from(new HashSet<>(singletonList(topicFilter))).match(topicName)).isEmpty();
     }
 
 }

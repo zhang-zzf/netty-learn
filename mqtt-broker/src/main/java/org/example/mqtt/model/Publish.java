@@ -3,6 +3,7 @@ package org.example.mqtt.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
 import java.util.HashMap;
 import java.util.Map;
@@ -43,11 +44,11 @@ public class Publish extends ControlPacket {
     }
 
     private void initMetricMetaData() {
-        // todo metric 多线程 同步 性能是否存在问题？
+        // metric 多线程 同步 性能是否存在问题？
+        // 线程封闭，无多线程同步
         addMeta(META_P_RECEIVE_NANO, System.nanoTime());
         addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }
-
 
     /**
      * outgoing Publish Message
@@ -241,6 +242,7 @@ public class Publish extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packet\":\"PUBLISH\",");
         sb.append("\"packetIdentifier\":\"").append(pId()).append("\",");
         if (topicName != null) {
             sb.append("\"topicName\":\"").append(topicName).append('\"').append(',');

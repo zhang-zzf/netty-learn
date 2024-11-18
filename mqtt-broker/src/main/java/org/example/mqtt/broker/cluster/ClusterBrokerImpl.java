@@ -16,8 +16,6 @@ import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.channel.Channel;
-
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,7 +25,6 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import javax.annotation.Nullable;
-
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
@@ -37,16 +34,12 @@ import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.node.Cluster;
 import org.example.mqtt.broker.cluster.node.NodeMessage;
 import org.example.mqtt.broker.cluster.node.NodePublish;
-import org.example.mqtt.broker.node.DefaultServerSession;
-import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
-import org.example.mqtt.model.Connect;
+import org.example.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
-import org.springframework.stereotype.Component;
 
 @Slf4j
-@Component
 public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     private final ClusterBrokerState clusterBrokerState;

@@ -24,7 +24,6 @@ import org.redisson.api.RedissonClient;
 import org.redisson.client.codec.Codec;
 import org.redisson.client.codec.StringCodec;
 import org.redisson.codec.JsonJacksonCodec;
-import org.springframework.stereotype.Repository;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
@@ -48,7 +47,6 @@ import static org.redisson.api.RScript.Mode.READ_WRITE;
 import static org.redisson.api.RScript.ReturnType.*;
 
 @Slf4j
-@Repository
 @Timed(histogram = true, percentiles = {0.5, 0.8, 0.9, 0.95, 0.99})
 public class ClusterBrokerStateImpl implements ClusterBrokerState {
 

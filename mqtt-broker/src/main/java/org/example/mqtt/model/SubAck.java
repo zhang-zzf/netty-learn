@@ -61,6 +61,7 @@ public class SubAck extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
         sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
         if (subscriptions != null) {
             sb.append("\"subscriptions\":");

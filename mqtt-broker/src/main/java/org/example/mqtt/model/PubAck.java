@@ -30,8 +30,7 @@ public class PubAck extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"byte0\":").append(byte0).append(',');
-        sb.append("\"remainingLength\":").append(remainingLength).append(',');
+        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
         sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

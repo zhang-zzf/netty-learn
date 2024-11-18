@@ -269,6 +269,7 @@ public class Connect extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
         if (protocolName != null) {
             sb.append("\"protocolName\":\"").append(protocolName).append('\"').append(',');
         }

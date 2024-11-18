@@ -1,4 +1,4 @@
-package org.example.mqtt.broker.cluster.bootstrap;
+package org.example.bootstrap;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.function.Supplier;
  * @date 2022/07/01
  */
 @Slf4j
-public class BrokerBootstrap {
+public class ClusterBrokerBootstrap {
 
     @SneakyThrows
     public static void main(String[] args) {
@@ -31,7 +31,7 @@ public class BrokerBootstrap {
             startBroker(authenticator, cluster, clusterBroker);
         } else {
             log.info("start BrokerBootstrap with Spring Context");
-            BrokerBootstrapInSpringContext.main(args);
+            ClusterBrokerBootstrapInSpringContext.main(args);
         }
     }
 
@@ -41,7 +41,7 @@ public class BrokerBootstrap {
                                    ClusterBroker clusterBroker) {
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new ClusterServerSessionHandler(authenticator, 3, cluster);
-        org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
+        org.example.bootstrap.BrokerBootstrap.startServer(handlerSupplier);
         // 开启集群节点信息同步
         // broker join the Cluster
         cluster.bind(clusterBroker).start();

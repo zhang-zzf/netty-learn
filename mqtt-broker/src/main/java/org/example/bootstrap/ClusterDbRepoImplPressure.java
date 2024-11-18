@@ -1,30 +1,29 @@
-package org.example.mqtt.broker.cluster.infra.redis;
+package org.example.bootstrap;
 
+import static java.util.Arrays.asList;
+import static org.redisson.connection.MasterSlaveConnectionManager.MAX_SLOT;
+
+import io.micrometer.core.aop.TimedAspect;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Random;
+import java.util.Set;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
-import org.example.mqtt.broker.cluster.ClusterBroker;
 import org.example.mqtt.broker.cluster.ClusterBrokerState;
 import org.example.mqtt.broker.cluster.ClusterTopic;
 import org.redisson.connection.CRC16;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-
-import java.util.*;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
-
-import static java.util.Arrays.asList;
-import static org.redisson.connection.MasterSlaveConnectionManager.MAX_SLOT;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 @Configuration
-@ComponentScan(basePackageClasses = {
-        ClusterBroker.class,
-        TimedAopConfiguration.class,
-})
 @Slf4j
 public class ClusterDbRepoImplPressure {
 
@@ -152,6 +151,17 @@ public class ClusterDbRepoImplPressure {
         int result = CRC16.crc16(key.getBytes()) % MAX_SLOT;
         log.debug("slot {} for {}", result, key);
         return result;
+    }
+
+    @Configuration
+    @EnableAspectJAutoProxy
+    public static class TimedAopConfiguration {
+
+        @Bean
+        public TimedAspect timedAspect() {
+            return new TimedAspect();
+        }
+
     }
 
 }

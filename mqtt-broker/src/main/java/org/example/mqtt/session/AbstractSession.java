@@ -16,6 +16,7 @@ import static org.example.mqtt.session.ControlPacketContext.Status.PUB_REL;
 import static org.example.mqtt.session.ControlPacketContext.Type.IN;
 import static org.example.mqtt.session.ControlPacketContext.Type.OUT;
 
+import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
@@ -70,7 +71,6 @@ public abstract class AbstractSession implements Session {
     @SneakyThrows
     @Override
     public void close() {
-        log.debug("Session({}) try to close itself: {}", cId(), this);
         if (isActive()) {
             log.debug("Session({}) now try to close Channel: {}", cId(), channel);
             channel.close();
@@ -424,7 +424,9 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     protected void doReceivePublish(Publish packet) {
-        log.debug("receiver({}/{}) [receive Publish]: {}", cId(), packet.pId(), packet);
+        if (log.isDebugEnabled()) {
+            log.debug("receiver({}/{}) [receive Publish]: {}\n{}", cId(), packet.pId(), packet, ByteBufUtil.prettyHexDump(packet.payload()));
+        }
         // QoS 2 duplicate check
         if (packet.exactlyOnce()) {
             ControlPacketContext cpx = findControlPacketInInQueue(packet.packetIdentifier());
@@ -437,7 +439,7 @@ public abstract class AbstractSession implements Session {
         // Client / Broker must be online.
         Queue<ControlPacketContext> inQueue = inQueue();
         ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
-        log.debug("receiver({}/{}) Publish .->INIT", cId(), cpx.pId());
+        log.debug("receiver({}/{}) Publish .-> INIT", cId(), cpx.pId());
         if (enqueueInQueue(packet)) {
             inQueue.offer(cpx);
             log.debug("receiver({}/{}) [inQueue enqueue]", cId(), cpx.pId());
@@ -446,7 +448,7 @@ public abstract class AbstractSession implements Session {
         onPublish(packet);
         // now cpx is HANDLED
         cpx.markStatus(INIT, HANDLED);
-        log.debug("receiver({}/{}) [Publish Handled] Publish INIT->HANDLED", cId(), cpx.pId());
+        log.debug("receiver({}/{}) [Publish Handled] Publish INIT -> HANDLED", cId(), cpx.pId());
         if (packet.atMostOnce()) {
             publishReceivedComplete(cpx);
         }

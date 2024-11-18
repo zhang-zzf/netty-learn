@@ -1,15 +1,17 @@
-package org.example.mqtt.broker.node.bootstrap;
+package org.example.bootstrap;
 
+import io.micrometer.core.aop.TimedAspect;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.example.micrometer.config.spring.aop.TimedAopConfiguration;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.node.DefaultBroker;
+import org.example.mqtt.broker.node.DefaultServerSessionHandler;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -17,18 +19,30 @@ import org.springframework.context.annotation.Configuration;
  */
 @Slf4j
 @Configuration
-@ComponentScan(basePackageClasses = {
-        DefaultBroker.class,
-        TimedAopConfiguration.class,
-})
 public class BrokerBootstrapInSpringContext {
 
     @SneakyThrows
     public static void main(String[] args) {
-        Authenticator authenticator = packet -> 0x00;
         ApplicationContext context = new AnnotationConfigApplicationContext(BrokerBootstrapInSpringContext.class);
+        Authenticator authenticator = packet -> 0x00;
         Broker broker = context.getBean(Broker.class);
-        BrokerBootstrap.startServer(authenticator, broker);
+        BrokerBootstrap.startServer(() -> new DefaultServerSessionHandler(broker, authenticator, 3));
+    }
+
+    @Bean
+    public Broker defaultBroker() {
+        return new DefaultBroker();
+    }
+
+    @Configuration
+    @EnableAspectJAutoProxy
+    public static class TimedAopConfiguration {
+
+        @Bean
+        public TimedAspect timedAspect() {
+            return new TimedAspect();
+        }
+
     }
 
 }

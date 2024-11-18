@@ -87,6 +87,7 @@ public class ConnAck extends ControlPacket {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
         sb.append("\"sp\":").append(sp).append(',');
         sb.append("\"returnCode\":").append(returnCode).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();

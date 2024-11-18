@@ -1,36 +1,44 @@
 package org.example.mqtt.broker.cluster.node;
 
+import static java.util.Collections.emptySet;
+import static java.util.Optional.ofNullable;
+import static java.util.stream.Collectors.toSet;
+import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
+import static org.example.mqtt.broker.cluster.node.NodeMessage.wrapClusterNodes;
+import static org.example.bootstrap.BrokerBootstrap.MQTT_SERVER_THREAD_NUM;
+
 import com.alibaba.fastjson.JSON;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.util.concurrent.DefaultThreadFactory;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.example.micrometer.utils.MetricUtil;
 import org.example.mqtt.broker.ServerSession;
 import org.example.mqtt.broker.Topic;
 import org.example.mqtt.broker.cluster.ClusterBroker;
-import org.example.mqtt.broker.node.bootstrap.BrokerBootstrap;
-import org.example.mqtt.model.Connect;
+import org.example.bootstrap.BrokerBootstrap;
 import org.example.mqtt.model.Publish;
 import org.jetbrains.annotations.NotNull;
-import org.springframework.stereotype.Component;
-
-import javax.annotation.Nullable;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
-
-import static java.util.Collections.emptySet;
-import static java.util.Optional.ofNullable;
-import static java.util.stream.Collectors.toSet;
-import static org.example.mqtt.broker.cluster.node.Node.NODE_ID_UNKNOWN;
-import static org.example.mqtt.broker.cluster.node.NodeMessage.wrapClusterNodes;
-import static org.example.mqtt.broker.node.bootstrap.BrokerBootstrap.MQTT_SERVER_THREAD_NUM;
 
 @Slf4j
-@Component
 public class Cluster implements AutoCloseable {
 
     /**

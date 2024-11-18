@@ -1,4 +1,4 @@
-package org.example.mqtt.broker.node.bootstrap;
+package org.example.bootstrap;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -54,19 +54,15 @@ public class BrokerBootstrap {
     @SneakyThrows
     public static void main(String[] args) {
         if (!Boolean.getBoolean("spring.enable")) {
-            startServer(packet -> 0x00, new DefaultBroker());
+            Broker broker = new DefaultBroker();
+            Authenticator authenticator = packet -> 0x00;
+            startServer(() -> new DefaultServerSessionHandler(broker, authenticator, 3));
         }
         else {
             // start with spring context
             log.info("BrokerBootstrap in spring context");
             BrokerBootstrapInSpringContext.main(args);
         }
-    }
-
-    public static void startServer(Authenticator authenticator, Broker broker) throws URISyntaxException, SSLException {
-        Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
-            new DefaultServerSessionHandler(broker, authenticator, 3);
-        startServer(handlerSupplier);
     }
 
     public static void shutdownServer() {
@@ -80,7 +76,7 @@ public class BrokerBootstrap {
         /**
          * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
          */
-        String addressArray = System.getProperty("mqtt.server.listened");
+        String addressArray = System.getProperty("mqtt.server.listened", "mqtt://0.0.0.0:1883");
         log.info("mqtt.server.listened: {}", addressArray);
         String[] addressList = addressArray.split(",");
         for (String address : addressList) {

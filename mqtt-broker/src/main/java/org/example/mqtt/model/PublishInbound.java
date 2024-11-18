@@ -18,16 +18,7 @@ public class PublishInbound extends Publish implements ReferenceCounted {
      */
     public PublishInbound(ByteBuf incoming) {
         super(incoming);
-        /**
-         PublishInbound is a subclass of ReferencedCounted
-         todo test
-         todo retainedSlice zero-copy
-         watch out: memory leak
-         this.payload use in inbound case will be release by netty.
-         the PublishInbound is a ReferenceCounted,
-         so the payload will be released by the {@link io.netty.channel.DefaultChannelPipeline.TailContext.channelRead}
-         */
-        this.incoming = incoming.retain();
+        this.incoming = incoming;
     }
 
     @Override

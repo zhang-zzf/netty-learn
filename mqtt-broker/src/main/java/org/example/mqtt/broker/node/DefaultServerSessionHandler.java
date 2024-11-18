@@ -123,7 +123,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             ctx.writeAndFlush(connAck)
                 .addListener(LOG_ON_FAILURE)
                 .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                .addListener(f -> log.debug("client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
+                .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
                 .addListener(SEND_PACKET_AFTER_CONNACK)
             ;
         }

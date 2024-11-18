@@ -34,16 +34,12 @@ import org.example.mqtt.broker.Topic;
 import org.example.mqtt.model.Publish;
 import org.example.mqtt.model.Subscribe;
 import org.example.mqtt.model.Unsubscribe;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Component;
 
 /**
  * @author zhanfeng.zhang@icloud.com
  * @date 2024-11-06
  */
 @Slf4j
-@Component
 public class DefaultBroker implements Broker {
 
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
@@ -245,8 +241,7 @@ public class DefaultBroker implements Broker {
      */
     private Broker self;
 
-    @Autowired
-    public void setSelf(@Qualifier("defaultBroker") Broker self) {
+    public void setSelf(Broker self) {
         this.self = self;
     }
 
@@ -258,11 +253,11 @@ public class DefaultBroker implements Broker {
         static String SINGLE_LEVEL_WILDCARD = "+";
 
         private final ExecutorService executorService = new ThreadPoolExecutor(1, 1,
-                60, TimeUnit.SECONDS,
-                // 使用无界队列
-                new LinkedBlockingDeque<>(),
-                (r) -> new Thread(r, "broker-state"),
-                new ThreadPoolExecutor.AbortPolicy()
+            60, TimeUnit.SECONDS,
+            // 使用无界队列
+            new LinkedBlockingDeque<>(),
+            (r) -> new Thread(r, "broker-state"),
+            new ThreadPoolExecutor.AbortPolicy()
         );
         private final ConcurrentMap<String, Topic> preciseTopicFilter = new ConcurrentHashMap<>();
 
@@ -275,8 +270,7 @@ public class DefaultBroker implements Broker {
         private final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
 
         /**
-         * retain Publish
-         * topicName <-> Publish
+         * retain Publish topicName <-> Publish
          */
         private final ConcurrentMap<String, Publish> retainedPublish = new ConcurrentHashMap<>();
 
@@ -320,7 +314,8 @@ public class DefaultBroker implements Broker {
                     preciseTopicFilter.put(topicFilter, topic);
                 }
                 topic.subscribe(session, subscription.qos());
-            } else {
+            }
+            else {
                 String[] topicLevels = topicFilter.split(LEVEL_SEPARATOR);
                 Node parent = root;
                 for (int i = 0; i < topicLevels.length; i++) {
@@ -376,14 +371,15 @@ public class DefaultBroker implements Broker {
             }
             // O(n) 全量匹配
             return retainedPublish.entrySet().stream()
-                    .filter(e -> topicNameMatchTopicFilter(e.getKey(), topicFilter))
-                    .map(Map.Entry::getValue).collect(toList());
+                .filter(e -> topicNameMatchTopicFilter(e.getKey(), topicFilter))
+                .map(Map.Entry::getValue).collect(toList());
         }
 
         public Optional<Topic> topic(String topicFilter) {
             if (!isFuzzyTopic(topicFilter)) {
                 return Optional.ofNullable(preciseTopicFilter.get(topicFilter));
-            } else {
+            }
+            else {
                 Node idx = root;
                 for (String l : topicFilter.split(LEVEL_SEPARATOR)) {
                     idx = idx.child(l);
@@ -414,7 +410,7 @@ public class DefaultBroker implements Broker {
                 return true;
             }
             if (filters.length == names.length + 1
-                    && MULTI_LEVEL_WILDCARD.equals(filters[filters.length - 1])) {
+                && MULTI_LEVEL_WILDCARD.equals(filters[filters.length - 1])) {
                 return true;
             }
             return false;
@@ -424,7 +420,8 @@ public class DefaultBroker implements Broker {
             String topicFilter = subscription.topicFilter();
             if (!isFuzzyTopic(topicFilter)) {
                 removePreciseTopic(session, subscription, topicFilter);
-            } else {
+            }
+            else {
                 dfsRemoveFuzzyTopic(session, subscription, topicFilter.split(LEVEL_SEPARATOR), 0, root);
             }
         }
@@ -441,7 +438,7 @@ public class DefaultBroker implements Broker {
         }
 
         private void dfsRemoveFuzzyTopic(ServerSession session, Subscribe.Subscription subscription, String[] topicLevels,
-                                         int levelIdx, Node parent) {
+            int levelIdx, Node parent) {
             if (levelIdx >= topicLevels.length) {
                 return;
             }
@@ -452,7 +449,8 @@ public class DefaultBroker implements Broker {
             }
             if (lastLevel(levelIdx, topicLevels)) {
                 n.unsubscribe(session, subscription);
-            } else {
+            }
+            else {
                 dfsRemoveFuzzyTopic(session, subscription, topicLevels, levelIdx + 1, n);
             }
             // try clean child node if needed.
@@ -688,5 +686,14 @@ public class DefaultBroker implements Broker {
 
         }
 
+    }
+
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"broker\":\"")
+            .append(this.getClass().getSimpleName() + "@" + Integer.toHexString(hashCode()))
+            .append('\"').append(',');
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 }

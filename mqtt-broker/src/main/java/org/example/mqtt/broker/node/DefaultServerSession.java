@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 
@@ -125,14 +126,33 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             onPublish(willMessage);
             willMessage = null;
         }
+        log.debug("Session({}) now try to closed -> {}", cId(), this);
         broker.detachSession(this, false);
         super.close();
     }
 
     @Override
     public String toString() {
-        //   todo
-        return "todo";
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"session\":\"").append(this.getClass().getSimpleName()).append('\"').append(',');
+        sb.append("\"super\":").append(super.toString()).append(',');
+        if (subscriptions != null) {
+            sb.append("\"subscriptions\":");
+            if (!(subscriptions).isEmpty()) {
+                sb.append("[");
+                for (Object collectionValue : subscriptions) {
+                    sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
+                }
+                sb.replace(sb.length() - 1, sb.length(), "]");
+            }
+            else {
+                sb.append("[]");
+            }
+            sb.append(',');
+        }
+        sb.append("\"inQueue\":").append(inQueue.size()).append(",");
+        sb.append("\"outQueue\":").append(outQueue.size()).append(",");
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
     @Override

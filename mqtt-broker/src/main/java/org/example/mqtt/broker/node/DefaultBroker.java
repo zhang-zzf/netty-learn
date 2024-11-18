@@ -90,7 +90,7 @@ public class DefaultBroker implements Broker {
                 // use a shadow copy of the origin Publish
                 Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier(session, qos));
                 if (log.isDebugEnabled()) {
-                    log.debug("Publish({}) forward-> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
+                    log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }
                 session.send(outgoing);
                 times += 1;

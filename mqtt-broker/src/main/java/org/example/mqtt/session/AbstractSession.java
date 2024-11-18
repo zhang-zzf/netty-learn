@@ -97,7 +97,7 @@ public abstract class AbstractSession implements Session {
      */
     @Override
     public ChannelFuture send(ControlPacket packet) {
-        log.debug("sender({}): .-> {}", cId(), packet);
+        log.debug("sender({}): . -> {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
         }
@@ -455,7 +455,7 @@ public abstract class AbstractSession implements Session {
         else if (packet.atLeastOnce()) {
             doWrite(cpx.pubAck()).addListener(f -> {
                 cpx.markStatus(HANDLED, PUB_ACK);
-                log.debug("receiver({}/{}) [QoS1 PUB_ACK sent] Publish HANDLED->PUB_ACK", cId(), cpx.pId());
+                log.debug("receiver({}/{}) [QoS1 PUB_ACK sent] Publish HANDLED -> PUB_ACK", cId(), cpx.pId());
                 publishReceivedComplete(cpx);
             });
         }
@@ -478,7 +478,7 @@ public abstract class AbstractSession implements Session {
     private void doHandleDuplicateQoS2Publish(ControlPacketContext cpx) {
         switch (cpx.status()) {
             case INIT:
-                log.debug("receiver({}/{}) Publish INIT->. [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}", cId(), cpx.pId(), cpx);
+                log.debug("receiver({}/{}) Publish INIT -> . [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}", cId(), cpx.pId(), cpx);
                 break;
             case HANDLED:
                 doWritePubRecPacket(cpx);
@@ -492,7 +492,7 @@ public abstract class AbstractSession implements Session {
         // does not modify the status of the cpx
         doWrite(cpx.pubRec()).addListener(f -> {
             if (f.isSuccess()) {
-                log.debug("receiver({}/{}) HANDLED ->. [QoS2 已发送 PUB_REC]: {}", cId(), cpx.pId(), cpx);
+                log.debug("receiver({}/{}) HANDLED -> . [QoS2 已发送 PUB_REC]: {}", cId(), cpx.pId(), cpx);
             }
         });
     }

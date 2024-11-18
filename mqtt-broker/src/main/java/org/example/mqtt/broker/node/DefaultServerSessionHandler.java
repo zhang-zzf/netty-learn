@@ -2,10 +2,12 @@ package org.example.mqtt.broker.node;
 
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
+import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
@@ -13,6 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.mqtt.broker.Authenticator;
 import org.example.mqtt.broker.Broker;
 import org.example.mqtt.broker.ServerSession;
+import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.Connect;
 import org.example.mqtt.model.ControlPacket;
@@ -72,7 +75,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         /**
          fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
          io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
-         will release the ByteBuf retained from {@link org.example.mqtt.model.PublishInbound#PublishInbound}
+         will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
          */
         ctx.fireChannelRead(cp);
     }

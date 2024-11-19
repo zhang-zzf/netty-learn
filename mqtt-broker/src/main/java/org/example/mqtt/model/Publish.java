@@ -66,7 +66,8 @@ public class Publish extends ControlPacket {
     /**
      * outgoing Publish Message
      */
-    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName, boolean sharedPayload) {
+    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName,
+        boolean sharedPayload) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
@@ -122,7 +123,7 @@ public class Publish extends ControlPacket {
         // fixed header
         ByteBuf fixedHeader = fixedHeaderByteBuf();
         // variable header
-        ByteBuf varHeader = PooledByteBufAllocator.DEFAULT.directBuffer(variableHeaderLength);
+        ByteBuf varHeader = directBuffer(variableHeaderLength);
         byte[] topicNameBytes = topicName.getBytes(UTF_8);
         varHeader.writeShort(topicNameBytes.length);
         varHeader.writeBytes(topicNameBytes);

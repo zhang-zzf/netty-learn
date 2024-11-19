@@ -160,14 +160,14 @@ public class Connect extends ControlPacket {
     public ByteBuf toByteBuf() {
         ByteBuf fixedHeader = fixedHeaderByteBuf();
         // variable header
-        ByteBuf varHeader = PooledByteBufAllocator.DEFAULT.directBuffer(VARIABLE_HEADER_LENGTH);
+        ByteBuf varHeader = directBuffer(VARIABLE_HEADER_LENGTH);
         varHeader.writeShort(protocolName.length()); // MQTT
         varHeader.writeCharSequence(protocolName, UTF_8);
         varHeader.writeByte(protocolLevel);
         varHeader.writeByte(connectFlags);
         varHeader.writeShort(keepAlive);
         // Payload
-        ByteBuf payload = PooledByteBufAllocator.DEFAULT.directBuffer(payloadLength);
+        ByteBuf payload = directBuffer(payloadLength);
         // Client Identifier
         byte[] cIdBytes = clientIdentifier.getBytes(UTF_8); // 兼容中文
         payload.writeShort(cIdBytes.length);

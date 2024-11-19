@@ -188,7 +188,7 @@ public abstract class ControlPacket {
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
         ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
         int packetLength = 1 + remainingLengthByteBuf.readableBytes() + remainingLength;
-        ByteBuf buf = PooledByteBufAllocator.DEFAULT.directBuffer(packetLength);
+        ByteBuf buf = directBuffer(packetLength);
         buf.writeByte(this.byte0);
         // remainingLength field
         buf.writeBytes(remainingLengthByteBuf);
@@ -201,11 +201,15 @@ public abstract class ControlPacket {
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
         ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
         int fixedHeaderLength = 1 + remainingLengthByteBuf.readableBytes();
-        ByteBuf buf = PooledByteBufAllocator.DEFAULT.directBuffer(fixedHeaderLength);
+        ByteBuf buf = directBuffer(fixedHeaderLength);
         buf.writeByte(this.byte0);
         // remainingLength field
         buf.writeBytes(remainingLengthByteBuf);
         return buf;
+    }
+
+    protected ByteBuf directBuffer(int capacity) {
+        return PooledByteBufAllocator.DEFAULT.directBuffer(capacity);
     }
 
     private static ByteBuf remainingLengthToByteBuf(int remainingLength) {

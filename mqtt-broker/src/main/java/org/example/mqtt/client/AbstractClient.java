@@ -38,7 +38,7 @@ import org.example.mqtt.model.Unsubscribe;
 @Slf4j
 public abstract class AbstractClient implements Client {
 
-    private static final short DEFAULT_KEEP_ALIVE = 8;
+    private static final short DEFAULT_KEEP_ALIVE = 64;
 
     private final String clientIdentifier;
     private final URI remoteAddress;
@@ -124,7 +124,6 @@ public abstract class AbstractClient implements Client {
         return future;
     }
 
-
     @Override
     public CompletionStage<UnsubAck> unsubscribe(List<Subscribe.Subscription> unsub) {
         log.debug("Client({}) unsubscribe: {}", clientIdentifier(), unsub);
@@ -138,7 +137,6 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public void disconnect() {
-        // todo 状态清理
         session.send(new Disconnect());
         close();
     }
@@ -179,6 +177,7 @@ public abstract class AbstractClient implements Client {
 
     @Override
     public void onPublish(Publish publish) {
+        // todo
         log.debug("Client({}) onPublish: {}", clientIdentifier(), publish);
     }
 

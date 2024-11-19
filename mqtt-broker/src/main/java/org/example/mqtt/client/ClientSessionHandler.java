@@ -1,12 +1,15 @@
 package org.example.mqtt.client;
 
+import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.IdleState;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.handler.timeout.IdleStateHandler;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.broker.codec.MqttCodec;
 import org.example.mqtt.model.ConnAck;
 import org.example.mqtt.model.ControlPacket;
 import org.example.mqtt.model.PingReq;
@@ -33,7 +36,8 @@ public class ClientSessionHandler extends ChannelInboundHandlerAdapter {
             }
             session.onPacket(cp);
             // io.netty.channel.DefaultChannelPipeline.TailContext#channelRead
-            // will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List)}
+            /** will release the ByteBuf retained from {@link MqttCodec#decode(ChannelHandlerContext, ByteBuf, List) } */
+            // core
             ctx.fireChannelRead(cp);
         }
         else {

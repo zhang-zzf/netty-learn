@@ -97,7 +97,7 @@ public abstract class AbstractSession implements Session {
      */
     @Override
     public ChannelFuture send(ControlPacket packet) {
-        log.debug("sender({}): . -> {}", cId(), packet);
+        log.debug("sender({}): .-> {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
         }
@@ -275,8 +275,8 @@ public abstract class AbstractSession implements Session {
         /**
          * release the payload retained by {@link AbstractSession#send(ControlPacket)}
          */
-        cpx.packet().payload().release();
-        log.debug("sender({}/{}) [release Publish.payload]", cId(), cpx.pId());
+        boolean released = cpx.packet().payload().release();
+        log.debug("sender({}/{}) [release Publish.payload] -> {}", cId(), cpx.pId(), released);
         //
         // send the next if exist
         if (enqueueOutQueue(cpx.packet())) { //? why check -> send the next item in the queue only if cpx is in the queue

@@ -9,11 +9,13 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import javax.annotation.Nullable;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
+@Slf4j
 public class Publish extends ControlPacket {
 
     public static final int AT_MOST_ONCE = 0;
@@ -24,6 +26,10 @@ public class Publish extends ControlPacket {
     private String topicName;
     private short packetIdentifier;
     private final ByteBuf payload;
+    /**
+     * share payload with another Publish
+     */
+    private final boolean sharedPayload;
 
     private int variableHeaderLength = 0;
 
@@ -44,7 +50,9 @@ public class Publish extends ControlPacket {
             this.packetIdentifier = incoming.readShort();
             variableHeaderLength += 2;
         }
+        // core : slice
         this.payload = incoming.readSlice(incoming.readableBytes());
+        this.sharedPayload = true;
         initMetricMetaData();
     }
 
@@ -58,12 +66,13 @@ public class Publish extends ControlPacket {
     /**
      * outgoing Publish Message
      */
-    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
+    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName, boolean sharedPayload) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
         this.payload = payload;
         this.variableHeaderLength = remainingLength - payload.readableBytes();
+        this.sharedPayload = sharedPayload;
         if (!packetValidate()) {
             throw new IllegalArgumentException("Invalid packet");
         }
@@ -77,14 +86,10 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
-        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload);
+        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload, true);
         // metric meta
         ret.copyMeta(origin);
         return ret;
-    }
-
-    private void copyMeta(Publish origin) {
-        meta = origin.meta;
     }
 
     /**
@@ -95,21 +100,21 @@ public class Publish extends ControlPacket {
      * @return a new Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, boolean dup, byte qos, short packetIdentifier) {
-        return outgoing(origin.retainFlag(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
+        return outgoing(origin.retainFlag(), qos, dup, origin.topicName, packetIdentifier, origin.payload, true);
     }
 
     public static Publish outgoing(int qos, String topicName, ByteBuf payload) {
-        return outgoing(false, qos, false, topicName, (short) 0, payload);
+        return outgoing(false, qos, false, topicName, (short) 0, payload, false);
     }
 
     public static Publish outgoing(boolean retain, int qos, boolean dup,
-        String topicName, short packetIdentifier, ByteBuf payload) {
+        String topicName, short packetIdentifier, ByteBuf payload, boolean sharedPayload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
         // remainingLength field
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
-        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
+        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName, sharedPayload);
     }
 
     @Override
@@ -125,7 +130,11 @@ public class Publish extends ControlPacket {
             varHeader.writeShort(packetIdentifier);
         }
         // packet
-        // todo test
+        if (sharedPayload) {
+            log.info("Publish({}) shared payload retained ", pId());
+            payload.retain();
+        }
+        // the CompositeBuffer will be released by netty
         return Unpooled.compositeBuffer()
             .addComponents(true, fixedHeader, varHeader, payload);
     }
@@ -286,7 +295,7 @@ public class Publish extends ControlPacket {
      */
     public Publish copy() {
         ByteBuf payload = Unpooled.copiedBuffer(payload());
-        return Publish.outgoing(retainFlag(), (byte) qos(), dup(), topicName(), (short) 0, payload);
+        return Publish.outgoing(retainFlag(), (byte) qos(), dup(), topicName(), (short) 0, payload, false);
     }
 
     public Publish retainFlag(boolean flag) {
@@ -327,6 +336,10 @@ public class Publish extends ControlPacket {
             meta = new HashMap<>(4);
         }
         meta.put(n, v);
+    }
+
+    private void copyMeta(Publish origin) {
+        meta = origin.meta;
     }
 
 }

@@ -2,11 +2,13 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.ReferenceCounted;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
  * @date 2022/6/24
  */
+@Slf4j
 public class PublishInbound extends Publish implements ReferenceCounted {
 
     private final ByteBuf incoming;
@@ -54,7 +56,11 @@ public class PublishInbound extends Publish implements ReferenceCounted {
 
     @Override
     public boolean release(int i) {
-        return incoming.release(i);
+        boolean released = incoming.release(i);
+        if (log.isDebugEnabled()) {
+            log.debug("Publish({}) release -> {}", pId(), released);
+        }
+        return released;
     }
 
 }

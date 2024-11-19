@@ -2,11 +2,11 @@ package org.example.mqtt.broker.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.ByteToMessageCodec;
 import io.netty.util.ReferenceCounted;
 import java.util.List;
 import org.example.mqtt.model.ControlPacket;
-import org.example.mqtt.model.PublishInbound;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -15,8 +15,22 @@ import org.example.mqtt.model.PublishInbound;
 public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+        if (msg instanceof ControlPacket cp) {
+            // zero-copy
+            ctx.write(cp.toByteBuf(), promise);
+        }
+        else {
+            ctx.write(msg, promise);
+        }
+    }
+
+    @Override
     protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) {
-        out.writeBytes(msg.toByteBuf());
+        // code should not go here.
+        throw new UnsupportedOperationException();
+        // this will cause 1 time memory copy
+        // out.writeBytes(msg.toByteBuf());
     }
 
     @Override

@@ -90,8 +90,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     /**
-     * rewrite to handle Publish packet with extra logic
-     * <p>ServerSession 需要对发送的 Publish 包 特殊处理</p>
      * <p>ServerSession 只发送 Publish</p>
      */
     @Override
@@ -269,7 +267,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         String topic = connect.willTopic();
         ByteBuf byteBuf = connect.willMessage();
         boolean retain = connect.willRetainFlag();
-        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
+        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf, false);
     }
 
 }

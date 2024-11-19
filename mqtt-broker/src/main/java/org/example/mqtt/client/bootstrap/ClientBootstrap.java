@@ -287,7 +287,7 @@ public class ClientBootstrap {
                         topic = session.clientIdentifier() + "/publish";
                     }
                     session.send(Publish.outgoing(false, sendQos, false, topic,
-                        session.nextPacketIdentifier(), packet));
+                        session.nextPacketIdentifier(), packet, false));
                 }, period, period, TimeUnit.MILLISECONDS);
             }
             else {

@@ -201,7 +201,7 @@ public class Subscribe extends ControlPacket {
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
-        sb.append("\"packetIdentifier\":").append(packetIdentifier).append(',');
+        sb.append("\"packetIdentifier\":").append(hexPId(packetIdentifier)).append(',');
         if (subscriptions != null) {
             sb.append("\"subscriptions\":");
             if (!(subscriptions).isEmpty()) {

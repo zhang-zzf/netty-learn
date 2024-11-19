@@ -84,7 +84,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
         // 需要手动 debug
         publish1.writeInbound(publish.toByteBuf());
     }
@@ -373,7 +373,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -399,7 +399,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 1;
         Publish publish = Publish.outgoing(false, qos, false, "t/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -426,7 +426,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -449,7 +449,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -472,7 +472,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -495,7 +495,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -524,7 +524,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/1", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -547,7 +547,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/1", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -578,7 +578,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -614,7 +614,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -637,7 +637,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = sPublish1.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish packet = new PublishInbound(receiver1.readOutbound());
@@ -670,7 +670,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
@@ -684,7 +684,7 @@ class ServerSessionHandlerTest {
         then((UnsubAck) ControlPacket.from(receiver1.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(p2.toByteBuf());
         // then
         then(receiver1.<ByteBuf>readOutbound()).isNull();
@@ -701,7 +701,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
@@ -728,7 +728,7 @@ class ServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = new PublishInbound(receiver1.readOutbound());
@@ -760,7 +760,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         Publish publishMessage1 = (Publish) ControlPacket.from(receiver1.readOutbound());
@@ -797,7 +797,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", sPublish1.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8));
+            Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(publish.toByteBuf());
         // publish1 收到 PubRec 消息
         then(((PubRec) ControlPacket.from(publish1.readOutbound())).packetIdentifier()).isEqualTo(publish.packetIdentifier());
@@ -844,7 +844,7 @@ class ServerSessionHandlerTest {
         // publish1 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
         publish1.writeInbound(retain.toByteBuf());
         // receiver1 接受 Publish
         // 正常 forward 路由的 Publish
@@ -869,12 +869,12 @@ class ServerSessionHandlerTest {
     void givenRetain_whenRetain2Times_thenOnlyStoreTheLast() {
         // publish1 发送 Publish 消息
         Publish retain1 = Publish.outgoing(true, (byte) 0, false, "retain/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8), false);
         publish1.writeInbound(retain1.toByteBuf());
         // 发送第2条 retain Publish
         String retain2Payload = UUID.randomUUID().toString();
         Publish retain = Publish.outgoing(true, (byte) 0, false, "retain/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(retain2Payload, UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(retain2Payload, UTF_8), false);
         publish1.writeInbound(retain.toByteBuf());
         //
         // 后续订阅
@@ -898,11 +898,11 @@ class ServerSessionHandlerTest {
     void givenRetain_whenSendZeroByteRetainPublish_thenNoRetain() {
         // publish1 发送 Publish 消息
         Publish retain1 = Publish.outgoing(true, (byte) 1, false, "retain/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8));
+            sPublish1.nextPacketIdentifier(), Unpooled.copiedBuffer(UUID.randomUUID().toString(), UTF_8), false);
         publish1.writeInbound(retain1.toByteBuf());
         // 发送第2条 retain Publish (no payload)
         Publish retain = Publish.outgoing(true, (byte) 1, false, "retain/1",
-            sPublish1.nextPacketIdentifier(), Unpooled.buffer());
+            sPublish1.nextPacketIdentifier(), Unpooled.buffer(), false);
         publish1.writeInbound(retain.toByteBuf());
         //
         // 后续订阅

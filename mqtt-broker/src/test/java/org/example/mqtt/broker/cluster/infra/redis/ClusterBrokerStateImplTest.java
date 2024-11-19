@@ -258,7 +258,7 @@ class ClusterBrokerStateImplTest {
     @Test
     void given_whenOfferToSessionQueue_then() {
         ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
-        Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) 1, byteBuf);
+        Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) 1, byteBuf, false);
         String clientIdentifier = UUID.randomUUID().toString();
         ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
                 clientIdentifier, IN, packet, INIT, null);
@@ -274,7 +274,7 @@ class ClusterBrokerStateImplTest {
         String clientIdentifier = UUID.randomUUID().toString();
         ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
         for (int i = 0; i < 10; i++) {
-            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf, false);
             ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
                     clientIdentifier, IN, packet, INIT, null);
             // when
@@ -295,7 +295,7 @@ class ClusterBrokerStateImplTest {
         ByteBuf byteBuf = Unpooled.copiedBuffer(payload, UTF_8);
         ClusterControlPacketContext tail = null;
         for (int i = 0; i < 10; i++) {
-            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf, false);
             ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
                     clientIdentifier, IN, packet, INIT, null);
             // when
@@ -321,7 +321,7 @@ class ClusterBrokerStateImplTest {
         ;
         // clean
         for (int i = 0; i < 10; i++) {
-            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf);
+            Publish packet = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", (short) i, byteBuf, false);
             ClusterControlPacketContext cpx = new ClusterControlPacketContext(dbRepo,
                     clientIdentifier, IN, packet, INIT, null);
             // when
@@ -346,7 +346,7 @@ class ClusterBrokerStateImplTest {
 
     private ClusterControlPacketContext newCcpx(String clientIdentifier, short packetIdentifier) {
         ByteBuf byteBuf = Unpooled.copiedBuffer("Hello, World!\n你好，世界。", UTF_8);
-        Publish outgoing = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", packetIdentifier, byteBuf);
+        Publish outgoing = Publish.outgoing(false, (byte) 2, false, "topic/abc/de", packetIdentifier, byteBuf, false);
         ClusterControlPacketContext ccpx = new ClusterControlPacketContext(dbRepo, clientIdentifier, IN, outgoing, INIT, null);
         return ccpx;
     }

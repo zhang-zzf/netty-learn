@@ -1,11 +1,16 @@
 package org.example.mqtt.session;
 
-import lombok.extern.slf4j.Slf4j;
-import org.example.mqtt.model.*;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_ACK;
+import static org.example.mqtt.session.ControlPacketContext.Status.PUB_COMP;
 
 import java.util.concurrent.atomic.AtomicReference;
-
-import static org.example.mqtt.session.ControlPacketContext.Status.*;
+import lombok.extern.slf4j.Slf4j;
+import org.example.mqtt.model.ControlPacket;
+import org.example.mqtt.model.PubAck;
+import org.example.mqtt.model.PubComp;
+import org.example.mqtt.model.PubRec;
+import org.example.mqtt.model.PubRel;
+import org.example.mqtt.model.Publish;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -60,11 +65,17 @@ public class ControlPacketContext {
     }
 
     public boolean complete() {
+        if (packet.atMostOnce()) {
+            return true;
+        }
         Status s = status();
         if (packet().atLeastOnce() && s == PUB_ACK) {
             return true;
         }
-        return packet().exactlyOnce() && s == PUB_COMP;
+        if (packet().exactlyOnce() && s == PUB_COMP) {
+            return true;
+        }
+        return false;
     }
 
     public ControlPacket pubRec() {
@@ -87,9 +98,11 @@ public class ControlPacketContext {
             String objectStr = packet.toString().trim();
             if (objectStr.startsWith("{") && objectStr.endsWith("}")) {
                 sb.append(objectStr);
-            } else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
+            }
+            else if (objectStr.startsWith("[") && objectStr.endsWith("]")) {
                 sb.append(objectStr);
-            } else {
+            }
+            else {
                 sb.append("\"").append(objectStr).append("\"");
             }
             sb.append(',');

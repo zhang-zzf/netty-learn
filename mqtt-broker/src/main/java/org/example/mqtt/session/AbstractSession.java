@@ -340,7 +340,7 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubRec failed. No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        cpx.markStatus(PUB_REC);
+        cpx.markStatus(INIT, PUB_REC);
         log.debug("sender({}/{}) Publish INIT->PUB_REC", cId(), packet.pId());
         // send PubRel packet.
         doWritePubRelPacket(cpx);
@@ -378,7 +378,7 @@ public abstract class AbstractSession implements Session {
             tryCleanOutQueue();
         }
         else {
-            cpx.markStatus(PUB_ACK);
+            cpx.markStatus(INIT, PUB_ACK);
             log.debug("sender({}/{}) Publish INIT->PUB_ACK", cId(), packet.pId());
         }
     }

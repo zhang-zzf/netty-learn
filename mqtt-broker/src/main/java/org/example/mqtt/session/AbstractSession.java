@@ -111,7 +111,7 @@ public abstract class AbstractSession implements Session {
             publish.payload().retain();
             log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
         }
-        // todo 测试 channel 关闭后是否可以正常使用 Promise
+        // 测试 channel 关闭后是否可以正常使用 Promise -> 已测试，channel 关闭后 channel.newPromise() / channel.eventLoop() 可以正常使用
         final ChannelPromise promise = channel.newPromise();
         // channel.eventLoop() exists even after channel was closed
         // make sure use the same thread that the session wad bound to
@@ -157,7 +157,12 @@ public abstract class AbstractSession implements Session {
             }
             // qos0 比 qos1/qos2 更早发送。。？ OK (match the mqtt protocol)
             else {// no need to enqueue, just send it.
-                doWritePublishPacket(cpx);
+                doWritePublishPacket(cpx).addListener(f -> {
+                    if (!f.isSuccess()) {
+                        // invoke callback to release ByteBuf if send QoS0 failed to avoid memory leak
+                        publishPacketSentComplete(cpx);
+                    }
+                });
             }
         }
         else {

@@ -23,7 +23,7 @@
         <springframework.version>5.3.23</springframework.version>
 
         <!--启动类-->
-        <Main-Class>org.example.Application</Main-Class>
+        <Main-Class>org.github.zzf.mqtt.Application</Main-Class>
 
     </properties>
 

@@ -3,19 +3,10 @@ package org.example.mqtt.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import javax.annotation.Nullable;
-import lombok.extern.slf4j.Slf4j;
 
-/**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
- */
-@Slf4j
 public class Publish extends ControlPacket {
 
     public static final int AT_MOST_ONCE = 0;
@@ -23,14 +14,9 @@ public class Publish extends ControlPacket {
     public static final int EXACTLY_ONCE = 2;
     public static final short NO_PACKET_IDENTIFIER = 0;
 
-    private String topicName;
-    private short packetIdentifier;
+    private final String topicName;
+    private final short packetIdentifier;
     private final ByteBuf payload;
-    /**
-     * share payload with another Publish
-     */
-    private final boolean sharedPayload;
-
     private int variableHeaderLength = 0;
 
     /**
@@ -50,9 +36,11 @@ public class Publish extends ControlPacket {
             this.packetIdentifier = incoming.readShort();
             variableHeaderLength += 2;
         }
-        // core : slice
+        else {
+            this.packetIdentifier = 0;
+        }
+        // core : slice . sync the life cycle of the incoming ByteBuf
         this.payload = incoming.readSlice(incoming.readableBytes());
-        this.sharedPayload = true;
         initMetricMetaData();
     }
 
@@ -66,14 +54,12 @@ public class Publish extends ControlPacket {
     /**
      * outgoing Publish Message
      */
-    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName,
-        boolean sharedPayload) {
+    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
         this.payload = payload;
         this.variableHeaderLength = remainingLength - payload.readableBytes();
-        this.sharedPayload = sharedPayload;
         if (!packetValidate()) {
             throw new IllegalArgumentException("Invalid packet");
         }
@@ -87,7 +73,7 @@ public class Publish extends ControlPacket {
      * @return a Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
-        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload, true);
+        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload);
         // metric meta
         ret.copyMeta(origin);
         return ret;
@@ -101,21 +87,21 @@ public class Publish extends ControlPacket {
      * @return a new Publish Packet that have the save data as source
      */
     public static Publish outgoing(Publish origin, boolean dup, byte qos, short packetIdentifier) {
-        return outgoing(origin.retainFlag(), qos, dup, origin.topicName, packetIdentifier, origin.payload, true);
+        return outgoing(origin.retainFlag(), qos, dup, origin.topicName, packetIdentifier, origin.payload);
     }
 
     public static Publish outgoing(int qos, String topicName, ByteBuf payload) {
-        return outgoing(false, qos, false, topicName, (short) 0, payload, false);
+        return outgoing(false, qos, false, topicName, (short) 0, payload);
     }
 
     public static Publish outgoing(boolean retain, int qos, boolean dup,
-        String topicName, short packetIdentifier, ByteBuf payload, boolean sharedPayload) {
+        String topicName, short packetIdentifier, ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
         // remainingLength field
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
-        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName, sharedPayload);
+        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
     }
 
     @Override
@@ -130,13 +116,8 @@ public class Publish extends ControlPacket {
         if (needAck()) {
             varHeader.writeShort(packetIdentifier);
         }
-        // packet
-        if (sharedPayload) {
-            log.info("Publish({}) shared payload retained ", pId());
-            payload.retain();
-        }
         // the CompositeBuffer will be released by netty
-        return Unpooled.compositeBuffer()
+        return compositeBuffer()
             .addComponents(true, fixedHeader, varHeader, payload);
     }
 
@@ -163,7 +144,7 @@ public class Publish extends ControlPacket {
         if (retain) {
             _0Byte |= 0x01;
         }
-        _0Byte |= qos << 1;
+        _0Byte |= (byte) (qos << 1);
         if (dup) {
             _0Byte |= 0x08;
         }
@@ -223,17 +204,6 @@ public class Publish extends ControlPacket {
         return qos() == AT_MOST_ONCE;
     }
 
-    /**
-     * update packetIdentifier
-     *
-     * @param packetIdentifier the new id
-     * @return this
-     */
-    public Publish packetIdentifier(short packetIdentifier) {
-        this.packetIdentifier = packetIdentifier;
-        return this;
-    }
-
     public ByteBuf payload() {
         return this.payload;
     }
@@ -244,21 +214,6 @@ public class Publish extends ControlPacket {
 
     public short packetIdentifier() {
         return this.packetIdentifier;
-    }
-
-    public Publish topicName(String topicName) {
-        this.topicName = topicName;
-        return this;
-    }
-
-    public Publish qos(byte qos) {
-        this.updateQos(qos);
-        return this;
-    }
-
-    private void updateQos(byte qos) {
-        int clearQoS = this.byte0 & 0xF9;
-        this.byte0 = (byte) (clearQoS | (qos << 1));
     }
 
     @Override
@@ -275,38 +230,8 @@ public class Publish extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public Publish dup(boolean dup) {
-        if (dup) {
-            this.byte0 |= 0x08;
-        }
-        else {
-            this.byte0 &= 0xF7;
-        }
-        return this;
-    }
-
     public String pId() {
         return hexPId(packetIdentifier);
-    }
-
-    /**
-     * create a new Publish Packet that use Unpooled ByteBuf payload
-     *
-     * @return the copied Publish Packet
-     */
-    public Publish copy() {
-        ByteBuf payload = Unpooled.copiedBuffer(payload());
-        return Publish.outgoing(retainFlag(), (byte) qos(), dup(), topicName(), (short) 0, payload, false);
-    }
-
-    public Publish retainFlag(boolean flag) {
-        if (flag) {
-            byte0 |= 0x01;
-        }
-        else {
-            byte0 &= 0xFE;
-        }
-        return this;
     }
 
     /**
@@ -327,7 +252,6 @@ public class Publish extends ControlPacket {
     public static final String META_NM_WRAP = "nm_wrap";
     public static final String META_NM_RECEIVE = "nm_receive";
 
-    @Nullable
     public Map<String, Object> meta() {
         return meta;
     }

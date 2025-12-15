@@ -2,13 +2,9 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 
-/**
- * @author zhanfeng.zhang@icloud.com
- * @date 2024-11-13
- */
 public class UnsubAck extends ControlPacket {
 
-    private short packetIdentifier;
+    private final short packetIdentifier;
 
     UnsubAck(ByteBuf incoming) {
         super(incoming);

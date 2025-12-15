@@ -1,23 +1,17 @@
 package org.example.mqtt.model;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
+import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-
-/**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
- */
 public class Unsubscribe extends ControlPacket {
 
     public static final byte _0_BYTE = (byte) 0xA2;
-    private short packetIdentifier;
-    private List<Subscribe.Subscription> subscriptions;
+    private final short packetIdentifier;
+    private final List<Subscribe.Subscription> subscriptions;
 
     public List<Subscribe.Subscription> subscriptions() {
         return this.subscriptions;
@@ -115,11 +109,6 @@ public class Unsubscribe extends ControlPacket {
             sb.append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
-    public Unsubscribe packetIdentifier(short packetIdentifier) {
-        this.packetIdentifier = packetIdentifier;
-        return this;
     }
 
 }

@@ -188,8 +188,6 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     @Override
     public int forward(Publish packet) {
-        // must set retain to false before forward the PublishPacket
-        packet.retainFlag(false);
         int times = nodeBroker.forward(packet);
         // must retain the Publish.packet for async callback
         // todo
@@ -323,7 +321,8 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
             return;
         }
         // use a shadow copy of the origin Publish
-        Publish outgoing = Publish.outgoing(packet, tf, (byte) qos, packetIdentifier(s, qos));
+        // todo
+        Publish outgoing = null; //Publish.outgoing(packet, tf, (byte) qos, packetIdentifier(s, qos));
         ClusterControlPacketContext cpx =
                 new ClusterControlPacketContext(clusterBrokerState, cId, OUT, outgoing, INIT, null);
         clusterBrokerState.offerCpx(null, cpx);

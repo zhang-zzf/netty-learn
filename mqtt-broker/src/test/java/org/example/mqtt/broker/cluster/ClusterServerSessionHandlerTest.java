@@ -363,7 +363,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", mqttClientA.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 receiver1 接受 Publish 消息
         // then
@@ -377,7 +377,7 @@ class ClusterServerSessionHandlerTest {
         then((UnsubAck) ControlPacket.from(clientB.readOutbound())).isNotNull();
         // when
         Publish p2 = Publish.outgoing(false, qos, false, "t/0",
-            mqttClientA.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            mqttClientA.nextPacketIdentifier(), Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(p2.toByteBuf());
         // then
         then(clientB.<ByteBuf>readOutbound()).isNull();
@@ -398,7 +398,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         byte qos = (byte) 0;
         Publish publish = Publish.outgoing(false, qos, false, "t/0", mqttClientA.nextPacketIdentifier(),
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new PublishInbound(clientB.readOutbound());
@@ -422,7 +422,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short sendPacketIdentifier = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/0", sendPacketIdentifier,
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         then((PubAck) ControlPacket.from(clientA.readOutbound())).returns(sendPacketIdentifier, PubAck::packetIdentifier);
         // Broker forward 后 clientB 接受 Publish 消息
@@ -447,7 +447,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short sendPacketIdentifier = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/0", sendPacketIdentifier,
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         then(((PubRec) ControlPacket.from(clientA.readOutbound()))).returns(sendPacketIdentifier, PubRec::packetIdentifier);
         clientA.writeInbound(new PubRel(sendPacketIdentifier).toByteBuf());
@@ -472,7 +472,7 @@ class ClusterServerSessionHandlerTest {
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
-        Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8), false);
+        Publish publish = Publish.outgoing(false, (byte) 1, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // clientA 收到 PubAck 消息
         then(((PubAck) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
@@ -499,7 +499,7 @@ class ClusterServerSessionHandlerTest {
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
-        Publish publish = Publish.outgoing(false, (byte) 0, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8), false);
+        Publish publish = Publish.outgoing(false, (byte) 0, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new PublishInbound(clientB.readOutbound());
@@ -521,7 +521,7 @@ class ClusterServerSessionHandlerTest {
         // clientA 发送 Publish 消息
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
-        Publish publish = Publish.outgoing(false, (byte) 2, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8), false);
+        Publish publish = Publish.outgoing(false, (byte) 2, false, "t/1", publish1PacketId, Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // clientA receive PubRec, should send a PubRel
         then(((PubRec) ControlPacket.from(clientA.readOutbound())).packetIdentifier()).isEqualTo(publish1PacketId);
@@ -552,7 +552,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 2, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new PublishInbound(clientB.readOutbound());
@@ -588,7 +588,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 0, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new PublishInbound(clientB.readOutbound());
@@ -611,7 +611,7 @@ class ClusterServerSessionHandlerTest {
         String strPayload = UUID.randomUUID().toString();
         short publish1PacketId = mqttClientA.nextPacketIdentifier();
         Publish publish = Publish.outgoing(false, (byte) 1, false, "t/2", publish1PacketId,
-            Unpooled.copiedBuffer(strPayload, UTF_8), false);
+            Unpooled.copiedBuffer(strPayload, UTF_8));
         clientA.writeInbound(publish.toByteBuf());
         // Broker forward 后 clientB 接受 Publish 消息
         Publish packet = new PublishInbound(clientB.readOutbound());

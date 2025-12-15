@@ -237,6 +237,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 log.debug("Session({}) match retain Publish: {}", cId(), packet);
                 // send retain Publish
                 int qos = Math.min(packet.qos(), p.qos());
+                // todo retailFlag will be false or true
                 // do rebuild the PublishPacket
                 send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
             }
@@ -267,7 +268,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         String topic = connect.willTopic();
         ByteBuf byteBuf = connect.willMessage();
         boolean retain = connect.willRetainFlag();
-        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf, false);
+        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
     }
 
 }

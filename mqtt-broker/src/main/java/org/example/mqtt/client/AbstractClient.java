@@ -105,7 +105,7 @@ public abstract class AbstractClient implements Client {
             throw new IllegalArgumentException();
         }
         short packetIdentifier = session.nextPacketIdentifier();
-        session.send(Subscribe.from(sub).packetIdentifier(packetIdentifier));
+        session.send(Subscribe.from(packetIdentifier, sub));
         return (CompletionStage<SubAck>) unAckPackets(packetIdentifier);
     }
 
@@ -131,7 +131,7 @@ public abstract class AbstractClient implements Client {
             throw new IllegalArgumentException();
         }
         short packetIdentifier = session.nextPacketIdentifier();
-        session.send(Unsubscribe.from(unsub).packetIdentifier(packetIdentifier));
+        session.send(Unsubscribe.from(packetIdentifier, unsub));
         return (CompletionStage<UnsubAck>) unAckPackets(packetIdentifier);
     }
 
@@ -145,7 +145,7 @@ public abstract class AbstractClient implements Client {
     public CompletionStage<Void> publish(int qos, String topicName, ByteBuf payload) {
         if (qos == Publish.AT_MOST_ONCE) {
             CompletableFuture<Void> future = new CompletableFuture<>();
-            session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload, false))
+            session.send(Publish.outgoing(false, qos, false, topicName, (short) 0, payload))
                 .addListener(sendResultListener(future))
             ;
             // no need to wait
@@ -154,7 +154,7 @@ public abstract class AbstractClient implements Client {
         else {
             short packetIdentifier = session.nextPacketIdentifier();
             final CompletableFuture<Void> future = (CompletableFuture<Void>) unAckPackets(packetIdentifier);
-            session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload, false))
+            session.send(Publish.outgoing(false, qos, false, topicName, packetIdentifier, payload))
                 .addListener(f -> {
                     if (!f.isSuccess()) {
                         ackPacketsExceptionally(packetIdentifier, f.cause() == null ? new CancellationException() : f.cause());

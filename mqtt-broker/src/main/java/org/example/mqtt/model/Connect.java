@@ -3,8 +3,6 @@ package org.example.mqtt.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -18,16 +16,15 @@ public class Connect extends ControlPacket {
      */
     public static final byte PROTOCOL_LEVEL_3_1_1 = (byte) 4;
     public static final int VARIABLE_HEADER_LENGTH = 10;
-    private String protocolName;
-    private byte protocolLevel;
-    private byte connectFlags;
-    private short keepAlive;
-    private String clientIdentifier;
-    private String willTopic;
-    private ByteBuf willMessage;
-    private String username;
-    private ByteBuf password;
-
+    private final String protocolName;
+    private final byte protocolLevel;
+    private final byte connectFlags;
+    private final short keepAlive;
+    private final String clientIdentifier;
+    private final String willTopic;
+    private final ByteBuf willMessage;
+    private final String username;
+    private final ByteBuf password;
 
     private int payloadLength = 0;
 
@@ -45,20 +42,30 @@ public class Connect extends ControlPacket {
             willTopic = incoming.readCharSequence(willFlagLng, UTF_8).toString();
             payloadLength += 2 + willFlagLng;
             // heapBuffer no memory leak
-            willMessage = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
+            willMessage = heapBuffer(incoming.readShort());
             incoming.readBytes(willMessage);
             payloadLength += willMessage.readableBytes();
+        }
+        else {
+            willTopic = null;
+            willMessage = null;
         }
         if (usernameFlag()) {
             short userNameLng = incoming.readShort();
             username = incoming.readCharSequence(userNameLng, UTF_8).toString();
             payloadLength += 2 + userNameLng;
         }
+        else {
+            username = null;
+        }
         if (passwordFlag()) {
             // heapBuffer no memory leak
-            password = PooledByteBufAllocator.DEFAULT.heapBuffer(incoming.readShort());
+            password = heapBuffer(incoming.readShort());
             incoming.readBytes(password);
             payloadLength += password.readableBytes();
+        }
+        else {
+            password = null;
         }
     }
 
@@ -189,7 +196,7 @@ public class Connect extends ControlPacket {
             payload.writeBytes(password);
         }
         // all direct ByteBuf
-        return Unpooled.compositeBuffer()
+        return compositeBuffer()
             .addComponents(true, fixedHeader, varHeader, payload);
     }
 

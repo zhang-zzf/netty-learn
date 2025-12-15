@@ -3,22 +3,14 @@ package org.example.mqtt.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import lombok.AllArgsConstructor;
-import lombok.NoArgsConstructor;
-import lombok.experimental.Accessors;
 
-/**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
- */
 public class Subscribe extends ControlPacket {
 
-    private short packetIdentifier;
-    private List<Subscription> subscriptions;
+    private final short packetIdentifier;
+    private final List<Subscription> subscriptions;
 
     Subscribe(ByteBuf incoming) {
         super(incoming);
@@ -139,22 +131,15 @@ public class Subscribe extends ControlPacket {
         return true;
     }
 
-    public Subscribe packetIdentifier(short packetIdentifier) {
-        this.packetIdentifier = packetIdentifier;
-        return this;
-    }
-
-    /**
-     * @author zhanfeng.zhang@icloud.com
-     * @date 2024-11-12
-     */
-    @Accessors(chain = true)
-    @NoArgsConstructor
-    @AllArgsConstructor
     public static class Subscription {
 
-        private String topicFilter;
-        private int qos;
+        private final String topicFilter;
+        private final int qos;
+
+        public Subscription(String topicFilter, int qos) {
+            this.topicFilter = topicFilter;
+            this.qos = qos;
+        }
 
         public String topicFilter() {
             return this.topicFilter;
@@ -179,11 +164,6 @@ public class Subscribe extends ControlPacket {
         @Override
         public int hashCode() {
             return Objects.hash(topicFilter);
-        }
-
-        public Subscription qos(int qos) {
-            this.qos = qos;
-            return this;
         }
 
         @Override

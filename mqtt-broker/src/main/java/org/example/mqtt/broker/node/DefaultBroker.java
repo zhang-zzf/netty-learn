@@ -8,6 +8,7 @@ import static org.example.mqtt.model.Publish.NO_PACKET_IDENTIFIER;
 import static org.example.mqtt.model.Publish.needAck;
 
 import io.micrometer.core.annotation.Timed;
+import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -80,15 +81,16 @@ public class DefaultBroker implements Broker {
     @Override
     public int forward(Publish packet) {
         int times = 0;
-        // must set retain to false before forward the PublishPacket
-        packet.retainFlag(false);
         for (Topic topic : brokerState.match(packet.topicName())) {
             for (Map.Entry<ServerSession, Integer> e : topic.subscribers().entrySet()) {
                 ServerSession session = e.getKey();
-                String topicFilter = topic.topicFilter();
                 int qos = qoS(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                Publish outgoing = Publish.outgoing(packet, topicFilter, (byte) qos, packetIdentifier(session, qos));
+                // Publish outgoing = Publish.outgoing(packet, topicName, (byte) qos, packetIdentifier(session, qos));
+                // todo 核心点: retainedSlice 会增加引用计数，不会被回收
+                ByteBuf payload = packet.payload().retainedSlice();
+                Publish outgoing = Publish.outgoing(false /* must set retain to false before forward the PublishPacket */,
+                    qos, false, topic.topicFilter(), packetIdentifier(session, qos), payload);
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }
@@ -162,7 +164,9 @@ public class DefaultBroker implements Broker {
         if (!publish.retainFlag()) {
             throw new IllegalArgumentException();
         }
-        Publish packet = publish.copy();
+        // use a copy of the origin
+        Publish packet = Publish.outgoing(publish.retainFlag(), (byte) publish.qos(),
+            publish.dup(), publish.topicName(), (short) 0, publish.payload().copy());
         if (zeroBytesPayload(packet)) {
             log.debug("receive zero bytes payload retain Publish, now remove it: {}", packet);
             // remove the retained message

@@ -2,10 +2,6 @@ package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
 
-/**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
- */
 public class ConnAck extends ControlPacket {
 
     public static final byte ACCEPTED = 0x00;
@@ -17,8 +13,8 @@ public class ConnAck extends ControlPacket {
     /**
      * Session Present Flag
      */
-    private boolean sp;
-    private int returnCode;
+    private final boolean sp;
+    private final int returnCode;
 
     public ConnAck() {
         this(false, 0x00);

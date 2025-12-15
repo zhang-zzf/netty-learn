@@ -1,10 +1,9 @@
 package org.example.mqtt.model;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.PooledByteBufAllocator;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.nio.AbstractNioByteChannel;
+import io.netty.buffer.CompositeByteBuf;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -32,8 +31,9 @@ public abstract class ControlPacket {
     public static final byte PINGRESP = (byte) 0xD0;
     public static final byte DISCONNECT = (byte) 0xE0;
 
-    protected byte byte0;
-    protected int remainingLength;
+    protected final byte byte0;
+    protected final int remainingLength;
+    private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -148,7 +148,7 @@ public abstract class ControlPacket {
         return true;
     }
 
-    public static byte type(byte _0byte) {
+    private static byte type(byte _0byte) {
         return (byte) (_0byte & 0xF0);
     }
 
@@ -193,7 +193,9 @@ public abstract class ControlPacket {
         // remainingLength field
         buf.writeBytes(remainingLengthByteBuf);
         return buf;
-    };
+    }
+
+    ;
 
     protected ByteBuf fixedHeaderByteBuf() {
         // use direct buf will optimize netty zero-copy when write to Channel
@@ -208,12 +210,20 @@ public abstract class ControlPacket {
         return buf;
     }
 
-    protected ByteBuf directBuffer(int capacity) {
-        return PooledByteBufAllocator.DEFAULT.directBuffer(capacity);
+    protected static ByteBuf directBuffer(int capacity) {
+        return BYTE_BUF_ALLOCATOR.directBuffer(capacity);
+    }
+
+    protected static ByteBuf heapBuffer(int capacity) {
+        return BYTE_BUF_ALLOCATOR.heapBuffer(capacity);
+    }
+
+    protected static CompositeByteBuf compositeBuffer() {
+        return BYTE_BUF_ALLOCATOR.compositeDirectBuffer();
     }
 
     private static ByteBuf remainingLengthToByteBuf(int remainingLength) {
-        ByteBuf buf = Unpooled.buffer(4);
+        ByteBuf buf = directBuffer(4);
         int rl = remainingLength;
         do {
             int encodedByte = rl % 128;

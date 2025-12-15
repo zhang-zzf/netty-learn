@@ -6,10 +6,6 @@ import java.util.List;
 import java.util.Objects;
 import org.example.mqtt.model.Subscribe.Subscription;
 
-/**
- * @author 张占峰 (Email: zhang.zzf@alibaba-inc.com / ID: 235668)
- * @date 2022/6/24
- */
 public class SubAck extends ControlPacket {
 
     private short packetIdentifier;

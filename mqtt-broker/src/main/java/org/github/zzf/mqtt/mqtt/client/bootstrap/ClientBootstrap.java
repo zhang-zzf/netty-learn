@@ -44,10 +44,6 @@ import org.github.zzf.mqtt.mqtt.session.AbstractSession;
 import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
 import org.github.zzf.mqtt.mqtt.session.Session;
 
-/**
- * @author zhanfeng.zhang@icloud.com
- * @date 2022/07/06
- */
 @Slf4j
 public class ClientBootstrap {
 
@@ -186,8 +182,8 @@ public class ClientBootstrap {
         }
 
         @Override
-        protected void publishReceivedComplete(ControlPacketContext cpx) {
-            ByteBuf payload = cpx.packet().payload();
+        protected void publishReceivedComplete(Publish cpx) {
+            ByteBuf payload = cpx.payload();
             long timeInNano = payload.getLong(0);
             long useTimeInNano = System.nanoTime() - timeInNano;
             publishReceived.record(useTimeInNano, TimeUnit.NANOSECONDS);

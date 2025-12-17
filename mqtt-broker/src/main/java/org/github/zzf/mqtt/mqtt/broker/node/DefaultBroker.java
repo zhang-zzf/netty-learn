@@ -86,11 +86,8 @@ public class DefaultBroker implements Broker {
                 ServerSession session = e.getKey();
                 int qos = qoS(packet.qos(), e.getValue());
                 // use a shadow copy of the origin Publish
-                // Publish outgoing = Publish.outgoing(packet, topicName, (byte) qos, packetIdentifier(session, qos));
-                // todo 核心点: retainedSlice 会增加引用计数，不会被回收
-                ByteBuf payload = packet.payload().retainedSlice();
                 Publish outgoing = Publish.outgoing(false /* must set retain to false before forward the PublishPacket */,
-                    qos, false, topic.topicFilter(), packetIdentifier(session, qos), payload);
+                    qos, false, topic.topicFilter(), packetIdentifier(session, qos), packet.payload());
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }

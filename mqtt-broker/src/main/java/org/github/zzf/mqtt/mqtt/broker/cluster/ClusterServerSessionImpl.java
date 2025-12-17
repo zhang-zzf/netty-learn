@@ -112,10 +112,10 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
     protected ControlPacketContext createNewCpx(Publish packet,
         ControlPacketContext.Status status,
         ControlPacketContext.Type type) {
-        if (type == OUT && !enqueueOutQueue(packet)) {
+        if (type == OUT && !(packet.atLeastOnce() || packet.exactlyOnce())) {
             return new ControlPacketContext(packet, status, type);
         }
-        if (type == IN && !enqueueInQueue(packet)) {
+        if (type == IN && !packet.exactlyOnce()) {
             return new ControlPacketContext(packet, status, type);
         }
         return new ClusterControlPacketContext(broker().state(),

@@ -15,6 +15,9 @@ import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.PUB_R
 import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.PUB_REL;
 import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.IN;
 import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.OUT;
+import static org.github.zzf.mqtt.protocol.model.Publish.AT_LEAST_ONCE;
+import static org.github.zzf.mqtt.protocol.model.Publish.AT_MOST_ONCE;
+import static org.github.zzf.mqtt.protocol.model.Publish.EXACTLY_ONCE;
 
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
@@ -101,89 +104,141 @@ public abstract class AbstractSession implements Session {
         if (packet == null) {
             throw new IllegalArgumentException();
         }
+        // 测试 channel 关闭后是否可以正常使用 Promise ?
+        // 已测试，channel 关闭后 channel.newPromise() / channel.eventLoop() 可以正常使用
+        final ChannelPromise promise = channel.newPromise();
         if (packet.type() == PUBLISH) {
             Publish publish = (Publish) packet;
-            log.debug("sender({}/{}) [send Publish]", cId(), publish.pId());
             /**
-             *  {@link AbstractSession#publishPacketSentComplete(ControlPacketContext)}  will release the payload
-             *  todo if send failed, memory leak?
+             *  {@link AbstractSession#publishSentComplete(Publish)}  will release the payload
+             *  if send failed, memory leak? solved.
              */
             publish.payload().retain();
-            log.debug("sender({}/{}) [retain Publish.payload]", cId(), publish.pId());
+            log.debug("sender({}/{}) Publish . -> RETAIN: {}", cId(), publish.pId(), publish);
+            doInEventLoop(() -> doSendPublish(publish, promise));
         }
-        // 测试 channel 关闭后是否可以正常使用 Promise -> 已测试，channel 关闭后 channel.newPromise() / channel.eventLoop() 可以正常使用
-        final ChannelPromise promise = channel.newPromise();
-        // channel.eventLoop() exists even after channel was closed
-        // make sure use the same thread that the session wad bound to
-        if (channel.eventLoop().inEventLoop()) {
-            doSend(packet, promise);
-        }
-        else {
-            channel.eventLoop().execute(() -> doSend(packet, promise));
+        else {// send ControlPacket other than Publish
+            doInEventLoop(() -> doSendControlPacketExceptPublish(packet, promise));
         }
         return promise;
     }
 
-    private void doSend(ControlPacket packet, ChannelPromise promise) {
-        if (PUBLISH == packet.type()) {
-            doSendPublish((Publish) packet, promise);
+    private void doSendControlPacketExceptPublish(ControlPacket packet, ChannelPromise promise) {
+        if (!isActive()) {
+            log.warn("sender({}): . -> DISCARDED, Session is not bind to a Channel, discard the ControlPacket", cId());
+            promise.setFailure(new IllegalStateException("Session is not bind to a Channel"));
+            return;
+        }
+        doWrite(packet).addListener(f -> {
+            if (f.isSuccess()) {
+                log.debug("sender({}): . -> doSendControlPacket", cId());
+                promise.setSuccess();
+            }
+            else {
+                promise.setFailure(f.cause());
+            }
+        });
+    }
+
+    private void doInEventLoop(Runnable task) {
+        // channel.eventLoop() exists even after channel was closed
+        // make sure use the same thread that the session wad bound to
+        if (channel.eventLoop().inEventLoop()) {
+            task.run();
         }
         else {
-            doSendPacket(packet, promise);
+            channel.eventLoop().execute(task);
         }
     }
 
-    private void doSendPublish(Publish outgoing, final ChannelPromise promise) {
+    private void doSendPublish(Publish packet, final ChannelPromise promise) {
         // Session 使用 EventLoop 更改内部状态
         assert channel.eventLoop().inEventLoop();
-        // very little chance
-        if (outQueueQos2DuplicateCheck(outgoing)) {
-            log.warn("Session({}) send same Publish(QoS2), discard it: {}", cId(), outgoing);
-            promise.setSuccess();
-            return;
+        log.debug("sender({}/{}) Publish . -> INIT: {}", cId(), packet.pId(), packet);
+        switch (packet.qos()) {
+            case AT_MOST_ONCE:
+                doSendAtMostOncePublish(packet, promise);
+                break;
+            case AT_LEAST_ONCE:
+                doSendAtLeastOncePublish(packet, promise);
+                break;
+            case EXACTLY_ONCE:
+                doSendExactlyOncePublish(packet, promise);
+                break;
+            default:
+                throw new IllegalArgumentException();
         }
-        ControlPacketContext cpx = createNewCpx(outgoing, INIT, OUT);
-        log.debug("sender({}/{}) Publish .->INIT: {}", cId(), cpx.pId(), cpx);
-        if (isActive()) {// isActive. send immediately
-            if (enqueueOutQueue(cpx.packet())) {// Only enqueue Qos1 and QoS2
-                outQueueEnqueue(cpx);
-                if (headOfQueue(cpx, outQueue())) {
-                    // cpx is the head of the outQueue
-                    doWritePublishPacket(cpx);
-                }
-                else {
-                    log.debug("sender({}/{}) Publish wait for it's turn: {}", cId(), cpx.pId(), cpx);
-                }
-            }
+    }
+
+    private void doSendAtMostOncePublish(Publish packet, ChannelPromise promise) {
+        if (isActive()) {// online, send immediately
             // qos0 比 qos1/qos2 更早发送。。？ OK (match the mqtt protocol)
-            else {// no need to enqueue, just send it.
-                doWritePublishPacket(cpx).addListener(f -> {
-                    if (!f.isSuccess()) {
-                        // invoke callback to release ByteBuf if send QoS0 failed to avoid memory leak
-                        publishPacketSentComplete(cpx);
-                    }
-                });
-            }
+            channel.writeAndFlush(packet).addListener(f -> {
+                if (f.isSuccess()) {
+                    publishSent(packet);
+                }
+                // no matter success of failed.
+                publishSentComplete(packet);
+            });
         }
-        else {
-            // offline
-            if (!enqueueOutQueue(cpx.packet())) {
-                // QoS0 Publish will be discarded by default config.
-                log.debug("Session({}) is not bind to a Channel, discard the Publish(QoS0): {}", cId(), outgoing);
-                publishPacketSentComplete(cpx);
-            }
-            else {
-                // no send, but there is no memory leak
-                // todo metric the message
-                outQueueEnqueue(cpx);
-            }
+        else {// offline. consider success.
+            publishSentComplete(packet);
         }
         // anyway the result is success (match the QoS rules)
         promise.setSuccess();
     }
 
-    private boolean headOfQueue(ControlPacketContext cpx, Queue<ControlPacketContext> queue) {
-        return headOfQueue(cpx.packetIdentifier(), queue);
+    private void doSendAtLeastOncePublish(Publish packet, ChannelPromise promise) {
+        enqueueOutQueueAndSend(packet);
+        // anyway the result is success (match the QoS rules)
+        promise.setSuccess();
+    }
+
+    private void doSendExactlyOncePublish(Publish packet, ChannelPromise promise) {
+        // check duplicated, very little chance
+        if (outQueueQos2DuplicateCheck(packet)) {
+            log.warn("sender({}/{}) Publish INIT -> DUPLICATED", cId(), packet.pId());
+            promise.setSuccess();
+            return;
+        }
+        enqueueOutQueueAndSend(packet);
+        // anyway the result is success (match the QoS rules)
+        promise.setSuccess();
+    }
+
+    private void enqueueOutQueueAndSend(Publish packet) {
+        // enqueue
+        Queue<ControlPacketContext> outQueue = outQueue();
+        outQueue().offer(createNewCpx(packet, INIT, OUT));
+        log.debug("sender({}/{}) Publish INIT -> ENQUEUE", cId(), packet.pId());
+        if (!isActive()) {
+            return;
+        }
+        // try to send the packet
+        if (inFlightWindowEquals(1)) {
+            ControlPacketContext cpx = outQueue.peek();
+            if (cpx == null || cpx.packetIdentifier() != packet.packetIdentifier()) {
+                return;
+            }
+            doHandleSendPublish(cpx);
+        }
+        else {
+            for (ControlPacketContext cpx : outQueue) {// 批量发送
+                doHandleSendPublish(cpx);
+            }
+        }
+    }
+
+    private void doHandleSendPublish(ControlPacketContext cpx) {
+        if (cpx == null || cpx.outgoingPublishSent()) {
+            return;
+        }
+        doWrite(cpx.packet()).addListener(f -> {
+            if (f.isSuccess()) {
+                cpx.markStatus(INIT, HANDLED);
+                publishSent(cpx.packet());
+            }
+        });
     }
 
     private boolean headOfQueue(short pId, Queue<ControlPacketContext> queue) {
@@ -191,37 +246,8 @@ public abstract class AbstractSession implements Session {
         return head != null && head.packetIdentifier() == pId;
     }
 
-    protected boolean enqueueOutQueue(Publish packet) {
-        return packet.atLeastOnce() || packet.exactlyOnce();
-    }
-
-    private void outQueueEnqueue(ControlPacketContext cpx) {
-        outQueue().offer(cpx);
-        log.debug("sender({}/{}) [outQueue enqueue]", cId(), cpx.pId());
-    }
-
     protected String cId() {
         return clientIdentifier();
-    }
-
-    protected void doSendPacket(ControlPacket packet) {
-        doSendPacket(packet, channel.newPromise());
-    }
-
-    private void doSendPacket(ControlPacket packet, ChannelPromise promise) {
-        if (!isActive()) {
-            log.warn("Session is not bind to a Channel, discard the ControlPacket: {}, {}", cId(), packet);
-            promise.setFailure(new IllegalStateException("Session is not bind to a Channel"));
-        }
-        doWrite(packet).addListener(f -> {
-            if (f.isSuccess()) {
-                log.debug("doSendPacket({}): {}", cId(), packet);
-                promise.setSuccess();
-            }
-            else {
-                promise.setFailure(f.cause());
-            }
-        });
     }
 
     @Override
@@ -255,8 +281,8 @@ public abstract class AbstractSession implements Session {
         // cpx always point to the first cpx in the queue
         while (cpx != null && cpx.complete()) {
             outQueue.poll();
-            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
-            publishPacketSentComplete(cpx);
+            log.debug("sender({}/{}) Publish CLEAN_OUT_QUEUE -> DEQUEUE", cId(), cpx.pId());
+            publishSentComplete(cpx.packet());
             cpx = outQueue.peek();
         }
     }
@@ -266,30 +292,8 @@ public abstract class AbstractSession implements Session {
      *
      * @param cpx the ControlPacketContext
      */
-    protected void publishReceivedComplete(ControlPacketContext cpx) {
+    protected void publishReceivedComplete(Publish cpx) {
         log.debug("receiver({}/{}) receive completed", cId(), cpx.pId());
-    }
-
-    /**
-     * invoke after send Publish complete (maybe discard it)
-     *
-     * @param cpx Publish
-     */
-    protected void publishPacketSentComplete(ControlPacketContext cpx) {
-        log.debug("sender({}/{}) Publish Packet sent completed", cId(), cpx.pId());
-        /**
-         * release the payload retained by {@link AbstractSession#send(ControlPacket)}
-         */
-        boolean released = cpx.packet().payload().release();
-        log.debug("sender({}/{}) [release Publish.payload] -> {}", cId(), cpx.pId(), released);
-        //
-        // send the next if exist
-        if (enqueueOutQueue(cpx.packet())) { //? why check -> send the next item in the queue only if cpx is in the queue
-            ControlPacketContext head = outQueue().peek();
-            log.debug("sender({}) now try to send the next cpx-> {}", cId(), head);
-            // outQueue 队列中 head 发送完成，继续发送下一个
-            doWritePublishPacket(head);
-        }
     }
 
     @Override
@@ -308,29 +312,28 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubComp(PubComp packet) {
-        log.debug("sender({}/{}) [QoS2 receive PubComp]", cId(), packet.pId());
+        log.debug("sender({}/{}) Publish PUB_REC -> PUB_COMP", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
-        if (cpx == null) {
-            // Client PubComp nothing
+        if (cpx == null) {// Client PubComp nothing
             log.error("sender({}/{}) PubComp failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        // cpx != null means outQueue is not empty
         if (headOfQueue(pId, outQueue())) {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
-            log.debug("sender({}/{}) [PubComp the Header of the outQueue]", cId(), cpx.pId());
-            // the header, remove it from the queue
-            outQueue().poll();
-            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), cpx.pId());
-            publishPacketSentComplete(cpx);
             // try clean the queue (the cpx that behinds head may already complete)
+            // QoS2 QoS1(need to clean)
             tryCleanOutQueue();
+            // now send the next item in the queue
+            doHandleSendPublish(outQueue().peek());
         }
         else {
             cpx.markStatus(PUB_REC, PUB_COMP);
-            log.debug("sender({}/{}) Publish PUB_REC->PUB_COMP", cId(), packet.pId());
         }
+    }
+
+    private boolean inFlightWindowEquals(int windowSize) {
+        return Integer.getInteger("mqtt.in.flight.window", 1) == windowSize;
     }
 
     /**
@@ -345,14 +348,14 @@ public abstract class AbstractSession implements Session {
             log.error("sender({}/{}) PubRec failed. No Publish in outQueue", cId(), packet.pId());
             return;
         }
-        cpx.markStatus(INIT, PUB_REC);
-        log.debug("sender({}/{}) Publish INIT->PUB_REC", cId(), packet.pId());
+        cpx.markStatus(HANDLED, PUB_REC);
+        log.debug("sender({}/{}) Publish HANDLE -> PUB_REC", cId(), packet.pId());
         // send PubRel packet.
         doWritePubRelPacket(cpx);
     }
 
     private void doWritePubRelPacket(ControlPacketContext cpx) {
-        doWrite(cpx.pubRel()).addListener(f -> {
+        doWrite(new PubRel(cpx.packetIdentifier())).addListener(f -> {
             if (f.isSuccess()) {
                 log.debug("sender({}/{}) [PubRel sent]", cId(), cpx.pId());
             }
@@ -363,28 +366,25 @@ public abstract class AbstractSession implements Session {
      * as Sender
      */
     private void doReceivePubAck(PubAck packet) {
-        log.debug("sender({}/{}) [QoS1 receive PubAck]", cId(), packet.pId());
+        log.debug("sender({}/{}) Publish SENT -> PUB_ACK", cId(), packet.pId());
         short pId = packet.packetIdentifier();
         ControlPacketContext cpx = findControlPacketInOutQueue(pId);
         // now cpx point to the first QoS 1 ControlPacketContext or null
-        if (cpx == null) {
-            // Client PubAck nothing
+        if (cpx == null) {// Client PubAck nothing
             log.error("sender({}/{}) PubAck failed, No Publish in outQueue", cId(), packet.pId());
             return;
         }
+        //
         if (headOfQueue(pId, outQueue())) {
             // 性能优化考虑（Queue 以 DB 实现，可以省去一次 I/O）
             // the header, just delete it from the queue
-            log.debug("sender({}/{}) [PubAck the Header of the outQueue]", cId(), cpx.pId());
-            outQueue().poll();
-            log.debug("sender({}/{}) [remove Publish from outQueue]", cId(), packet.pId());
-            publishPacketSentComplete(cpx);
             // try clean the queue
             tryCleanOutQueue();
+            // now send the next item in the queue
+            doHandleSendPublish(outQueue().peek());
         }
         else {
-            cpx.markStatus(INIT, PUB_ACK);
-            log.debug("sender({}/{}) Publish INIT->PUB_ACK", cId(), packet.pId());
+            cpx.markStatus(HANDLED, PUB_ACK);
         }
     }
 
@@ -403,10 +403,10 @@ public abstract class AbstractSession implements Session {
         cpx.markStatus(HANDLED, PUB_REL);
         log.debug("receiver({}/{}) Publish HANDLED->PUB_REL", cId(), cpx.pId());
         // ack PubComp
-        doWrite(cpx.pubComp()).addListener(f -> {
+        doWrite(new PubComp(packet.packetIdentifier())).addListener(f -> {
             if (f.isSuccess()) {
                 cpx.markStatus(PUB_REL, PUB_COMP);
-                log.debug("receiver({}/{}) [QoS2 PUB_COMP sent] Publish PUB_REL->PUB_COMP", cId(), cpx.pId());
+                log.debug("receiver({}/{}) [QoS2 PUB_COMP sent] Publish PUB_REL-> PUB_COMP", cId(), cpx.pId());
                 tryCleanInQueue();
             }
         });
@@ -420,7 +420,7 @@ public abstract class AbstractSession implements Session {
         while (cpx != null && cpx.complete()) {
             inQueue.poll();
             log.debug("receiver({}/{}) [remove Publish from inQueue]", cId(), cpx.pId());
-            publishReceivedComplete(cpx);
+            publishReceivedComplete(cpx.packet());
             cpx = inQueue.peek();
         }
     }
@@ -429,49 +429,68 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     protected void doReceivePublish(Publish packet) {
-        if (log.isDebugEnabled()) {
-            log.debug("receiver({}/{}) [receive Publish]: {}\n{}", cId(), packet.pId(), packet, ByteBufUtil.prettyHexDump(packet.payload()));
-        }
-        // QoS 2 duplicate check
-        if (packet.exactlyOnce()) {
-            ControlPacketContext cpx = findControlPacketInInQueue(packet.packetIdentifier());
-            if (cpx != null) {
-                log.warn("Session({}) receive same Publish(QoS2) packet: {}, {}", cId(), packet.pId(), cpx);
-                doHandleDuplicateQoS2Publish(cpx);
-                return;
-            }
-        }
-        // Client / Broker must be online.
-        Queue<ControlPacketContext> inQueue = inQueue();
-        ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
-        log.debug("receiver({}/{}) Publish .-> INIT", cId(), cpx.pId());
-        if (enqueueInQueue(packet)) {
-            inQueue.offer(cpx);
-            log.debug("receiver({}/{}) [inQueue enqueue]", cId(), cpx.pId());
-        }
-        // handle the PublishPacket
-        onPublish(packet);
-        // now cpx is HANDLED
-        cpx.markStatus(INIT, HANDLED);
-        log.debug("receiver({}/{}) [Publish Handled] Publish INIT -> HANDLED", cId(), cpx.pId());
-        if (packet.atMostOnce()) {
-            publishReceivedComplete(cpx);
-        }
-        else if (packet.atLeastOnce()) {
-            doWrite(cpx.pubAck()).addListener(f -> {
-                cpx.markStatus(HANDLED, PUB_ACK);
-                log.debug("receiver({}/{}) [QoS1 PUB_ACK sent] Publish HANDLED -> PUB_ACK", cId(), cpx.pId());
-                publishReceivedComplete(cpx);
-            });
-        }
-        else if (packet.exactlyOnce()) {
-            // does not modify the status of the cpx
-            doWrite(cpx.pubRec()).addListener(f -> log.debug("receiver({}/{}) [QoS2 PUB_REC sent]", cId(), cpx.pId()));
+        debugPacketInfo(packet);
+        switch (packet.qos()) {
+            case AT_MOST_ONCE:
+                doReceiveAtMostOncePublish(packet);
+                break;
+            case AT_LEAST_ONCE:
+                doReceiveAtLeastOncePublish(packet);
+                break;
+            case EXACTLY_ONCE:
+                doReceiveExactlyOncePublish(packet);
+                break;
+            default:
+                throw new UnsupportedOperationException();
         }
     }
 
-    protected boolean enqueueInQueue(Publish packet) {
-        return packet.exactlyOnce();
+    private void doReceiveAtMostOncePublish(Publish packet) {
+        // handle the Publish Packet
+        onPublish(packet);
+        log.debug("receiver({}/{}) Publish INIT -> HANDLED", cId(), packet.pId());
+        publishReceivedComplete(packet);
+    }
+
+    private void debugPacketInfo(Publish packet) {
+        if (log.isDebugEnabled()) {
+            log.debug("receiver({}/{}) [receive Publish]: {}\n{}", cId(), packet.pId(), packet,
+                ByteBufUtil.prettyHexDump(packet.payload()));
+        }
+    }
+
+    private void doReceiveAtLeastOncePublish(Publish packet) {
+        // handle the Publish Packet
+        onPublish(packet);
+        log.debug("receiver({}/{}) Publish INIT -> HANDLED", cId(), packet.pId());
+        doWrite(new PubAck(packet.packetIdentifier())).addListener(f -> {
+            log.debug("receiver({}/{}) Publish HANDLED -> PUB_ACK", cId(), packet.pId());
+            publishReceivedComplete(packet);
+        });
+    }
+
+    private void doReceiveExactlyOncePublish(Publish packet) {
+        // duplicate check
+        ControlPacketContext dupCpx = findControlPacketInInQueue(packet.packetIdentifier());
+        if (dupCpx != null) {
+            log.warn("Session({}) receive same Publish(QoS2) packet: {}, {}", cId(), packet.pId(), dupCpx);
+            doHandleDuplicateQoS2Publish(dupCpx);
+            return;
+        }
+        // Client / Broker must be online.
+        ControlPacketContext cpx = createNewCpx(packet, INIT, IN);
+        log.debug("receiver({}/{}) Publish . -> INIT", cId(), packet.pId());
+        // enqueue
+        inQueue().offer(cpx);
+        log.debug("receiver({}/{}) Publish INIT -> ENQUEUE", cId(), packet.pId());
+        // handle the Publish Packet
+        onPublish(packet);
+        // now cpx is HANDLED
+        cpx.markStatus(INIT, HANDLED);
+        log.debug("receiver({}/{}) Publish ENQUEUE -> HANDLED", cId(), packet.pId());
+        // does not modify the status of the cpx
+        doWrite(new PubRec(packet.packetIdentifier()))
+            .addListener(f -> log.debug("receiver({}/{}) Publish HANDLED -> PUB_REC", cId(), packet.pId()));
     }
 
     protected ControlPacketContext createNewCpx(Publish packet,
@@ -495,7 +514,7 @@ public abstract class AbstractSession implements Session {
 
     private void doWritePubRecPacket(ControlPacketContext cpx) {
         // does not modify the status of the cpx
-        doWrite(cpx.pubRec()).addListener(f -> {
+        doWrite(new PubRec(cpx.packet().packetIdentifier())).addListener(f -> {
             if (f.isSuccess()) {
                 log.debug("receiver({}/{}) HANDLED -> . [QoS2 已发送 PUB_REC]: {}", cId(), cpx.pId(), cpx);
             }
@@ -521,6 +540,8 @@ public abstract class AbstractSession implements Session {
 
     private ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
+            // todo 测试 异常如何处理？
+            // 当前实现是直接关闭 channel
             .addListener(FIRE_EXCEPTION_ON_FAILURE)
             .addListener(LOG_ON_FAILURE)
             ;
@@ -565,11 +586,11 @@ public abstract class AbstractSession implements Session {
         Publish packet = cpx.packet();
         if (packet.atMostOnce() || packet.atLeastOnce()) {
             cpx.markStatus(INIT);
-            doWritePublishPacket(cpx);
+            doHandleSendPublish(cpx);
         }
         else if (packet.exactlyOnce()) {
             switch (cpx.status()) {
-                case INIT -> doWritePublishPacket(cpx);
+                case INIT -> doHandleSendPublish(cpx);
                 // send PubRel packet.
                 case PUB_REC -> doWritePubRelPacket(cpx);
                 default -> throw new IllegalStateException();
@@ -577,25 +598,27 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private ChannelFuture doWritePublishPacket(ControlPacketContext cpx) {
-        if (cpx == null) {
-            return channel.newSucceededFuture();
-        }
-        return doWrite(cpx.packet()).addListener(f -> {
-            if (f.isSuccess()) {
-                publishPacketSent(cpx);
-            }
-            if (!enqueueOutQueue(cpx.packet())) {
-                publishPacketSentComplete(cpx);
-            }
-        });
+    /**
+     * invoke after publish packet sent to receiver
+     */
+    protected void publishSent(Publish packet) {
+        log.debug("sender({}/{}) Publish * -> SENT", cId(), packet.pId());
     }
 
-    public static final String METRIC_NAME = AbstractSession.class.getName();
-
-    protected void publishPacketSent(ControlPacketContext cpx) {
-        log.debug("sender({}/{}) [Publish sent]", cId(), cpx.pId());
+    /**
+     * invoke after Publish packet sent complete
+     *
+     * @param packet Publish
+     */
+    protected void publishSentComplete(Publish packet) {
+        log.debug("sender({}/{}) Publish * -> COMPLETED", cId(), packet.pId());
+        /**
+         * release the payload retained by {@link AbstractSession#send(ControlPacket)}
+         */
+        boolean released = packet.payload().release();
+        log.debug("sender({}/{}) Publish COMPLETED -> RELEASED ({})", cId(), packet.pId(), released);
     }
+
 
     @Override
     public Channel channel() {

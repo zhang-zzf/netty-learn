@@ -1,15 +1,12 @@
 package org.github.zzf.mqtt.mqtt.session;
 
+import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.HANDLED;
 import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.PUB_ACK;
 import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.PUB_COMP;
+import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.PUB_REC;
 
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.model.ControlPacket;
-import org.github.zzf.mqtt.protocol.model.PubAck;
-import org.github.zzf.mqtt.protocol.model.PubComp;
-import org.github.zzf.mqtt.protocol.model.PubRec;
-import org.github.zzf.mqtt.protocol.model.PubRel;
 import org.github.zzf.mqtt.protocol.model.Publish;
 
 /**
@@ -49,10 +46,6 @@ public class ControlPacketContext {
         return packet;
     }
 
-    public ControlPacket pubAck() {
-        return new PubAck(packet().packetIdentifier());
-    }
-
     public ControlPacketContext markStatus(Status update) {
         return markStatus(status(), update);
     }
@@ -78,16 +71,20 @@ public class ControlPacketContext {
         return false;
     }
 
-    public ControlPacket pubRec() {
-        return new PubRec(packet().packetIdentifier());
-    }
-
-    public ControlPacket pubRel() {
-        return new PubRel(packet().packetIdentifier());
-    }
-
-    public ControlPacket pubComp() {
-        return new PubComp(packet().packetIdentifier());
+    public boolean outgoingPublishSent() {
+        if (type != Type.OUT) {
+            throw new IllegalStateException();
+        }
+        Status s = status();
+        if (packet.atLeastOnce()
+            && (s == HANDLED || s == PUB_ACK)) {
+            return true;
+        }
+        if (packet.exactlyOnce()
+            && (s == HANDLED || s == PUB_REC || s == PUB_COMP)) {
+            return true;
+        }
+        return false;
     }
 
     @Override

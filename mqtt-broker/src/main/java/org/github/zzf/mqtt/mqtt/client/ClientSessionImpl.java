@@ -64,10 +64,10 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
 
 
     @Override
-    protected void publishPacketSentComplete(ControlPacketContext cpx) {
+    protected void publishSentComplete(Publish packet) {
         // invoke callback after the Publish was completely sent.
-        client.ackPackets(cpx.packet().packetIdentifier(), null);
-        super.publishPacketSentComplete(cpx);
+        client.ackPackets(packet.packetIdentifier(), null);
+        super.publishSentComplete(packet);
     }
 
     @Override

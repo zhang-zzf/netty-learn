@@ -14,7 +14,6 @@ import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE_BROKER;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 
-import io.netty.channel.ChannelFuture;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -91,14 +90,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     /**
      * <p>ServerSession 只发送 Publish</p>
+     * <p> todo ServerSession 发送 SubAck 等</p>
      */
-    @Override
-    public ChannelFuture send(ControlPacket packet) {
-        if (packet == null || packet.type() != PUBLISH) {
-            throw new IllegalArgumentException();
-        }
-        return super.send(packet);
-    }
+    // @Override
+    // public ChannelFuture send(ControlPacket packet) {
+    //     if (packet == null || packet.type() != PUBLISH) {
+    //         throw new IllegalArgumentException();
+    //     }
+    //     return super.send(packet);
+    // }
 
     @Override
     protected void onPublish(Publish packet) {
@@ -164,20 +164,19 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     @Override
-    protected void publishPacketSent(ControlPacketContext cpx) {
+    protected void publishSent(Publish packet) {
         try {
-            metricPublish(cpx);
+            metricPublish(packet);
         } catch (Throwable e) {
             // just log an error
             log.error("unExpected exception", e);
         }
-        super.publishPacketSent(cpx);
+        super.publishSent(packet);
     }
 
     public static final String METRIC_NAME = DefaultServerSession.class.getName();
 
-    private void metricPublish(ControlPacketContext cpx) {
-        Publish packet = cpx.packet();
+    private void metricPublish(Publish packet) {
         Map<String, Object> meta = packet.meta();
         if (meta == null) {
             return;
@@ -227,7 +226,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         this.subscriptions.addAll(permitted);
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
         log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
-        doSendPacket(subAck);
+        send(subAck);
         doSendRetainPublish(permitted);
     }
 
@@ -237,7 +236,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 log.debug("Session({}) match retain Publish: {}", cId(), packet);
                 // send retain Publish
                 int qos = Math.min(packet.qos(), p.qos());
-                // todo retailFlag will be false or true
                 // do rebuild the PublishPacket
                 send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
             }
@@ -250,7 +248,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         packet.subscriptions().forEach(this.subscriptions::remove);
         UnsubAck unsubAck = new UnsubAck(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
-        doSendPacket(unsubAck);
+        send(unsubAck);
     }
 
     private void doReceiveDisconnect(Disconnect packet) {

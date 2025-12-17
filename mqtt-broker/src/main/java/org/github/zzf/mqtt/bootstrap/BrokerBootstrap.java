@@ -27,7 +27,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.mqtt.broker.Authenticator;
 import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverSecureWebsocketServerInitializer;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverWebsocketServerInitializer;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;

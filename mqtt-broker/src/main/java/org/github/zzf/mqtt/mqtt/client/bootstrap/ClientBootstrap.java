@@ -33,7 +33,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;

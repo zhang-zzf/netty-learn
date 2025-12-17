@@ -21,7 +21,7 @@ import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Disconnect;

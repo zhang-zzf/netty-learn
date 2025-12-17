@@ -19,7 +19,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.github.zzf.mqtt.mqtt.broker.ServerSession;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;

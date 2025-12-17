@@ -10,7 +10,7 @@ import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.List;
 import java.util.UUID;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
 import org.github.zzf.mqtt.protocol.model.ConnAck;

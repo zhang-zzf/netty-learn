@@ -1,10 +1,9 @@
-package org.github.zzf.mqtt.mqtt.broker.codec;
+package org.github.zzf.mqtt.protocol.codec;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.ByteToMessageCodec;
-import io.netty.util.ReferenceCounted;
 import java.util.List;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 

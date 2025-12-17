@@ -9,7 +9,7 @@ import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketSe
 import io.netty.handler.ssl.SslContext;
 import lombok.RequiredArgsConstructor;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
-import org.github.zzf.mqtt.mqtt.broker.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 
 import java.util.function.Supplier;
 

@@ -5,7 +5,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.session.AbstractSession;
+import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.junit.jupiter.api.Test;
 
 /**

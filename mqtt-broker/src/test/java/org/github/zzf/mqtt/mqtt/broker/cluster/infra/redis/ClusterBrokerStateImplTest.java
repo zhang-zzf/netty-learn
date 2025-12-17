@@ -24,8 +24,8 @@ import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.INIT;
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.IN;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Status.INIT;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.IN;
 
 @Slf4j
 @Disabled

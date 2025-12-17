@@ -26,7 +26,7 @@ import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.UnsubAck;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.Session;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 

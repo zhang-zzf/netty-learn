@@ -8,7 +8,7 @@ import lombok.experimental.Accessors;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterControlPacketContext;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Publish;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
 
 import javax.annotation.Nullable;
 import java.util.List;

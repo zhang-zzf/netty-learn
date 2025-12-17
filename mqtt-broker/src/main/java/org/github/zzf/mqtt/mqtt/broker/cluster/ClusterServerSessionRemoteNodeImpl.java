@@ -7,7 +7,7 @@ import java.util.Set;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
  * @author : zhanfeng.zhang@icloud.com

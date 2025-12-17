@@ -1,7 +1,7 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
 
 import java.util.AbstractQueue;
 import java.util.Iterator;

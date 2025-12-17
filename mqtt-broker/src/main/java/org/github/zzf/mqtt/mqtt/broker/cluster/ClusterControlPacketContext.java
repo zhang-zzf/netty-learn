@@ -3,7 +3,7 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Publish;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
 
 @Slf4j
 public class ClusterControlPacketContext extends ControlPacketContext {

@@ -1,7 +1,7 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.IN;
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.OUT;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.IN;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.OUT;
 
 import io.netty.channel.Channel;
 import java.util.Queue;
@@ -13,8 +13,8 @@ import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
  * @author zhanfeng.zhang@icloud.com

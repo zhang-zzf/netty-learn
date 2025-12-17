@@ -1,6 +1,6 @@
 package org.github.zzf.mqtt.mqtt.client;
 
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
  * @author zhanfeng.zhang@icloud.com

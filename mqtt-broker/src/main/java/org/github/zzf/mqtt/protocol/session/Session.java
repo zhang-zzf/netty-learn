@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.session;
+package org.github.zzf.mqtt.protocol.session;
 
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;

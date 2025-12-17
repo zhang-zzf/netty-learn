@@ -21,8 +21,8 @@ import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.PingReq;
 import org.github.zzf.mqtt.protocol.model.PingResp;
-import org.github.zzf.mqtt.mqtt.session.AbstractSession;
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.AbstractSession;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
  * @author zhanfeng.zhang@icloud.com

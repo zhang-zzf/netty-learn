@@ -1,7 +1,7 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
 import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
 
 import javax.annotation.Nullable;
 import java.io.IOException;

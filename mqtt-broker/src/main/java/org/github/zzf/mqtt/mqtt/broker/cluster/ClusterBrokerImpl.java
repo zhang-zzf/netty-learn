@@ -9,8 +9,8 @@ import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_SE
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_TOPIC_QUERY;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
 import static org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker.qoS;
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Status.INIT;
-import static org.github.zzf.mqtt.mqtt.session.ControlPacketContext.Type.OUT;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Status.INIT;
+import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.OUT;
 
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;

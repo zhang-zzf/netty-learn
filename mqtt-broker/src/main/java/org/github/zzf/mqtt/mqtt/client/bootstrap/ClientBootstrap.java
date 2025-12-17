@@ -40,9 +40,9 @@ import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.mqtt.session.AbstractSession;
-import org.github.zzf.mqtt.mqtt.session.ControlPacketContext;
-import org.github.zzf.mqtt.mqtt.session.Session;
+import org.github.zzf.mqtt.protocol.session.AbstractSession;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 @Slf4j
 public class ClientBootstrap {

@@ -1,9 +1,12 @@
 package org.github.zzf.mqtt.protocol.model;
 
+import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.BDDAssertions.then;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
+import io.netty.util.IllegalReferenceCountException;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.junit.jupiter.api.Test;
@@ -62,6 +65,32 @@ class PublishTest {
         String typeName = AbstractSession.class.getTypeName();
         log.info("name: {}\nsimpleName: {}\ncanonicalName: {}\ntypeName: {}",
                 name, simpleName, canonicalName, typeName);
+    }
+
+
+    /**
+     * 测试 toByteBuf
+     */
+    @Test void given_whenToByteBuf_then() {
+        ByteBuf buf = Unpooled.copiedBuffer(new byte[256]);
+        ByteBuf timestamp = Unpooled.buffer(16)
+            .writeLong(System.nanoTime())
+            .writeLong(System.currentTimeMillis());
+        CompositeByteBuf payload = Unpooled.compositeBuffer()
+            .addComponents(true, timestamp, buf);
+        //
+        ByteBuf byteBuf = Publish
+            .outgoing(false, 0, false, "Topic", (short) 1, payload)
+            .toByteBuf();
+        byteBuf.release();
+        then(byteBuf.refCnt()).isEqualTo(0);
+        // 所有的底层 ByteBuf 都会被释放掉，因为 CompositeByteBuf 引用了所有的底层 ByteBuf
+        then(payload.refCnt()).isEqualTo(0);
+        then(timestamp.refCnt()).isEqualTo(0);
+        then(buf.refCnt()).isEqualTo(0);
+        then(catchThrowable(payload::release))
+            .isNotNull()
+            .isInstanceOf(IllegalReferenceCountException.class);
     }
 
 }

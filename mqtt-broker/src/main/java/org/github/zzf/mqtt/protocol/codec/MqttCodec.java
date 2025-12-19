@@ -16,8 +16,11 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
         if (msg instanceof ControlPacket cp) {
-            // zero-copy
-            ctx.write(cp.toByteBuf(), promise);
+            // core: zero-copy
+            ByteBuf buf = cp.toByteBuf();
+            // the owner of the buf will transfer to the netty
+            // netty will release the buf after flush it to the wire
+            ctx.write(buf, promise);
         }
         else {
             ctx.write(msg, promise);

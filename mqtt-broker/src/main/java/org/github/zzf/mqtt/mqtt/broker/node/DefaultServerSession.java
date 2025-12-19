@@ -14,6 +14,7 @@ import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE_BROKER;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 
+import io.netty.channel.ChannelFuture;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -66,6 +67,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         if (connect.willFlag()) {
             this.willMessage = extractWillMessage(connect);
         }
+    }
+
+    @Override
+    public ChannelFuture send(ControlPacket packet) {
+        if (packet instanceof Publish publish) {
+            publish.payload().retain();
+            log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}", cId(), publish.pId(), publish.payload().refCnt());
+        }
+        return super.send(packet);
     }
 
     @Override

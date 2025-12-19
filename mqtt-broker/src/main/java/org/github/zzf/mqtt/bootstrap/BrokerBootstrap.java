@@ -32,6 +32,7 @@ import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverSecureWebsocketSe
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverWebsocketServerInitializer;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -232,6 +233,7 @@ public class BrokerBootstrap {
                         ch.pipeline()
                             .addLast(new MqttCodec())
                             .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                            .addLast(new ControlPacketRecycler())
                         ;
                     }
                 })

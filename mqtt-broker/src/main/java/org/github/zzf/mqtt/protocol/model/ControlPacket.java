@@ -59,8 +59,7 @@ public abstract class ControlPacket {
     public static ControlPacket from(ByteBuf incoming) {
         ControlPacket controlPacket = buildControlPacketFrom(incoming);
         // should read all the bytes out of the packet.
-        if (incoming.isReadable()) {
-            // control packet is illegal.
+        if (incoming.isReadable()) {// control packet is illegal.
             throw new IllegalArgumentException();
         }
         if (!controlPacket.packetValidate()) {
@@ -84,7 +83,7 @@ public abstract class ControlPacket {
             case CONNACK:
                 return new ConnAck(incoming);
             case PUBLISH:
-                // core
+                // core: zero-copy
                 return new Publish(incoming);
             case PUBACK:
                 return new PubAck(incoming);

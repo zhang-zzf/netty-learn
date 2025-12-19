@@ -31,7 +31,7 @@ public class Publish extends ControlPacket {
         else {
             this.packetIdentifier = 0;
         }
-        // core : slice . sync the life cycle of the incoming ByteBuf
+        // core: zero-copy
         this.payload = incoming.readSlice(incoming.readableBytes());
         initMetricMetaData();
     }

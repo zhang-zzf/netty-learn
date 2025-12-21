@@ -15,6 +15,7 @@ import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.OUT
 import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.Channel;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -27,9 +28,10 @@ import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
-import org.github.zzf.mqtt.mqtt.broker.Topic;
+import org.github.zzf.mqtt.protocol.model.Connect;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.Topic;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodePublish;
@@ -143,7 +145,8 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
                 // 异步执行完成后若有异常直接关闭 session
                 .exceptionally(e -> {
                     log.error("unExpected Exception", e);
-                    session.close();
+                    // todo
+                    // session.close();
                     return null;
                 });
         return subscriptions;
@@ -359,7 +362,8 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     private void closeAllSession() {
         for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
-            e.getValue().close();
+            // todo
+            // e.getValue().close();
             log.info("closeAllSession-> {}", e.getValue());
         }
     }
@@ -436,7 +440,8 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
         ServerSession session = nodeBroker.session(clientIdentifier);
         log.info("ClusterBroker receive Session.Closed-> cId: {}, session: {}", clientIdentifier, session);
         if (session != null) {
-            session.close();
+            // todo
+            // session.close();
             log.info("NodeClient Session.Closed->{}", clientIdentifier);
         } else {
             log.warn("NodeClient does not exist Session({})", clientIdentifier);
@@ -456,6 +461,12 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
     @Override
     public boolean block(Publish packet) {
         return nodeBroker.block(packet);
+    }
+
+    @Override
+    public ServerSession onConnect(Connect connect, Channel channel) {
+        // todo
+        return null;
     }
 
     @Override

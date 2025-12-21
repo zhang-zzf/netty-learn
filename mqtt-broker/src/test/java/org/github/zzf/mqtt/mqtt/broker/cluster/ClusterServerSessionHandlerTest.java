@@ -17,7 +17,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
@@ -34,6 +34,7 @@ import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.UnsubAck;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
+import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.BDDMockito;
@@ -56,7 +57,7 @@ class ClusterServerSessionHandlerTest {
     @BeforeEach
     public void beforeEach() {
         cluster = new Cluster();
-        ClusterBroker broker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBroker broker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(broker);
         clientA = createChannel(cluster);
         // clientA 模拟接受 Connect 消息
@@ -82,6 +83,11 @@ class ClusterServerSessionHandlerTest {
         given(dbRepo.removeNodeFromTopicAsync(any(), any())).willReturn(new CompletableFuture<>());
     }
 
+    @NotNull
+    private static DefaultBroker defaultBroker() {
+        return new DefaultBroker(packet -> 0x00);
+    }
+
     /**
      * cleanSession=1 Connect -> Disconnect
      * <p>Connect 正常流程</p>
@@ -90,7 +96,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenCleanSession1_whenConnectAndDisconnect_thenSuccess() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         EmbeddedChannel c1 = createChannel(cluster);
         // Connect
@@ -112,7 +118,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenEmptySession_whenConnectWithCleanSession1_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -132,7 +138,7 @@ class ClusterServerSessionHandlerTest {
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession1_then() {
         String clientIdentifier = "strReceiver01";
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -161,7 +167,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession1_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -187,7 +193,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession1_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         String strReceiver01 = "strReceiver01";
@@ -211,7 +217,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenEmptySession_whenConnectWithCleanSession0_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -232,7 +238,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenCleanSession0_whenConnectAndDisConnect_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -254,7 +260,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession1_whenConnectWithCleanSession0_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -278,7 +284,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOnlineCleanSession0_whenConnectWithCleanSession0_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         EmbeddedChannel c1 = createChannel(cluster);
@@ -306,7 +312,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenConnectedSession_whenConnectAgain_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
@@ -330,7 +336,7 @@ class ClusterServerSessionHandlerTest {
     @Test
     void givenExistOfflineCleanSession0_whenConnectWithCleanSession0_then() {
         Cluster cluster = new Cluster();
-        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+        ClusterBrokerImpl clusterBroker = new ClusterBrokerImpl(dbRepo, defaultBroker(), cluster);
         cluster.bind(clusterBroker);
         //
         Connect connect = Connect.from("strReceiver01", false, (short) 64);
@@ -629,7 +635,7 @@ class ClusterServerSessionHandlerTest {
         EmbeddedChannel c = new EmbeddedChannel();
         c.pipeline()
             .addLast(new MqttCodec())
-            .addLast(HANDLER_NAME, new ClusterServerSessionHandler(cp -> 0x00, 3, cluster));
+            .addLast(HANDLER_NAME, new ClusterServerSessionHandler(3, cluster));
         return c;
     }
 

@@ -6,8 +6,8 @@ import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.OUT
 import io.netty.channel.Channel;
 import java.util.Queue;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSession;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
@@ -138,19 +138,21 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
 
     private volatile boolean closing = false;
 
-    @Override
-    public void close() {
-        if (closing) {
-            return;
-        }
-        this.closing = true;
-        log.debug("Cluster now try to disconnect this Session from Node -> {}", this);
-        this.nodeId = null;
-        broker().detachSession(this, false);
-        super.close();
-        log.debug("Cluster disconnected this Session from Node -> {}", this);
-    }
-
+    //todo
+    // @Override
+    // public void close() {
+    //     if (closing) {
+    //         return;
+    //     }
+    //     this.closing = true;
+    //     log.debug("Cluster now try to disconnect this Session from Node -> {}", this);
+    //     this.nodeId = null;
+    //     broker().detachSession(this, false);
+    //     super.close();
+    //     log.debug("Cluster disconnected this Session from Node -> {}", this);
+    // }
+    //
+    
     @Override
     public String toString() {
         // todo

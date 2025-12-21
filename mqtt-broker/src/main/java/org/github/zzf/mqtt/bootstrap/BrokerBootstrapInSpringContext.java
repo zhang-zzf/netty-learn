@@ -3,8 +3,8 @@ package org.github.zzf.mqtt.bootstrap;
 import io.micrometer.core.aop.TimedAspect;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
 import org.springframework.context.ApplicationContext;
@@ -24,14 +24,13 @@ public class BrokerBootstrapInSpringContext {
     @SneakyThrows
     public static void main(String[] args) {
         ApplicationContext context = new AnnotationConfigApplicationContext(BrokerBootstrapInSpringContext.class);
-        Authenticator authenticator = packet -> 0x00;
         Broker broker = context.getBean(Broker.class);
-        BrokerBootstrap.startServer(() -> new DefaultServerSessionHandler(broker, authenticator, 3));
+        BrokerBootstrap.startServer(() -> new DefaultServerSessionHandler(broker, 3));
     }
 
     @Bean
     public Broker defaultBroker() {
-        return new DefaultBroker();
+        return new DefaultBroker(packet -> 0x00);
     }
 
     @Configuration

@@ -75,16 +75,17 @@ public class ClusterServerSessionRemoteNodeImpl implements ClusterServerSession 
         throw new UnsupportedOperationException();
     }
 
-    @Override
-    public boolean isActive() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void close() {
-        throw new UnsupportedOperationException();
-    }
-
+    //todo
+    // @Override
+    // public boolean isActive() {
+    //     throw new UnsupportedOperationException();
+    // }
+    //
+    // @Override
+    // public void close() {
+    //     throw new UnsupportedOperationException();
+    // }
+    
     @Override
     public boolean cleanSession() {
         throw new UnsupportedOperationException();

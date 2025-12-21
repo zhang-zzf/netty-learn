@@ -1,8 +1,8 @@
 package org.github.zzf.mqtt.mqtt.broker.node;
 
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
-import org.github.zzf.mqtt.mqtt.broker.Topic;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.Topic;
 
 import java.util.Collections;
 import java.util.Map;

@@ -1,5 +1,7 @@
-package org.github.zzf.mqtt.mqtt.broker;
+package org.github.zzf.mqtt.protocol.session.server;
 
+import io.netty.channel.Channel;
+import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
@@ -65,4 +67,5 @@ public interface Broker {
 
     boolean block(Publish packet);
 
+    ServerSession onConnect(Connect connect, Channel channel);
 }

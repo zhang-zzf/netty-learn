@@ -3,7 +3,7 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
@@ -17,8 +17,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
 
     private final Cluster cluster;
 
-    public ClusterServerSessionHandler(Authenticator authenticator, int activeIdleTimeoutSecond, Cluster cluster) {
-        super(cluster.broker(), authenticator, activeIdleTimeoutSecond);
+    public ClusterServerSessionHandler(int activeIdleTimeoutSecond, Cluster cluster) {
+        super(cluster.broker(), activeIdleTimeoutSecond);
         this.cluster = cluster;
     }
 
@@ -46,7 +46,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {// 当前节点存在 ClusterServerSession (NodeServerSession / ClusterServerSessionImpl)
                 // apply for ClusterServerSession (NodeServerSession / ClusterServerSessionImpl)
-                preSession.close(); // will detach session from broker
+                // todo
+                // preSession.close(); // will detach session from broker
                 log.debug("Client({}) Node closed the exist preSession", ccId);
             }
             else {// 当前节点无 ClusterServerSession
@@ -76,7 +77,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
             log.debug("Client({}) Node now has Session: {}", ccId, preSession);
             if (preSession != null) {
                 log.debug("Client({}) Node now try to close Session: {}", ccId, preSession);
-                preSession.close();
+                // todo
+                // preSession.close();
                 if (preSession instanceof ClusterServerSessionCleanImpl cssci) { // cleanSession
                     broker().attachSession(this.session = new ClusterServerSessionImpl(connect, ctx.channel(), broker()));
                     log.debug("Client({}) Node created a new Session: {}", ccId, session);

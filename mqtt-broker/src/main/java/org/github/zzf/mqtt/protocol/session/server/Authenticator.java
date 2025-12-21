@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker;
+package org.github.zzf.mqtt.protocol.session.server;
 
 import org.github.zzf.mqtt.protocol.model.Connect;
 

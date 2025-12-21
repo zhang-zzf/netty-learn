@@ -2,7 +2,7 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 
 import io.netty.channel.Channel;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSession;
 import org.github.zzf.mqtt.protocol.model.Connect;
 

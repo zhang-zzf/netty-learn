@@ -1,6 +1,7 @@
 package org.github.zzf.mqtt.mqtt.broker.node;
 
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DISCONNECT;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.PINGREQ;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PUBLISH;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.SUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.UNSUBSCRIBE;
@@ -25,8 +26,10 @@ import java.util.Set;
 
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
+import org.github.zzf.mqtt.protocol.model.PingReq;
+import org.github.zzf.mqtt.protocol.model.PingResp;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Disconnect;
@@ -56,7 +59,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      * <pre>
      *     initiate by Connect if will flag is present. It will be cleaned after
      *     1. receive Disconnect
-     *     2. lost the Channel with the Client, and forward the message to relative Topic.
+     *     2. lost the Channel to Client, and forward the message to relative Topic.
      * </pre>
      */
     private volatile Publish willMessage;
@@ -86,11 +89,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             }
         }
         switch (packet.type()) {
+            case PINGREQ -> doReceivePingReq((PingReq) packet);
             case SUBSCRIBE -> doReceiveSubscribe((Subscribe) packet);
             case UNSUBSCRIBE -> doReceiveUnsubscribe((Unsubscribe) packet);
             case DISCONNECT -> doReceiveDisconnect((Disconnect) packet);
             default -> super.onPacket(packet);
         }
+    }
+
+    private void doReceivePingReq(PingReq packet) {
+        send(new PingResp());
     }
 
     @Override
@@ -122,23 +130,24 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private volatile boolean closing = false;
 
-    @Override
-    public void close() {
-        if (closing) {
-            return;
-        }
-        this.closing = true;
-        // send will message
-        if (willMessage != null) {
-            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
-            onPublish(willMessage);
-            willMessage = null;
-        }
-        log.debug("Session({}) now try to closed -> {}", cId(), this);
-        broker.detachSession(this, false);
-        super.close();
-    }
-
+    // todo
+    // @Override
+    // public void close() {
+    //     if (closing) {
+    //         return;
+    //     }
+    //     this.closing = true;
+    //     // send will message
+    //     if (willMessage != null) {
+    //         log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
+    //         onPublish(willMessage);
+    //         willMessage = null;
+    //     }
+    //     log.debug("Session({}) now try to closed -> {}", cId(), this);
+    //     broker.detachSession(this, false);
+    //     super.close();
+    // }
+    //
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
@@ -268,7 +277,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
             willMessage = null;
         }
-        close();
+        // todo
+        // close();
     }
 
     private static Publish extractWillMessage(Connect connect) {

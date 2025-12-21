@@ -17,7 +17,7 @@ class ClusterTest {
 
     ClusterBrokerState dbRepo = mock(ClusterBrokerState.class);
     Cluster cluster = new Cluster();
-    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(), cluster);
+    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(packet -> 0x00), cluster);
 
     @Test
     void given_whenBuildPublish_when() {

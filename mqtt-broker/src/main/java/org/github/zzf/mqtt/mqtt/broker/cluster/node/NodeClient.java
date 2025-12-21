@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterServerSession;
 import org.github.zzf.mqtt.mqtt.client.AbstractClient;
@@ -121,7 +121,8 @@ public class NodeClient extends AbstractClient {
         ServerSession session = broker().session(clientIdentifier);
         log.info("NodeClient receive Session.Closed. cur Session->{}", session);
         if (session != null) {
-            session.close();
+            // todo
+            // session.close();
             log.info("NodeClient Session.Closed->{}", clientIdentifier);
         }
         else {
@@ -156,7 +157,8 @@ public class NodeClient extends AbstractClient {
                 return;
             }
             log.info("Client.Connect from {}, now close Session: {}", m.getNodeId(), session);
-            session.close();
+            // todo
+            // session.close();
         }
     }
 

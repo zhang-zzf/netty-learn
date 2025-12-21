@@ -1,6 +1,6 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
-import org.github.zzf.mqtt.mqtt.broker.Broker;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
 
 public interface ClusterBroker extends  Broker {
 

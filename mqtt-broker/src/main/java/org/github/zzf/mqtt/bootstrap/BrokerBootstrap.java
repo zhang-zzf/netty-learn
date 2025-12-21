@@ -25,8 +25,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverSecureWebsocketServerInitializer;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverWebsocketServerInitializer;
@@ -55,9 +55,8 @@ public class BrokerBootstrap {
     @SneakyThrows
     public static void main(String[] args) {
         if (!Boolean.getBoolean("spring.enable")) {
-            Broker broker = new DefaultBroker();
-            Authenticator authenticator = packet -> 0x00;
-            startServer(() -> new DefaultServerSessionHandler(broker, authenticator, 3));
+            Broker broker = new DefaultBroker(packet -> 0x00);
+            startServer(() -> new DefaultServerSessionHandler(broker, 3));
         }
         else {
             // start with spring context

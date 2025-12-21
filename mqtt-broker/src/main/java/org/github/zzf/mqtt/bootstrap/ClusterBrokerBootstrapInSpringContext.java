@@ -4,8 +4,8 @@ import static org.github.zzf.mqtt.bootstrap.ClusterBrokerBootstrap.startBroker;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
@@ -53,7 +53,9 @@ public class ClusterBrokerBootstrapInSpringContext {
 
     @Bean
     public Broker nodeBroker() {
-        return new DefaultBroker();
+        // todo
+        return null;
+        // return new DefaultBroker();
     }
 
     @Bean

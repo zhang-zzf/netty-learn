@@ -8,7 +8,7 @@ import static org.github.zzf.mqtt.protocol.model.Publish.NO_PACKET_IDENTIFIER;
 import static org.github.zzf.mqtt.protocol.model.Publish.needAck;
 
 import io.micrometer.core.annotation.Timed;
-import io.netty.buffer.ByteBuf;
+import io.netty.channel.Channel;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -29,9 +29,12 @@ import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
-import org.github.zzf.mqtt.mqtt.broker.Topic;
+import org.github.zzf.mqtt.protocol.model.ConnAck;
+import org.github.zzf.mqtt.protocol.model.Connect;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.session.server.Topic;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
@@ -43,11 +46,14 @@ import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 @Slf4j
 public class DefaultBroker implements Broker {
 
+    private final Authenticator authenticator;
+
     private final DefaultBrokerState brokerState = new DefaultBrokerState();
 
     private volatile TopicFilterTree blockedTopicFilter;
 
-    public DefaultBroker() {
+    public DefaultBroker(Authenticator authenticator) {
+        this.authenticator = authenticator;
         this.self = this;
         initBlockedTopicFilter();
     }
@@ -122,6 +128,26 @@ public class DefaultBroker implements Broker {
         return !blockedTopicFilter.match(packet.topicName()).isEmpty();
     }
 
+    @Override
+    public ServerSession onConnect(Connect connect, Channel channel) {
+        log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
+        // The Server MUST respond to the CONNECT Packet
+        // with a CONNACK return code 0x01 (unacceptable protocol level) and then
+        // disconnect the Client if the Protocol Level is not supported by the Server
+        if (!supportProtocolLevel().contains(connect.protocolLevel())) {
+            log.error("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
+            channel.writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
+        }
+        // authenticate
+        int authenticate = authenticator.authenticate(connect);
+        if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
+            log.error("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
+            channel.writeAndFlush(new ConnAck(authenticate)).channel().close();
+        }
+
+        return null;
+    }
+
     @SneakyThrows
     @Override
     public void detachSession(ServerSession session, boolean force) {
@@ -129,9 +155,10 @@ public class DefaultBroker implements Broker {
             return;
         }
         // close channel
-        if (session.isActive()) {
-            session.close();
-        }
+        // todo
+        // if (session.isActive()) {
+        //     session.close();
+        // }
         if (session.cleanSession() || force) {
             String cId = session.clientIdentifier();
             log.debug("Broker({}) now try to remove Session({})", this, cId);
@@ -198,7 +225,8 @@ public class DefaultBroker implements Broker {
         // sync wait
         ServerSession previous = brokerState.add(session).get();
         if (previous != null) {
-            previous.close();
+            // todo
+            // previous.close();
         }
         String cId = session.clientIdentifier();
         if (session.cleanSession()) {

@@ -2,27 +2,22 @@ package org.github.zzf.mqtt.mqtt.broker.node;
 
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.timeout.ReadTimeoutHandler;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
-import org.github.zzf.mqtt.mqtt.broker.Broker;
-import org.github.zzf.mqtt.mqtt.broker.ServerSession;
-import org.github.zzf.mqtt.protocol.codec.MqttCodec;
+import org.checkerframework.checker.units.qual.C;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
-import org.github.zzf.mqtt.protocol.model.PingReq;
-import org.github.zzf.mqtt.protocol.model.PingResp;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.github.zzf.mqtt.protocol.session.Session;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -43,7 +38,6 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     protected ServerSession session;
     private final Broker broker;
-    private final Authenticator authenticator;
     private final int activeIdleTimeoutSecond;
     private ReadTimeoutHandler activeIdleTimeoutHandler;
 
@@ -68,7 +62,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket cp)) {
             log.error("channelRead msg is not ControlPacket, now close the Session and channel");
-            closeSession(ctx);
+            ctx.channel().close();
             return;
         }
         channelRead0(ctx, cp);
@@ -83,7 +77,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
-            closeSession(ctx);
+            ctx.channel().close();
             return;
         }
         // the first Connect Packet
@@ -93,33 +87,11 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // and disconnect the Client
             if (session != null) {
                 log.error("Client({}) send Connect packet more than once, now close session.", csci());
-                closeSession(ctx);
-                return;
-            }
-            log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
-            // The Server MUST respond to the CONNECT Packet
-            // with a CONNACK return code 0x01 (unacceptable protocol level) and then
-            // disconnect the Client if the Protocol Level is not supported by the Server
-            Set<Integer> supportProtocolLevel = broker.supportProtocolLevel();
-            if (!supportProtocolLevel.contains(connect.protocolLevel())) {
-                log.error("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
-                ctx.writeAndFlush(ConnAck.notSupportProtocolLevel());
-                closeSession(ctx);
-                return;
-            }
-            // authenticate
-            int authenticate = authenticator.authenticate(connect);
-            if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
-                log.error("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
-                ctx.writeAndFlush(new ConnAck(authenticate));
-                closeSession(ctx);
+                ctx.channel().close();
                 return;
             }
             // now accept the 'Connect'
-            // keep alive
-            if (connect.keepAlive() > 0) {
-                addClientKeepAliveHandler(ctx, connect.keepAlive());
-            }
+             this.session = broker.onConnect(connect, ctx.channel());
             ConnAck connAck = doHandleConnect(connect, ctx);
             ctx.writeAndFlush(connAck)
                 .addListener(LOG_ON_FAILURE)
@@ -127,10 +99,10 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
                 .addListener(SEND_PACKET_AFTER_CONNACK)
             ;
-        }
-        else if (cp instanceof PingReq) {
-            // no need to pass the packet to the session
-            ctx.writeAndFlush(new PingResp());
+            // keep alive
+            if (connect.keepAlive() > 0) {
+                addClientKeepAliveHandler(ctx, connect.keepAlive());
+            }
         }
         else {
             // let the session handle the packet
@@ -175,15 +147,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel -> channel: {}", ctx.channel());
         log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
-        closeSession(ctx);
+        ctx.channel().close();
     }
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         log.debug("Client({}) channelInactive", csci());
-        if (session != null) {
-            session.close();
-        }
         super.channelInactive(ctx);
     }
 
@@ -193,15 +162,6 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     protected Broker broker() {
         return broker;
-    }
-
-    private void closeSession(ChannelHandlerContext ctx) {
-        if (session != null) {
-            session.close();
-        }
-        else {
-            ctx.channel().close();
-        }
     }
 
 }

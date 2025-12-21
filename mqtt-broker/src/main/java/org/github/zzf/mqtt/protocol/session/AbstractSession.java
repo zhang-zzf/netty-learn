@@ -54,9 +54,9 @@ public abstract class AbstractSession implements Session {
     protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
 
     private final String clientIdentifier;
-    private final Channel channel;
-
     private final boolean cleanSession;
+
+    private final Channel channel;
 
     /**
      * 是否发送 Publish Packet
@@ -66,22 +66,6 @@ public abstract class AbstractSession implements Session {
         this.clientIdentifier = checkNotNull(clientIdentifier, "clientIdentifier");
         this.cleanSession = cleanSession;
         this.channel = checkNotNull(channel);
-    }
-
-    /**
-     * Close the Channel that was used to connect to the client.
-     */
-    @SneakyThrows
-    @Override
-    public void close() {
-        if (isActive()) {
-            log.debug("Session({}) now try to close Channel: {}", cId(), channel);
-            channel.close();
-            log.debug("Session({}) Channel was closed", cId());
-        }
-        else {
-            log.debug("Session({}) was not bound with a Channel", cId());
-        }
     }
 
     @Override
@@ -181,6 +165,10 @@ public abstract class AbstractSession implements Session {
         promise.setSuccess();
     }
 
+    protected boolean isActive() {
+        return channel.isActive();
+    }
+
     private void doSendAtLeastOncePublish(Publish packet, ChannelPromise promise) {
         enqueueOutQueueAndSend(packet);
         // anyway the result is success (match the QoS rules)
@@ -241,11 +229,6 @@ public abstract class AbstractSession implements Session {
 
     protected String cId() {
         return clientIdentifier();
-    }
-
-    @Override
-    public boolean isActive() {
-        return channel.isActive();
     }
 
     private boolean outQueueQos2DuplicateCheck(Publish packet) {

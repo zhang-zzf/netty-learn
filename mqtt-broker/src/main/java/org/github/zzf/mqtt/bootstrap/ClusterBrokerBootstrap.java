@@ -2,7 +2,7 @@ package org.github.zzf.mqtt.bootstrap;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.Authenticator;
+import org.github.zzf.mqtt.protocol.session.server.Authenticator;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
@@ -27,7 +27,7 @@ public class ClusterBrokerBootstrap {
         if (!Boolean.getBoolean("spring.enable")) {
             Authenticator authenticator = packet -> 0x00;
             final Cluster cluster = new Cluster();
-            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), new DefaultBroker(), cluster);
+            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), new DefaultBroker(authenticator), cluster);
             startBroker(authenticator, cluster, clusterBroker);
         } else {
             log.info("start BrokerBootstrap with Spring Context");
@@ -40,7 +40,7 @@ public class ClusterBrokerBootstrap {
                                    Cluster cluster,
                                    ClusterBroker clusterBroker) {
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
-                new ClusterServerSessionHandler(authenticator, 3, cluster);
+                new ClusterServerSessionHandler(3, cluster);
         BrokerBootstrap.startServer(handlerSupplier);
         // 开启集群节点信息同步
         // broker join the Cluster

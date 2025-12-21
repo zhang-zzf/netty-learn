@@ -57,7 +57,8 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
         }
         return super.send(packet).addListener((GenericFutureListener<? extends Future<? super Void>>) (f) -> {
             if (!f.isSuccess()) {
-                close();
+                // todo
+                // close();
             }
         });
     }
@@ -128,15 +129,16 @@ public class ClientSessionImpl extends AbstractSession implements ClientSession 
 
     private volatile boolean closing = false;
 
-    @Override
-    public void close() {
-        log.debug("Client({}) try to close session", client.clientIdentifier());
-        if (closing) {
-            return;
-        }
-        closing = true;
-        client.close();
-        super.close();
-    }
+    // todo
+    // @Override
+    // public void close() {
+    //     log.debug("Client({}) try to close session", client.clientIdentifier());
+    //     if (closing) {
+    //         return;
+    //     }
+    //     closing = true;
+    //     client.close();
+    //     super.close();
+    // }
 
 }

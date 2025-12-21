@@ -41,11 +41,6 @@ public interface Session {
     Channel channel();
 
     /**
-     * session is active
-     */
-    boolean isActive();
-
-    /**
      * the Subscribe that the session was registered
      *
      * @return Set<Subscription>
@@ -58,11 +53,6 @@ public interface Session {
      * @return packetIdentifier
      */
     short nextPacketIdentifier();
-
-    /**
-     * close Session
-     */
-    void close();
 
     /**
      * whether the session is cleanSession

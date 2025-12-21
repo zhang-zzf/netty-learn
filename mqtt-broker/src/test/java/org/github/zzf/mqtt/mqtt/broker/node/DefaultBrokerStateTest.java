@@ -5,7 +5,7 @@ import static org.assertj.core.api.BDDAssertions.then;
 import io.netty.channel.embedded.EmbeddedChannel;
 import java.util.Optional;
 import java.util.concurrent.ExecutionException;
-import org.github.zzf.mqtt.mqtt.broker.Topic;
+import org.github.zzf.mqtt.protocol.session.server.Topic;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.jetbrains.annotations.NotNull;

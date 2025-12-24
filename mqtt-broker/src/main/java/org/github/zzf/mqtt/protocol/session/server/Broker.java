@@ -1,12 +1,12 @@
 package org.github.zzf.mqtt.protocol.session.server;
 
 import io.netty.channel.Channel;
+import java.util.Collection;
+import java.util.List;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.protocol.model.Unsubscribe;
-
-import java.util.*;
+import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -15,57 +15,41 @@ import java.util.*;
 public interface Broker {
 
     /**
-     * onward message
+     * Connect Event
+     */
+    ServerSession onConnect(Connect connect, Channel channel);
+
+    /**
+     * Publish Event
      *
-     * @param packet data
+     * @param packet ControlPacket
      */
     int forward(Publish packet);
 
     /**
+     * onward message
+     *
+     * @param packet data
+     */
+    // int forward(Publish packet);
+
+    /**
      * register a subscription between the session and the topic
      */
-    List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe);
+    List<Subscribe.Subscription> subscribe(ServerSession session, Collection<Subscription> subscriptions);
 
     /**
      * deregister a subscription between the session and the topic
      */
-    void unsubscribe(ServerSession session, Unsubscribe packet);
+    void unsubscribe(ServerSession session, Collection<Subscription> subscriptions);
 
-    Optional<Topic> topic(String topicFilter);
-
-    Set<Integer> supportProtocolLevel();
-
-    /**
-     * find retain PublishPacket that match the topicFilter
-     *
-     * @param topicFilter TopicFilter
-     * @return matched PublishPacket List
-     */
-    List<Publish> retainMatch(String topicFilter);
-
-    /**
-     * Broker 处理接受到的 Publish
-     *
-     * @param packet ControlPacket
-     */
-    void handlePublish(Publish packet);
-
-    boolean attachSession(ServerSession session);
-
-    void detachSession(ServerSession session, boolean force);
-
-    ServerSession session(String clientIdentifier);
-
-    Map<String, ServerSession> sessionMap();
+    // ServerSession session(String clientIdentifier);
 
     void close() throws Exception;
 
     // todo
-    default boolean closed() {
-        return false;
-    }
+    // default boolean closed() {
+    //     return false;
+    // }
 
-    boolean block(Publish packet);
-
-    ServerSession onConnect(Connect connect, Channel channel);
 }

@@ -92,11 +92,6 @@ public class ClusterServerSessionRemoteNodeImpl implements ClusterServerSession 
     }
 
     @Override
-    public ClusterServerSessionRemoteNodeImpl migrate(Session session) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public boolean isOnline() {
         throw new UnsupportedOperationException();
     }

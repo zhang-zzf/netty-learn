@@ -3,6 +3,7 @@ package org.github.zzf.mqtt.protocol.model;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import io.netty.buffer.ByteBuf;
+import lombok.Getter;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -340,6 +341,20 @@ public class Connect extends ControlPacket {
             sb.append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public static class UnSupportProtocolLevelException extends IllegalArgumentException {
+
+    }
+
+    @Getter
+    public static class AuthenticationException extends IllegalArgumentException {
+
+        private final int authenticate;
+
+        public AuthenticationException(int authenticate) {
+            this.authenticate = authenticate;
+        }
     }
 
 }

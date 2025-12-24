@@ -64,21 +64,6 @@ public class ClusterTopic extends DefaultTopic implements Topic {
         if (topicFilter() != null) {
             sb.append("\"topicFilter\":\"").append(topicFilter()).append('\"').append(',');
         }
-        if (subscribers() != null) {
-            sb.append("\"subscribers\":");
-            if (!(subscribers()).isEmpty()) {
-                sb.append("{");
-                final Set<?> mapKeySet = (subscribers()).keySet();
-                for (Object mapKey : mapKeySet) {
-                    final Object mapValue = (subscribers()).get(mapKey);
-                    sb.append("\"").append(mapKey).append("\":\"").append(Objects.toString(mapValue, "")).append("\",");
-                }
-                sb.replace(sb.length() - 1, sb.length(), "}");
-            } else {
-                sb.append("{}");
-            }
-            sb.append(',');
-        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 

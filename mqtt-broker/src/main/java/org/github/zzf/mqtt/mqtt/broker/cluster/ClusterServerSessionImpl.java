@@ -36,7 +36,9 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
         // ClusterServerSessionImpl only used for a not clean session
         assert !connect.cleanSession();
         // check ClusterServerSession's owner before bind to this broker
-        ServerSession session = broker().session(connect.clientIdentifier());
+        // todo
+        // ServerSession session = broker().session(connect.clientIdentifier());
+        ServerSession session = null;
         if (session == null || session instanceof ClusterServerSession css && css.nodeId() == null) {
         }
         else {
@@ -57,22 +59,22 @@ public class ClusterServerSessionImpl extends DefaultServerSession implements Cl
         return outQueue;
     }
 
-    @Override
-    public ClusterServerSessionImpl migrate(Session session) {
-        if (session instanceof ClusterServerSessionRemoteNodeImpl cssrn) {
-            // 集群游离的 session
-            // 手动初始化
-            super.packetIdentifier.set(cssrn.nextPacketIdentifier());
-            super.subscriptions.addAll(cssrn.subscriptions());
-        }
-        else {
-            throw new IllegalArgumentException();
-        }
-        // watch out: do not use parent migrate
-        // super.migrate(session);
-        return this;
-    }
-
+    // @Override
+    // public ClusterServerSessionImpl migrate(Session session) {
+    //     if (session instanceof ClusterServerSessionRemoteNodeImpl cssrn) {
+    //         // 集群游离的 session
+    //         // 手动初始化
+    //         super.packetIdentifier.set(cssrn.nextPacketIdentifier());
+    //         super.subscriptions.addAll(cssrn.subscriptions());
+    //     }
+    //     else {
+    //         throw new IllegalArgumentException();
+    //     }
+    //     // watch out: do not use parent migrate
+    //     // super.migrate(session);
+    //     return this;
+    // }
+    //
     @Override
     public ClusterBroker broker() {
         return (ClusterBroker) super.broker();

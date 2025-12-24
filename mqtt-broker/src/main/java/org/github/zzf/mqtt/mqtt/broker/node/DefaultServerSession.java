@@ -2,7 +2,6 @@ package org.github.zzf.mqtt.mqtt.broker.node;
 
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DISCONNECT;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PINGREQ;
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.PUBLISH;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.SUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.UNSUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.Publish.META_NM_RECEIVE;
@@ -14,7 +13,6 @@ import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE_BROKER;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
-
 import io.netty.channel.ChannelFuture;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -23,16 +21,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
-
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.protocol.model.PingReq;
-import org.github.zzf.mqtt.protocol.model.PingResp;
-import org.github.zzf.mqtt.protocol.session.server.Broker;
-import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Disconnect;
+import org.github.zzf.mqtt.protocol.model.PingReq;
+import org.github.zzf.mqtt.protocol.model.PingResp;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
@@ -40,7 +35,8 @@ import org.github.zzf.mqtt.protocol.model.UnsubAck;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
-import org.github.zzf.mqtt.protocol.session.Session;
+import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -50,11 +46,16 @@ import org.github.zzf.mqtt.protocol.session.Session;
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
     private final Broker broker;
-    protected Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    // todo 监控内存占用
     private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
     private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
 
+    private final Connect connect;
+    private final boolean isResumed;
+
     /**
+     * todo use this.connect
      * Will Message
      * <pre>
      *     initiate by Connect if will flag is present. It will be cleaned after
@@ -64,12 +65,46 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      */
     private volatile Publish willMessage;
 
+    public DefaultServerSession(Connect connect, Channel channel, DefaultBroker broker, ServerSession previous) {
+        this(connect, channel, broker, true);
+        // The Client and Server MUST store the Session after the Client and Server are disconnected
+        // 按照 mqtt 协议 Client 会保存和重新发送未确认的消息。若 Client 未按照协议设计可能导致 inQueue 异常
+        // todo inQueue 存在 QoS2 消息，若 Client 重连后没有恢复 QoS2 消息的状态，inQueue 中的消息和后续消息接无法清理
+        // todo Client 重连后，如何重发 QoS1 / QoS2 消息 ？
+        // 1. QoS1 重新发送消息； QoS2 按状态恢复发送
+        // 1. QoS1 重新发送消息； QoS2 重新发送
+        // mqtt 协议规定:
+        // When a Client reconnects with CleanSession set to 0, both the Client and Server
+        // MUST re-send any unacknowledged PUBLISH Packets (where QoS > 0) and
+        // PUBREL Packets using their original Packet Identifiers.
+        // 通用理解为：  QoS1 重新发送消息； QoS2 按状态恢复发送
+        // sender 未收到 PUBREC ->  客户端必须重新发送相同的 PUBLISH 数据包（相同的 Packet ID=100） DUP 标志设置为 1
+        // sender 收到 PUBREC ->  客户端必须重新发送 PUBREL 数据包（相同的 Packet ID=100）
+        if (previous instanceof DefaultServerSession dss) {
+            packetIdentifier.set(dss.packetIdentifier.get());
+            // subscription
+            subscriptions.addAll(dss.subscriptions());
+            inQueue.addAll(dss.inQueue);
+            outQueue.addAll(dss.outQueue);
+        }
+        else {
+            throw new IllegalArgumentException();
+        }
+    }
+
     public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
+        this(connect, channel, broker, false);
+    }
+
+    public DefaultServerSession(Connect connect, Channel channel, Broker broker, boolean isResumed) {
         super(connect.clientIdentifier(), connect.cleanSession(), channel);
         this.broker = broker;
+        this.connect = connect;
+        this.isResumed = isResumed;
         if (connect.willFlag()) {
             this.willMessage = extractWillMessage(connect);
         }
+
     }
 
     @Override
@@ -83,11 +118,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public void onPacket(ControlPacket packet) {
-        if (packet.type() == PUBLISH) {
-            if (broker.block(((Publish) packet))) {
-                return;
-            }
-        }
         switch (packet.type()) {
             case PINGREQ -> doReceivePingReq((PingReq) packet);
             case SUBSCRIBE -> doReceiveSubscribe((Subscribe) packet);
@@ -117,18 +147,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     //     }
     //     return super.send(packet);
     // }
-
     @Override
     protected void onPublish(Publish packet) {
-        broker.handlePublish(packet);
+        broker.forward(packet);
     }
 
     @Override
     public Broker broker() {
         return broker;
     }
-
-    private volatile boolean closing = false;
 
     // todo
     // @Override
@@ -153,20 +180,18 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"session\":\"").append(this.getClass().getSimpleName()).append('\"').append(',');
         sb.append("\"super\":").append(super.toString()).append(',');
-        if (subscriptions != null) {
-            sb.append("\"subscriptions\":");
-            if (!(subscriptions).isEmpty()) {
-                sb.append("[");
-                for (Object collectionValue : subscriptions) {
-                    sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
-                }
-                sb.replace(sb.length() - 1, sb.length(), "]");
+        sb.append("\"subscriptions\":");
+        if (!(subscriptions).isEmpty()) {
+            sb.append("[");
+            for (Object collectionValue : subscriptions) {
+                sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
             }
-            else {
-                sb.append("[]");
-            }
-            sb.append(',');
+            sb.replace(sb.length() - 1, sb.length(), "]");
         }
+        else {
+            sb.append("[]");
+        }
+        sb.append(',');
         sb.append("\"inQueue\":").append(inQueue.size()).append(",");
         sb.append("\"outQueue\":").append(outQueue.size()).append(",");
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
@@ -212,7 +237,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             // nmReceive->packetSent 和 packetReceive->.->packetSent 使用同样的流程，不再重复打点
             // MetricUtil.time(METRIC_NAME, now - nmReceive, "phase", "nmReceive->packetSent");
             MetricUtil.time(METRIC_NAME, now - pReceive, "phase", "packetReceive->nm->packetSent");
-        } else {
+        }
+        else {
             long nanoTime = System.nanoTime();
             long pReceiveInNano = (long) meta.get(META_P_RECEIVE_NANO);
             MetricUtil.nanoTime(METRIC_NAME, nanoTime - pReceiveInNano, "phase", "packetReceive->.->packetSent");
@@ -224,46 +250,19 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
     }
 
-    @Override
-    public DefaultServerSession migrate(Session session) {
-        super.migrate(session);
-        if (session instanceof DefaultServerSession dss) {
-            // subscription
-            subscriptions.addAll(dss.subscriptions());
-            inQueue.addAll(dss.inQueue);
-            outQueue.addAll(dss.outQueue);
-        } else {
-            throw new IllegalArgumentException();
-        }
-        return this;
-    }
-
     protected void doReceiveSubscribe(Subscribe packet) {
         log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
         // register the Subscribe packet
-        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet);
+        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet.subscriptions());
         this.subscriptions.addAll(permitted);
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
         log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
         send(subAck);
-        doSendRetainPublish(permitted);
-    }
-
-    private void doSendRetainPublish(List<Subscribe.Subscription> permitted) {
-        for (Subscribe.Subscription p : permitted) {
-            for (Publish packet : broker.retainMatch(p.topicFilter())) {
-                log.debug("Session({}) match retain Publish: {}", cId(), packet);
-                // send retain Publish
-                int qos = Math.min(packet.qos(), p.qos());
-                // do rebuild the PublishPacket
-                send(Publish.outgoing(packet, p.topicFilter(), (byte) qos, nextPacketIdentifier()));
-            }
-        }
     }
 
     protected void doReceiveUnsubscribe(Unsubscribe packet) {
         log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
-        broker.unsubscribe(this, packet);
+        broker.unsubscribe(this, packet.subscriptions());
         packet.subscriptions().forEach(this.subscriptions::remove);
         UnsubAck unsubAck = new UnsubAck(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
@@ -287,6 +286,12 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         ByteBuf byteBuf = connect.willMessage();
         boolean retain = connect.willRetainFlag();
         return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
+    }
+
+    // todo cleanSession 复制 UT
+    @Override
+    public boolean isResumed() {
+        return isResumed;
     }
 
 }

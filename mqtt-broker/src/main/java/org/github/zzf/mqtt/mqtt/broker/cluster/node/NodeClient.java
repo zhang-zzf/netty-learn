@@ -118,7 +118,9 @@ public class NodeClient extends AbstractClient {
 
     private void doHandleActionSessionClose(NodeMessage m) {
         String clientIdentifier = m.unwrapSessionClose();
-        ServerSession session = broker().session(clientIdentifier);
+        // todo
+        // ServerSession session = broker().session(clientIdentifier);
+        ServerSession session = null;
         log.info("NodeClient receive Session.Closed. cur Session->{}", session);
         if (session != null) {
             // todo
@@ -148,7 +150,8 @@ public class NodeClient extends AbstractClient {
     private void doHandleClientConnect(NodeMessage m) {
         String clientIdentifier = m.unwrapSessionClose();
         // just get Session from local Node(Broker)
-        ServerSession session = broker().nodeBroker().session(clientIdentifier);
+        // ServerSession session = broker().nodeBroker().session(clientIdentifier);
+        ServerSession session = null;
         // session is null in normal case
         if (session != null) {
             if (session instanceof ClusterServerSession) {

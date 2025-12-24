@@ -5,6 +5,7 @@ import io.netty.channel.ChannelFuture;
 import java.util.Set;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
+import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -45,7 +46,7 @@ public interface Session {
      *
      * @return Set<Subscription>
      */
-    Set<Subscribe.Subscription> subscriptions();
+    Set<Subscription> subscriptions();
 
     /**
      * next packetIdentifier to use
@@ -60,7 +61,5 @@ public interface Session {
      * @return true if session is CleanSession otherwise false
      */
     boolean cleanSession();
-
-    Session migrate(Session session);
 
 }

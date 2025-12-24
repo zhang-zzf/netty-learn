@@ -214,10 +214,10 @@ public class Cluster implements AutoCloseable {
     }
 
     public void updateNodes(String remoteNodeId, Set<NodeMessage.NodeInfo> nodeInfos) {
-        if (broker().closed()) {
-            log.debug("Broker was closed, ignore updateNodes");
-            return;
-        }
+        // if (broker().closed()) {
+        //     log.debug("Broker was closed, ignore updateNodes");
+        //     return;
+        // }
         executorService.submit(() -> {
             log.debug("Cluster before update-> nodes: {}, channels: {}", nodes, channelsToOtherNodes);
             for (NodeMessage.NodeInfo node : nodeInfos) {
@@ -241,10 +241,11 @@ public class Cluster implements AutoCloseable {
         channelsToOtherNodes.put(remoteNodeId, node.getNodeClientIds());
         // check Session exist
         for (String nodeClientId : node.getNodeClientIds()) {
-            ServerSession session = clusterBroker.nodeBroker().session(nodeClientId);
-            if (session == null) {
-                log.error("Cluster updateChannel, No Session-> cId: {}", nodeClientId);
-            }
+            // todo
+            // ServerSession session = clusterBroker.nodeBroker().session(nodeClientId);
+            // if (session == null) {
+            //     log.error("Cluster updateChannel, No Session-> cId: {}", nodeClientId);
+            // }
         }
     }
 
@@ -280,9 +281,10 @@ public class Cluster implements AutoCloseable {
     @SneakyThrows
     private void publishClusterNodes() {
         // 把本地状态更新到最新后发布本地状态到集群
-        if (broker().closed()) {
-            return;
-        }
+        // todo
+        // if (broker().closed()) {
+        //     return;
+        // }
         executorService.submit(() -> {
             for (Node n : nodes.values()) {
                 buildChannelsToNode(n);
@@ -301,9 +303,10 @@ public class Cluster implements AutoCloseable {
         Publish publish = Publish.outgoing(Publish.AT_LEAST_ONCE, publishTopic, nm.toByteBuf());
         int cnt = clusterBroker.nodeBroker().forward(publish);
         if (cnt != nodes.size() - 1) {
-            Optional<Topic> topic = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
-            log.warn("Cluster.publishClusterNodes() failed-> " +
-                    "curNodesNum: {}, published: {}, topic: {}", nodes.size(), cnt, topic);
+            // todo
+            // Optional<Topic> topic = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
+            // log.warn("Cluster.publishClusterNodes() failed-> " +
+            //         "curNodesNum: {}, published: {}, topic: {}", nodes.size(), cnt, topic);
         }
         logNodeMetrics();
     }
@@ -318,10 +321,11 @@ public class Cluster implements AutoCloseable {
                 logNodeMetric(e.getValue());
             }
             // 集群消息主题的订阅
-            Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
-            MetricUtil.gauge("broker.cluster.node.topic.cm",
-                    topicOpt.isPresent() ? topicOpt.get().subscribers().size() : 0,
-                    "node", nodeId());
+            // todo
+            // Optional<Topic> topicOpt = clusterBroker.nodeBroker().topic($_SYS_NODE_CLUSTER_MESSAGE_TOPIC_FILTER);
+            // MetricUtil.gauge("broker.cluster.node.topic.cm",
+            //         topicOpt.isPresent() ? topicOpt.get().subscribers().size() : 0,
+            //         "node", nodeId());
         } catch (Throwable e) {
             log.error("unExpected Exception", e);
         }

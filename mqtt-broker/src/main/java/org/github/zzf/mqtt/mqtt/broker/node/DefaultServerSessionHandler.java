@@ -9,13 +9,13 @@ import io.netty.handler.timeout.ReadTimeoutHandler;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.checkerframework.checker.units.qual.C;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
+import org.github.zzf.mqtt.protocol.model.Connect.AuthenticationException;
+import org.github.zzf.mqtt.protocol.model.Connect.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.github.zzf.mqtt.protocol.session.Session;
-import org.github.zzf.mqtt.protocol.session.server.Authenticator;
 import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 
@@ -41,9 +41,9 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     private final int activeIdleTimeoutSecond;
     private ReadTimeoutHandler activeIdleTimeoutHandler;
 
-    private final ChannelFutureListener SEND_PACKET_AFTER_CONNACK = future -> {
+    private final ChannelFutureListener SESSION_ESTABLISHED_CALLBACK = future -> {
         if (future.isSuccess() && session instanceof AbstractSession as) {
-            as.connected();
+            as.established();
         }
     };
 
@@ -91,13 +91,26 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                 return;
             }
             // now accept the 'Connect'
-             this.session = broker.onConnect(connect, ctx.channel());
-            ConnAck connAck = doHandleConnect(connect, ctx);
+            try {
+                session = broker.onConnect(connect, ctx.channel());
+            } catch (UnSupportProtocolLevelException e) {
+                log.info("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
+                ctx.channel().writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
+            } catch (AuthenticationException e) {
+                int authenticate = e.getAuthenticate();
+                log.info("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
+                ctx.channel().writeAndFlush(new ConnAck(authenticate)).channel().close();
+            } catch (IllegalArgumentException e) {
+                log.error("Client({}) Connect failed: {}", connect.clientIdentifier(), e.getMessage());
+                ctx.channel().close();
+            }
+            // send ConnAck
+            ConnAck connAck = session.isResumed() ? ConnAck.acceptedWithStoredSession() : ConnAck.accepted();
             ctx.writeAndFlush(connAck)
                 .addListener(LOG_ON_FAILURE)
                 .addListener(FIRE_EXCEPTION_ON_FAILURE)
                 .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
-                .addListener(SEND_PACKET_AFTER_CONNACK)
+                .addListener(SESSION_ESTABLISHED_CALLBACK)
             ;
             // keep alive
             if (connect.keepAlive() > 0) {
@@ -108,14 +121,6 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // let the session handle the packet
             session.onPacket(cp);
         }
-    }
-
-    protected ConnAck doHandleConnect(Connect connect, ChannelHandlerContext ctx) {
-        this.session = new DefaultServerSession(connect, ctx.channel(), broker);
-        if (broker.attachSession(this.session)) {
-            return ConnAck.acceptedWithStoredSession();
-        }
-        return ConnAck.accepted();
     }
 
     private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {

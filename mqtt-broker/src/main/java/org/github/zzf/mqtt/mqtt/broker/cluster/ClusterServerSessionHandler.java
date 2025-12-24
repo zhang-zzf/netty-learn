@@ -24,17 +24,17 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
-        if (cluster.broker().closed()) {
-            log.info("Broker was closed, reject new Channel->{}", ctx.channel());
-            ctx.close();
-            return;
-        }
+        // todo
+        // if (cluster.broker().closed()) {
+        //     log.info("Broker was closed, reject new Channel->{}", ctx.channel());
+        //     ctx.close();
+        //     return;
+        // }
         super.channelActive(ctx);
     }
 
     /**
      * @return DefaultServerSession for cleanSession=1 or ClusterServerSession for cleanSession=0
-     */
     @Override
     protected ConnAck doHandleConnect(Connect connect, ChannelHandlerContext ctx) {
         ConnAck connAck = ConnAck.accepted();
@@ -124,6 +124,7 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
         }
         return connAck;
     }
+     */
 
     @SneakyThrows
     private void closeServerSessionOnOtherNode(ClusterServerSession css) {
@@ -147,7 +148,8 @@ public class ClusterServerSessionHandler extends DefaultServerSessionHandler {
                 // todo 优化
                 // 等待 100 ms
                 Thread.sleep(100);
-                css = (ClusterServerSession) broker().session(css.clientIdentifier());
+                // todo
+                // css = (ClusterServerSession) broker().session(css.clientIdentifier());
                 if (!css.isOnline()) {
                     log.info("Client({}) Cluster closeServerSessionOnOtherNode, ClusterServerSession now is offline", css.clientIdentifier());
                     break;

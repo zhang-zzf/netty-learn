@@ -17,6 +17,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
 import org.github.zzf.mqtt.protocol.model.Connect;
+import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 import org.github.zzf.mqtt.protocol.session.server.Broker;
 import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.protocol.session.server.Topic;
@@ -94,70 +96,11 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
         return this.cluster;
     }
 
-    @Override
-    @Nullable
-    public ServerSession session(String clientIdentifier) {
-        var localSession = nodeBroker.session(clientIdentifier);
-        log.debug("Client({}) find session in LocalNode: {}", clientIdentifier, localSession);
-        if (localSession != null) {
-            return localSession;
-        }
-        var session = clusterBrokerState.getSession(clientIdentifier);
-        log.debug("Client({}) find session in Cluster: {}", clientIdentifier, session);
-        return session;
-    }
-
-    @Override
-    public Map<String, ServerSession> sessionMap() {
-        return nodeBroker.sessionMap();
-    }
-
-    @Override
-    public boolean attachSession(ServerSession session) {
-        // todo
-        // 先更新本地状态，还是先更新集群状态
-        boolean migrated = nodeBroker().attachSession(session);
-        if (session instanceof ClusterServerSessionImpl css) {
-            // 1. 注册成功,绑定信息保存到 DB
-            clusterBrokerState.saveSession(css);
-            // 2.从集群的订阅树中移除 Session 的离线订阅
-            clusterBrokerState.removeOfflineSessionFromTopic(css.clientIdentifier(), css.subscriptions());
-        }
-        // publish Connect to Cluster
-        publishConnectToCluster(session.clientIdentifier());
-        return migrated;
-    }
-
     private void publishConnectToCluster(String clientIdentifier) {
         NodeMessage nm = NodeMessage.wrapConnect(nodeId(), clientIdentifier);
         Publish packet = Publish.outgoing(1, sessionChangePublishTopic(nodeId()), nm.toByteBuf());
         nodeBroker.forward(packet);
         log.debug("Client({}).Connect was published to the Cluster", clientIdentifier);
-    }
-
-    @Override
-    public List<Subscribe.Subscription> subscribe(ServerSession session, Subscribe subscribe) {
-        log.debug("Node({}) Session({}) receive Subscribe: {}", nodeId(), session.clientIdentifier(), subscribe);
-        List<Subscribe.Subscription> subscriptions = nodeBroker.subscribe(session, subscribe);
-        log.debug("Node({}) Session({}) permitted Subscribe: {}", nodeId(), session.clientIdentifier(), subscriptions);
-        Set<String> tfSet = subscriptions.stream().map(Subscribe.Subscription::topicFilter).collect(toSet());
-        clusterBrokerState.addNodeToTopicAsync(nodeId(), new ArrayList<>(tfSet))
-                // 异步执行完成后若有异常直接关闭 session
-                .exceptionally(e -> {
-                    log.error("unExpected Exception", e);
-                    // todo
-                    // session.close();
-                    return null;
-                });
-        return subscriptions;
-    }
-
-    @Override
-    public void unsubscribe(ServerSession session, Unsubscribe packet) {
-        log.debug("Node({}) Session({}) receive Unsubscribe: {}", nodeId(), session.clientIdentifier(), packet);
-        nodeBroker.unsubscribe(session, packet);
-        // 清理结果不重要，即使清理失败，不影响流程
-        removeNodeFromTopicAsync(new HashSet<>(packet.subscriptions()));
     }
 
     /**
@@ -168,24 +111,10 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
     private CompletableFuture<Void> removeNodeFromTopicAsync(Set<Subscribe.Subscription> subscriptions) {
         List<String> topicToRemove = subscriptions.stream()
                 .map(Subscribe.Subscription::topicFilter)
-                .filter(topicFilter -> nodeBroker.topic(topicFilter).isEmpty())
+                // todo
+                // .filter(topicFilter -> nodeBroker.topic(topicFilter).isEmpty())
                 .collect(toList());
         return clusterBrokerState.removeNodeFromTopicAsync(nodeId(), topicToRemove);
-    }
-
-    @Override
-    public Optional<Topic> topic(String topicFilter) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public Set<Integer> supportProtocolLevel() {
-        return nodeBroker.supportProtocolLevel();
-    }
-
-    @Override
-    public List<Publish> retainMatch(String topicFilter) {
-        return nodeBroker.retainMatch(topicFilter);
     }
 
     @Override
@@ -206,6 +135,16 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
                     }
                 });
         return times;
+    }
+
+    @Override
+    public List<Subscription> subscribe(ServerSession session, Collection<Subscription> subscriptions) {
+        return List.of();
+    }
+
+    @Override
+    public void unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
+
     }
 
     private void forwardToBrokerAndOfflineSession(Publish packet, List<ClusterTopic> clusterTopics) {
@@ -361,11 +300,12 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
     }
 
     private void closeAllSession() {
-        for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
-            // todo
-            // e.getValue().close();
-            log.info("closeAllSession-> {}", e.getValue());
-        }
+        // // todo
+        // for (Map.Entry<String, ServerSession> e : nodeBroker.sessionMap().entrySet()) {
+        //     // todo
+        //     // e.getValue().close();
+        //     log.info("closeAllSession-> {}", e.getValue());
+        // }
     }
 
     @Override
@@ -386,7 +326,7 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
     }
 
     @Timed(value = METRIC_NAME, histogram = true)
-    public void handlePublish(Publish packet) {
+    public void onPublish(Publish packet) {
         // $SYS/# 特殊处理. 发送给 Broker 的 $SYS/# 消息，不做转发
         if (packet.topicName().startsWith("$SYS")) {
             doHandleSysPublish(packet);
@@ -423,7 +363,9 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     private void doHandleActionTopicQuery(NodeMessage m) {
         String topicFilter = m.unwrapSessionClose();
-        Optional<Topic> topic = nodeBroker.topic(topicFilter);
+        // todo
+        //Optional<Topic> topic = nodeBroker.topic(topicFilter);
+        Optional<Topic> topic = Optional.empty();
         log.info("ClusterBroker receive Topic.Query-> tf: {}, topic: {}", topicFilter, topic);
         if (topic.isPresent()) {
             // $SYS/cluster/nodes/%s/%s
@@ -437,7 +379,9 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
 
     private void doHandleActionSessionClose(NodeMessage m) {
         String clientIdentifier = m.unwrapSessionClose();
-        ServerSession session = nodeBroker.session(clientIdentifier);
+        //todo
+        // ServerSession session = nodeBroker.session(clientIdentifier);
+        ServerSession session = null;
         log.info("ClusterBroker receive Session.Closed-> cId: {}, session: {}", clientIdentifier, session);
         if (session != null) {
             // todo
@@ -454,49 +398,9 @@ public class ClusterBrokerImpl implements ClusterBroker, Broker {
     }
 
     @Override
-    public boolean closed() {
-        return closeStatus.get() != 0;
-    }
-
-    @Override
-    public boolean block(Publish packet) {
-        return nodeBroker.block(packet);
-    }
-
-    @Override
     public ServerSession onConnect(Connect connect, Channel channel) {
         // todo
         return null;
     }
-
-    @Override
-    public void detachSession(ServerSession session, boolean force) {
-        // todo
-        log.debug("ClusterBroker try to closeSession-> {}", session);
-        if (session instanceof ClusterServerSessionImpl css) {
-            // todo
-            if (force) {// 是否清除 cluster level Session
-                nodeBroker.detachSession(css, true);
-                clusterBrokerState.deleteSession(css);
-                log.info("Session({}) was removed from the Cluster", session.clientIdentifier());
-            } else {
-                clusterBrokerState.saveSession(css);
-                // important: 1 must be executed before 2
-                // alter solution: 改变 addOfflineSessionToTopic 的实现，使其可以操作 订阅树
-                // todo
-                // 1. Session离线，继续订阅主题
-                clusterBrokerState.addOfflineSessionToTopic(css.clientIdentifier(), css.subscriptions());
-                // 2.0 清除本 broker 中的 Session (even if CleanSession=0)
-                nodeBroker.detachSession(css, true);
-            }
-        } else if (session instanceof ClusterServerSessionCleanImpl ns) {
-            nodeBroker.detachSession(ns, false);
-        } else {
-            throw new UnsupportedOperationException();
-        }
-        // 清理集群路由表
-        removeNodeFromTopicAsync(session.subscriptions());
-    }
-
 
 }

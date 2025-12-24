@@ -1,5 +1,6 @@
 package org.github.zzf.mqtt.mqtt.broker.node;
 
+import java.util.List;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.session.server.ServerSession;
 import org.github.zzf.mqtt.protocol.session.server.Topic;
@@ -31,18 +32,9 @@ public class DefaultTopic implements Topic {
     }
 
     @Override
-    public Map<ServerSession, Integer> subscribers() {
-        return Collections.unmodifiableMap(subscribers);
-    }
-
-    @Override
-    public void subscribe(ServerSession session, int qos) {
-        subscribers.put(session, qos);
-    }
-
-    @Override
-    public void unsubscribe(ServerSession session, int qos) {
-        subscribers.remove(session, qos);
+    public List<Subscriber> subscribers() {
+        // todo
+        throw new UnsupportedOperationException();
     }
 
     @Override

@@ -1,6 +1,7 @@
 package org.github.zzf.mqtt.protocol.session.server;
 
-import java.util.Map;
+import java.util.Iterator;
+import java.util.List;
 
 public interface Topic {
 
@@ -8,13 +9,17 @@ public interface Topic {
 
     /**
      * all the subscribers that subscribe the topic
-     *
-     * @return all the subscribers
      */
-    Map<ServerSession, Integer> subscribers();
+    List<Subscriber> subscribers();
 
-    void subscribe(ServerSession session, int qos);
+    interface Subscriber {
+        String clientId();
 
-    void unsubscribe(ServerSession session, int qos);
+        int qos();
+    }
+
+    // void subscribe(ServerSession session, int qos);
+    //
+    // void unsubscribe(ServerSession session, int qos);
 
 }

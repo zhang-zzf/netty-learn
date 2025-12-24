@@ -141,7 +141,18 @@ public class Publish extends ControlPacket {
         if ((qos() & 0x03) == 0x03) {
             return false;
         }
+        // topicName 校验
+        if (!validateTopicName(topicName)) {
+            return false;
+        }
         return super.packetValidate();
+    }
+
+    private boolean validateTopicName(String topicName) {
+        if (topicName == null || topicName.isEmpty()) {
+            return false;
+        }
+        return true;
     }
 
     public boolean dup() {

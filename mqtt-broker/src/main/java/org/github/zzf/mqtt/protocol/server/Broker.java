@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.protocol.session.server;
+package org.github.zzf.mqtt.protocol.server;
 
 import io.netty.channel.Channel;
 import java.util.Collection;

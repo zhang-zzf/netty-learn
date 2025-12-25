@@ -1,22 +1,19 @@
 package org.github.zzf.mqtt.server;
 
-import static java.util.stream.Collectors.toSet;
-
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
-import org.github.zzf.mqtt.protocol.session.server.Topic;
-import org.github.zzf.mqtt.protocol.session.server.TopicBlocker;
+import org.github.zzf.mqtt.protocol.server.Topic;
+import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 
 /**
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-23
  */
-public class TopicBlockerImpl implements TopicBlocker {
+public class TopicBlockerImpl implements TopicBlocker,AutoCloseable {
 
     final TopicTree<String> tree = new TopicTree<>("TopicBlocker");
 
@@ -51,6 +48,11 @@ public class TopicBlockerImpl implements TopicBlocker {
             .map(d -> tree.del(d, (AtomicReference<String> data) -> data.set(null)))
             .toArray(CompletableFuture[]::new)
         );
+    }
+
+    @Override
+    public void close() throws Exception {
+        tree.close();
     }
 
     @RequiredArgsConstructor

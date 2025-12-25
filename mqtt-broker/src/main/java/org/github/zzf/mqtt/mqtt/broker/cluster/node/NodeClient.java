@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
-import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.server.ServerSession;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterServerSession;
 import org.github.zzf.mqtt.mqtt.client.AbstractClient;

@@ -1,6 +1,6 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
-import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.server.ServerSession;
 
 /**
  * @author : zhanfeng.zhang@icloud.com

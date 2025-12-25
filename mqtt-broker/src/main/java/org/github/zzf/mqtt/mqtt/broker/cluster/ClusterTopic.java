@@ -3,7 +3,7 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
-import org.github.zzf.mqtt.protocol.session.server.Topic;
+import org.github.zzf.mqtt.protocol.server.Topic;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultTopic;
 
 import java.util.Map;

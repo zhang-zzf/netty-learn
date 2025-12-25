@@ -12,16 +12,15 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
-import org.github.zzf.mqtt.protocol.session.server.RoutingTable;
-import org.github.zzf.mqtt.protocol.session.server.Topic;
-import org.github.zzf.mqtt.protocol.session.server.Topic.Subscriber;
+import org.github.zzf.mqtt.protocol.server.RoutingTable;
+import org.github.zzf.mqtt.protocol.server.Topic;
+import org.github.zzf.mqtt.protocol.server.Topic.Subscriber;
 
-// todo UT
 /**
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-21
  */
-public class RoutingTableImpl implements RoutingTable {
+public class RoutingTableImpl implements RoutingTable ,AutoCloseable{
 
     // todo metric 监控订阅的数量和统计信息
     final TopicTree<Topic> tree = new TopicTree<>("RoutingTable");
@@ -83,6 +82,11 @@ public class RoutingTableImpl implements RoutingTable {
     @Override
     public Optional<Topic> topic(String topicFilter) {
         return tree.data(topicFilter);
+    }
+
+    @Override
+    public void close() throws Exception {
+        tree.close();
     }
 
     /**

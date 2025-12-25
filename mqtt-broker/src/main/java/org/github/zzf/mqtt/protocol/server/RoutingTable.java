@@ -1,12 +1,9 @@
-package org.github.zzf.mqtt.protocol.session.server;
+package org.github.zzf.mqtt.protocol.server;
 
 import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionStage;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**

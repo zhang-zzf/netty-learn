@@ -4,15 +4,14 @@ import static org.github.zzf.mqtt.bootstrap.ClusterBrokerBootstrap.startBroker;
 
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.session.server.Authenticator;
-import org.github.zzf.mqtt.protocol.session.server.Broker;
+import org.github.zzf.mqtt.protocol.server.Authenticator;
+import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
 import org.github.zzf.mqtt.mqtt.broker.cluster.infra.redis.ClusterBrokerStateImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.infra.redis.RedisConfiguration;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
-import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;

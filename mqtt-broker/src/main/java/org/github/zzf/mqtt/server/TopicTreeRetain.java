@@ -10,7 +10,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import org.github.zzf.mqtt.protocol.model.Publish;
-import org.github.zzf.mqtt.protocol.session.server.RetainPublishManager;
+import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
 
 /**
  * 设计思路： 1. 写操作单线程串行更改 1. 多线程无锁读

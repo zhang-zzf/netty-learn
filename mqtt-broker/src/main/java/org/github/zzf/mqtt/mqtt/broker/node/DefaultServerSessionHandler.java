@@ -16,8 +16,8 @@ import org.github.zzf.mqtt.protocol.model.Connect.UnSupportProtocolLevelExceptio
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.github.zzf.mqtt.protocol.session.Session;
-import org.github.zzf.mqtt.protocol.session.server.Broker;
-import org.github.zzf.mqtt.protocol.session.server.ServerSession;
+import org.github.zzf.mqtt.protocol.server.Broker;
+import org.github.zzf.mqtt.protocol.server.ServerSession;
 
 /**
  * @author zhanfeng.zhang@icloud.com

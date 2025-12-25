@@ -1,6 +1,5 @@
-package org.github.zzf.mqtt.protocol.session.server;
+package org.github.zzf.mqtt.protocol.server;
 
-import java.util.Iterator;
 import java.util.List;
 
 public interface Topic {

@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.protocol.session.server;
+package org.github.zzf.mqtt.protocol.server;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;

@@ -3,12 +3,9 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 import io.netty.channel.ChannelHandlerContext;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.session.server.Authenticator;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage;
 import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
-import org.github.zzf.mqtt.protocol.model.ConnAck;
-import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 
 

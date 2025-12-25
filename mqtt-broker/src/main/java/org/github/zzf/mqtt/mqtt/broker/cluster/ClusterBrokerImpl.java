@@ -2,7 +2,6 @@ package org.github.zzf.mqtt.mqtt.broker.cluster;
 
 import static java.util.Collections.singletonList;
 import static java.util.stream.Collectors.toList;
-import static java.util.stream.Collectors.toSet;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster.sessionChangePublishTopic;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_BROKER_CLOSE;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_SESSION_CLOSE;
@@ -16,7 +15,6 @@ import io.micrometer.core.annotation.Timed;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.channel.Channel;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
@@ -25,22 +23,20 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
-import javax.annotation.Nullable;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
-import org.github.zzf.mqtt.protocol.session.server.Broker;
-import org.github.zzf.mqtt.protocol.session.server.ServerSession;
-import org.github.zzf.mqtt.protocol.session.server.Topic;
+import org.github.zzf.mqtt.protocol.server.Broker;
+import org.github.zzf.mqtt.protocol.server.ServerSession;
+import org.github.zzf.mqtt.protocol.server.Topic;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodePublish;
 import org.github.zzf.mqtt.bootstrap.BrokerBootstrap;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 
 @Slf4j
 public class ClusterBrokerImpl implements ClusterBroker, Broker {

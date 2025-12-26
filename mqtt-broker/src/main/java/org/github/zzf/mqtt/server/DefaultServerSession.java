@@ -53,17 +53,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     private final Connect connect;
     private final boolean isResumed;
-
-    /**
-     * todo use this.connect
-     * Will Message
-     * <pre>
-     *     initiate by Connect if will flag is present. It will be cleaned after
-     *     1. receive Disconnect
-     *     2. lost the Channel to Client, and forward the message to relative Topic.
-     * </pre>
-     */
-    private volatile Publish willMessage;
+    private boolean disconnect;
 
     public DefaultServerSession(Connect connect,
             Channel channel,
@@ -95,24 +85,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
     }
 
-    public DefaultServerSession(Connect connect,
-            Channel channel,
-            Broker broker) {
+    public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
         this(connect, channel, broker, false);
     }
 
-    public DefaultServerSession(Connect connect,
-            Channel channel,
-            Broker broker,
-            boolean isResumed) {
+    public DefaultServerSession(Connect connect, Channel channel, Broker broker, boolean isResumed) {
         super(connect.clientIdentifier(), connect.cleanSession(), channel);
         this.broker = broker;
         this.connect = connect;
         this.isResumed = isResumed;
-        if (connect.willFlag()) {
-            this.willMessage = extractWillMessage(connect);
-        }
-
     }
 
     @Override
@@ -120,8 +101,11 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         if (packet instanceof Publish publish) {
             publish.payload().retain();
             log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}", cId(), publish.pId(), publish.payload().refCnt());
+            return super.send(packet);
         }
-        return super.send(packet);
+        else {
+            throw new UnsupportedOperationException();
+        }
     }
 
     @Override
@@ -136,7 +120,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceivePingReq(PingReq packet) {
-        send(new PingResp());
+        doWrite(new PingResp());
+        log.debug("Session({}) PingReq -> PingResp", cId());
     }
 
     @Override
@@ -144,17 +129,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         return subscriptions;
     }
 
-    /**
-     * <p>ServerSession 只发送 Publish</p>
-     * <p> todo ServerSession 发送 SubAck 等</p>
-     */
-    // @Override
-    // public ChannelFuture send(ControlPacket packet) {
-    //     if (packet == null || packet.type() != PUBLISH) {
-    //         throw new IllegalArgumentException();
-    //     }
-    //     return super.send(packet);
-    // }
     @Override
     protected void onPublish(Publish packet) {
         broker.forward(packet);
@@ -165,24 +139,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         return broker;
     }
 
-    // todo
-    // @Override
-    // public void close() {
-    //     if (closing) {
-    //         return;
-    //     }
-    //     this.closing = true;
-    //     // send will message
-    //     if (willMessage != null) {
-    //         log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
-    //         onPublish(willMessage);
-    //         willMessage = null;
-    //     }
-    //     log.debug("Session({}) now try to closed -> {}", cId(), this);
-    //     broker.detachSession(this, false);
-    //     super.close();
-    // }
-    //
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
@@ -265,7 +221,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         this.subscriptions.addAll(permitted);
         SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
         log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
-        send(subAck);
+        doWrite(subAck);
     }
 
     protected void doReceiveUnsubscribe(Unsubscribe packet) {
@@ -274,20 +230,36 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         packet.subscriptions().forEach(this.subscriptions::remove);
         UnsubAck unsubAck = new UnsubAck(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
-        send(unsubAck);
+        doWrite(unsubAck);
     }
 
     private void doReceiveDisconnect(Disconnect packet) {
         log.debug("Session({}) doReceiveDisconnect.", clientIdentifier());
-        // clean the Will message.
-        if (willMessage != null) {
-            log.debug("Session({}) Disconnect, now clear Will: {}", cId(), willMessage);
-            willMessage = null;
-        }
-        // todo
-        // close();
+        this.disconnect = true;
+        channel().close();
     }
 
+    @Override
+    public void onInactive() {
+        super.onInactive();
+        if (!disconnect && connect.willFlag()) {
+            Publish willMessage = extractWillMessage(connect);
+            log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
+            onPublish(willMessage);
+        }
+        if (cleanSession()) {
+           broker.disconnect(this);
+        }
+    }
+
+    /**
+     * Will Message
+     * <pre>
+     *     initiate by Connect if will flag is present. It will be cleaned after
+     *     1. receive Disconnect
+     *     2. lost the Channel to Client, and forward the message to relative Topic.
+     * </pre>
+     */
     private static Publish extractWillMessage(Connect connect) {
         int qos = connect.willQos();
         String topic = connect.willTopic();

@@ -61,4 +61,8 @@ public interface Session {
      */
     boolean cleanSession();
 
+    /**
+     * called when the session.channel() is inactive
+     */
+    void onInactive();
 }

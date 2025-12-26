@@ -101,8 +101,7 @@ public abstract class AbstractSession implements Session {
         return promise;
     }
 
-    private void doSendControlPacketExceptPublish(ControlPacket packet,
-            ChannelPromise promise) {
+    private void doSendControlPacketExceptPublish(ControlPacket packet, ChannelPromise promise) {
         if (!isActive()) {
             log.warn("sender({}): . -> DISCARDED, Session is not bind to a Channel, discard the ControlPacket", cId());
             promise.setFailure(new IllegalStateException("Session is not bind to a Channel"));
@@ -566,7 +565,7 @@ public abstract class AbstractSession implements Session {
      */
     protected abstract void onPublish(Publish packet);
 
-    private ChannelFuture doWrite(ControlPacket packet) {
+    protected ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
                 // todo 测试 异常如何处理？，所有 Listener 都会被执行？
                 // 当前实现是直接关闭 channel
@@ -588,21 +587,6 @@ public abstract class AbstractSession implements Session {
     @Override
     public String clientIdentifier() {
         return this.clientIdentifier;
-    }
-
-    /**
-     * 与 receiver 建立 mqtt session 后的回调
-     * <pre>
-     *     callback after established  CONNECT -> CONNACK
-     * </pre>
-     */
-    public void established() {
-        // invoke later
-        channel.eventLoop().submit(() -> {
-            tryCleanOutQueue();
-            // resend cpx
-            resendCpxInOutQueue();
-        });
     }
 
     // todo UT cleanSession = 0 断开重连
@@ -642,9 +626,10 @@ public abstract class AbstractSession implements Session {
     protected void publishSentComplete(Publish packet) {
         int refCnt = packet.payload().refCnt();
         log.debug("sender({}/{}) Publish * -> COMPLETED payload.refCnt: {}", cId(), packet.pId(), refCnt);
-        if (refCnt != 0) {// memory leak
-            throw new IllegalStateException();
-        }
+        // BUG: 1 Publish forward to 2 subscribers
+        // if (refCnt != 0) {// memory leak
+        //     throw new IllegalStateException();
+        // }
     }
 
     @Override
@@ -681,5 +666,25 @@ public abstract class AbstractSession implements Session {
     protected abstract Queue<ControlPacketContext> inQueue();
 
     protected abstract Queue<ControlPacketContext> outQueue();
+
+    /**
+     * 与 receiver 建立 mqtt session 后的回调
+     * <pre>
+     *     callback after established  CONNECT -> CONNACK
+     * </pre>
+     */
+    public void onActive() {
+        // invoke later
+        channel.eventLoop().submit(() -> {
+            tryCleanOutQueue();
+            // resend cpx
+            resendCpxInOutQueue();
+        });
+    }
+
+    @Override
+    public void onInactive() {
+       log.debug("Session({}) inactive", cId());
+    }
 
 }

@@ -14,7 +14,6 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import java.net.InetSocketAddress;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.Map;
 import javax.net.ssl.SSLException;
@@ -53,37 +52,6 @@ public class BrokerBootstrap {
     public BrokerBootstrap start() {
         // mqtt / mqtts / ws / wss use the same Broker
         Broker broker = new DefaultBroker(authenticator, routingTable, topicBlocker, retainPublishManager);
-        startServer(broker);
-        return this;
-    }
-
-    @SneakyThrows
-    public void shutdown() {
-        // first shutdown the listened servers
-        for (Map.Entry<String, ListenPort> e : LISTENED_SERVERS.entrySet()) {
-            log.info("Shutdown Server... -> {}", e.getValue());
-            e.getValue().getChannel().close().sync().addListener(f -> {
-                if (f.isSuccess()) {
-                    log.info("Server Shutdown Success: -> {}", e.getValue());
-                }
-                else {
-                    log.error("Server Shutdown Failed: -> {}", e.getValue());
-                }
-            });
-        }
-        if (routingTable != null) {
-            routingTable.close();
-        }
-        if (topicBlocker != null) {
-            topicBlocker.close();
-        }
-        if (retainPublishManager != null) {
-            retainPublishManager.close();
-        }
-    }
-
-
-    public void startServer(Broker broker) throws URISyntaxException, SSLException {
         /* ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"] */
         String[] addressList = serverListenedAddress.split(",");
         for (String address : addressList) {
@@ -111,7 +79,30 @@ public class BrokerBootstrap {
                     throw new UnsupportedOperationException("Unsupported Schema: " + uri.getScheme());
             }
         }
+        // ShutdownHook
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            closeListenedPort();
+            broker.close();
+        }));
+        return this;
     }
+
+    @SneakyThrows
+    public void closeListenedPort() {
+        // first shutdown the listened servers
+        for (Map.Entry<String, ListenPort> e : LISTENED_SERVERS.entrySet()) {
+            log.info("Shutdown Server... -> {}", e.getValue());
+            e.getValue().getChannel().close().sync().addListener(f -> {
+                if (f.isSuccess()) {
+                    log.info("Server Shutdown Success: -> {}", e.getValue());
+                }
+                else {
+                    log.error("Server Shutdown Failed: -> {}", e.getValue());
+                }
+            });
+        }
+    }
+
 
     private Channel mqttOverSecureWebSocket(InetSocketAddress address,
             Broker broker) throws SSLException {

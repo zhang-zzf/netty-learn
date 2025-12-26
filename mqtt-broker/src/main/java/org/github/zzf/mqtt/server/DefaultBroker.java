@@ -56,11 +56,11 @@ public class DefaultBroker implements Broker {
         this.routingTable = routingTable;
         this.blockedTopic = blockedTopic;
         this.retainPublishManager = retainPublishManager;
-        this.self = this;
     }
 
     @Override
-    public List<Subscribe.Subscription> subscribe(ServerSession session,
+    public List<Subscribe.Subscription> subscribe(
+            ServerSession session,
             Collection<Subscription> subscriptions) {
         if (subscriptions == null) {
             return emptyList();
@@ -70,23 +70,24 @@ public class DefaultBroker implements Broker {
                 .collect(toList());
         // sync
         routingTable.subscribe(session.clientIdentifier(), permitted).join();
-        //
-        String[] tfs = permitted.stream().map(Subscription::topicFilter).toArray(String[]::new);
-        // async
-        retainPublishManager.match(tfs).thenAccept(publishPackets -> {
-            // 移交给 session 绑定的线程，延迟发送
-            session.channel().eventLoop().submit(() -> {
-                for (Publish publish : publishPackets) {
-                    session.send(publish);
-                }
+        if (retainPublishManager != null) {
+            //
+            String[] tfs = permitted.stream().map(Subscription::topicFilter).toArray(String[]::new);
+            // async
+            retainPublishManager.match(tfs).thenAccept(publishPackets -> {
+                // 移交给 session 绑定的线程，延迟发送
+                session.channel().eventLoop().submit(() -> {
+                    for (Publish publish : publishPackets) {
+                        session.send(publish);
+                    }
+                });
             });
-        });
+        }
         return permitted;
     }
 
     @Override
-    public void unsubscribe(ServerSession session,
-            Collection<Subscription> subscriptions) {
+    public void unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
         // sync
         routingTable.unsubscribe(session.clientIdentifier(), subscriptions).join();
     }
@@ -116,6 +117,9 @@ public class DefaultBroker implements Broker {
     }
 
     private boolean block(Publish packet) {
+        if (blockedTopic == null) {
+            return false;
+        }
         Topic blocked = this.blockedTopic.match(packet.topicName());
         if (blocked != null) {
             log.info("Broker blocked Publish for matching Topic: Topic: {}, Publish: {}", blocked, packet);
@@ -124,13 +128,11 @@ public class DefaultBroker implements Broker {
         return false;
     }
 
-    public static short packetIdentifier(ServerSession session,
-            int qos) {
+    public static short packetIdentifier(ServerSession session, int qos) {
         return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
     }
 
-    public static int qoS(int packetQos,
-            int tfQos) {
+    public static int qoS(int packetQos, int tfQos) {
         return Math.min(packetQos, tfQos);
     }
 
@@ -141,8 +143,7 @@ public class DefaultBroker implements Broker {
     // 1. cleanSession = 0 then cleanSession = 1
     //
     @Override
-    public ServerSession onConnect(Connect connect,
-            Channel channel) {
+    public ServerSession connect(Connect connect, Channel channel) {
         log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
         // The Server MUST respond to the CONNECT Packet
         // with a CONNACK return code 0x01 (unacceptable protocol level) and then
@@ -151,9 +152,11 @@ public class DefaultBroker implements Broker {
             throw new UnsupportedOperationException();
         }
         // authenticate
-        int authenticate = authenticator.authenticate(connect);
-        if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
-            throw new AuthenticationException(authenticate);
+        if (authenticator != null) {
+            int authenticate = authenticator.authenticate(connect);
+            if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
+                throw new AuthenticationException(authenticate);
+            }
         }
         //
         String clientId = connect.clientIdentifier();
@@ -187,7 +190,15 @@ public class DefaultBroker implements Broker {
         return session;
     }
 
-    protected Subscribe.Subscription decideSubscriptionQos(ServerSession session,
+    @Override
+    public void disconnect(ServerSession session) {
+        // unsubscribe
+        routingTable.unsubscribe(session.clientIdentifier(), session.subscriptions());
+        sessionMap.remove(session.clientIdentifier(), session);
+    }
+
+    protected Subscribe.Subscription decideSubscriptionQos(
+            ServerSession session,
             Subscribe.Subscription sub) {
         // todo decide qos
         int qos = sub.qos();
@@ -199,6 +210,10 @@ public class DefaultBroker implements Broker {
     }
 
     private void retain(Publish publish) {
+        if (retainPublishManager == null) {
+            log.info("Broker not support retain message");
+            return;
+        }
         if (!publish.retainFlag()) {
             throw new IllegalArgumentException();
         }
@@ -237,19 +252,29 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public void close() throws Exception {
-        // Server was started by the Broker
-        // So it should not be closed by the Broker
-        // todo
-    }
-
-    /**
-     * use for Aop proxy
-     */
-    private Broker self;
-
-    public void setSelf(Broker self) {
-        this.self = self;
+    public void close() {
+        // todo 保存 Session 状态，以便下次启动是从 DB 恢复
+        if (routingTable != null) {
+            try {
+                routingTable.close();
+            } catch (Exception e) {
+                log.error("Close RoutingTable failed: {}", e.getMessage(), e);
+            }
+        }
+        if (blockedTopic != null) {
+            try {
+                blockedTopic.close();
+            } catch (Exception e) {
+                log.error("Close TopicBlocker failed: {}", e.getMessage(), e);
+            }
+        }
+        if (retainPublishManager != null) {
+            try {
+                retainPublishManager.close();
+            } catch (Exception e) {
+                log.error("Close RetainPublishManager failed: {}", e.getMessage(), e);
+            }
+        }
     }
 
     @Override

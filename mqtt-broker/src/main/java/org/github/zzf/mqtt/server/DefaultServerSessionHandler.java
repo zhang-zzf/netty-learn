@@ -43,7 +43,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     private final ChannelFutureListener SESSION_ESTABLISHED_CALLBACK = future -> {
         if (future.isSuccess() && session instanceof AbstractSession as) {
-            as.established();
+            as.onActive();
         }
     };
 
@@ -57,8 +57,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx,
-            Object msg) {
+    public void channelRead(ChannelHandlerContext ctx, Object msg) {
         // receive a packet, remove the activeIdleTimeoutHandler
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket cp)) {
@@ -94,7 +93,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             }
             // now accept the 'Connect'
             try {
-                session = broker.onConnect(connect, ctx.channel());
+                session = broker.connect(connect, ctx.channel());
             } catch (UnSupportProtocolLevelException e) {
                 log.info("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
                 ctx.channel().writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
@@ -161,16 +160,15 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        log.debug("Client({}) channelInactive", csci());
+        log.debug("Session({}) channelInactive", csci());
+        if (session != null) {
+            session.onInactive();
+        }
         super.channelInactive(ctx);
     }
 
     private String csci() {
         return Optional.ofNullable(session).map(Session::clientIdentifier).orElse(null);
-    }
-
-    protected Broker broker() {
-        return broker;
     }
 
 }

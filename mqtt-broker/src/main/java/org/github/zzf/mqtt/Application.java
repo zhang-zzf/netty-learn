@@ -5,8 +5,8 @@ import javax.net.ssl.SSLException;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 import org.github.zzf.mqtt.server.BrokerBootstrap;
-import org.github.zzf.mqtt.server.RoutingTableImpl;
-import org.github.zzf.mqtt.server.TopicBlockerImpl;
+import org.github.zzf.mqtt.server.DefaultRoutingTable;
+import org.github.zzf.mqtt.server.DefaultTopicBlocker;
 import org.github.zzf.mqtt.server.TopicTreeRetain;
 import org.github.zzf.mqtt.server.metric.MicroMeterMetrics;
 
@@ -25,7 +25,7 @@ public class Application {
         //
         BrokerBootstrap brokerBootstrap = BrokerBootstrap.builder()
                 .authenticator(packet -> 0x00)
-                .routingTable(new RoutingTableImpl())
+                .routingTable(new DefaultRoutingTable())
                 .retainPublishManager(new TopicTreeRetain("RetainPublishManager"))
                 .topicBlocker(topicBlocker())
                 .workerThreadNum(workerThreadNum)
@@ -33,8 +33,6 @@ public class Application {
                 .activeIdleTimeoutSecond(Integer.getInteger("mqtt.server.active.idle.timeout.second", 3))
                 .build()
                 .start();
-        // ShutdownHook
-        Runtime.getRuntime().addShutdownHook(new Thread(brokerBootstrap::shutdown));
         // metric
         String appName = System.getProperty("appName", "mqtt-broker");
         log.info("appName: {}", appName);
@@ -42,7 +40,7 @@ public class Application {
     }
 
     private static TopicBlocker topicBlocker() {
-        return new TopicBlockerImpl() {{
+        return new DefaultTopicBlocker() {{
             String tfConfig = System.getProperty("mqtt.server.block.tf", "+/server/#");
             log.info("mqtt.server.block.tf: {}", tfConfig);
             add(tfConfig.split(","));

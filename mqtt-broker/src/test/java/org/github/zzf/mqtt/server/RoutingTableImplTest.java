@@ -20,7 +20,7 @@ class RoutingTableImplTest {
     @ParameterizedTest(name = "{0} match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenMatch(String topicName, String topicFilter) {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription = new Subscription(topicFilter, 1);
 
@@ -38,7 +38,7 @@ class RoutingTableImplTest {
     @ParameterizedTest(name = "{0} will not match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_not_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenNotMatch(String topicName, String topicFilter) {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription = new Subscription(topicFilter, 1);
 
@@ -51,14 +51,14 @@ class RoutingTableImplTest {
 
     @Test
     void givenEmpty_whenTopic_then() {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         then(routingTable.match("topic/abc")).isEmpty();
     }
 
     @ParameterizedTest
     @CsvFileSource(resources = {"/broker/topic_filter.csv"})
     void givenNotEmpty_whenTopic_then(String topicFilter) {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription = new Subscription(topicFilter, 1);
 
@@ -76,7 +76,7 @@ class RoutingTableImplTest {
     @Test
     void givenNotEmpty_whenTopicNotExist_thenEmpty() {
         String topicFilter = "topic/abc/#";
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription = new Subscription(topicFilter, 1);
 
@@ -91,7 +91,7 @@ class RoutingTableImplTest {
     @Test
     void givenBroker_whenSubscribeAndUnsubscribe_then() {
         String topicFilter = "topic/abc/#";
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription = new Subscription(topicFilter, 1);
 
@@ -107,7 +107,7 @@ class RoutingTableImplTest {
     void givenBroker_whenAddThenDel_then() {
         String topicFilter1 = "topic";
         String topicFilter2 = "topic/abc/#";
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription1 = new Subscription(topicFilter1, 1);
         Subscription subscription2 = new Subscription(topicFilter2, 1);
@@ -127,7 +127,7 @@ class RoutingTableImplTest {
     @Test
     void givenMultipleClients_whenSubscribeSameTopic_thenAllSubscribersPresent() {
         String topicFilter = "topic/test";
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId1 = "clientId1";
         String clientId2 = "clientId2";
         Subscription subscription = new Subscription(topicFilter, 1);
@@ -152,7 +152,7 @@ class RoutingTableImplTest {
 
     @Test
     void givenMultipleTopics_whenSubscribe_thenCorrectSubscribers() {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         String topicFilter1 = "topic1";
         String topicFilter2 = "topic2";
@@ -182,7 +182,7 @@ class RoutingTableImplTest {
 
     @Test
     void givenNullCollections_whenSubscribeUnsubscribe_thenNoException() {
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
 
         // 测试null订阅列表
@@ -201,7 +201,7 @@ class RoutingTableImplTest {
     @Test
     void givenExistingSubscriber_whenSubscribeAgain_thenQosUpdated() {
         String topicFilter = "topic/test";
-        RoutingTableImpl routingTable = new RoutingTableImpl();
+        DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
         Subscription subscription1 = new Subscription(topicFilter, 0);
         Subscription subscription2 = new Subscription(topicFilter, 2);

@@ -13,7 +13,7 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-23
  */
-public class TopicBlockerImpl implements TopicBlocker, AutoCloseable {
+public class DefaultTopicBlocker implements TopicBlocker, AutoCloseable {
 
     final TopicTree<String> tree = new TopicTree<>("TopicBlocker");
 

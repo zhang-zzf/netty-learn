@@ -17,8 +17,9 @@ public interface Broker {
     /**
      * Connect Event
      */
-    ServerSession onConnect(Connect connect,
-            Channel channel);
+    ServerSession connect(Connect connect, Channel channel);
+
+    void disconnect(ServerSession session);
 
     /**
      * Publish Event
@@ -26,13 +27,6 @@ public interface Broker {
      * @param packet ControlPacket
      */
     int forward(Publish packet);
-
-    /**
-     * onward message
-     *
-     * @param packet data
-     */
-    // int forward(Publish packet);
 
     /**
      * register a subscription between the session and the topic
@@ -46,9 +40,7 @@ public interface Broker {
     void unsubscribe(ServerSession session,
             Collection<Subscription> subscriptions);
 
-    // ServerSession session(String clientIdentifier);
-
-    void close() throws Exception;
+    void close();
 
     // todo
     // default boolean closed() {

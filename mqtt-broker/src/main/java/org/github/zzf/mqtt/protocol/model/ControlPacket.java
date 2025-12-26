@@ -4,6 +4,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.Unpooled;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -214,8 +215,12 @@ public abstract class ControlPacket {
         return BYTE_BUF_ALLOCATOR.directBuffer(capacity);
     }
 
+    /**
+     * heap buffer 强制使用 Unpooled
+     * // BUG: 若使用 Pooled，需要手动释放
+     */
     protected static ByteBuf heapBuffer(int capacity) {
-        return BYTE_BUF_ALLOCATOR.heapBuffer(capacity);
+        return Unpooled.buffer(capacity);
     }
 
     protected static CompositeByteBuf compositeBuffer() {
@@ -223,7 +228,7 @@ public abstract class ControlPacket {
     }
 
     private static ByteBuf remainingLengthToByteBuf(int remainingLength) {
-        ByteBuf buf = directBuffer(4);
+        ByteBuf buf = heapBuffer(4);
         int rl = remainingLength;
         do {
             int encodedByte = rl % 128;
@@ -248,7 +253,7 @@ public abstract class ControlPacket {
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
-        sb.append("\"byte0\":").append(byte0).append(',');
+        sb.append("\"byte0\":\"0x").append(String.format("%02X", byte0)).append("\",");
         sb.append("\"remainingLength\":").append(remainingLength).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }

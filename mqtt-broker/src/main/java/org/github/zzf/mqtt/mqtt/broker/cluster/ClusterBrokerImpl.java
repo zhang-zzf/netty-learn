@@ -7,7 +7,7 @@ import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_BR
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_SESSION_CLOSE;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.ACTION_TOPIC_QUERY;
 import static org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage.INFO_CLUSTER_NODES;
-import static org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker.qoS;
+import static org.github.zzf.mqtt.server.DefaultBroker.qoS;
 import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Status.INIT;
 import static org.github.zzf.mqtt.protocol.session.ControlPacketContext.Type.OUT;
 

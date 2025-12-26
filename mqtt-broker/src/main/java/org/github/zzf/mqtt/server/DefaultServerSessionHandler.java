@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker.node;
+package org.github.zzf.mqtt.server;
 
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 

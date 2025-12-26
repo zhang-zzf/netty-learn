@@ -1,43 +1,8 @@
 package org.github.zzf.mqtt.mqtt.broker.cluster;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
-import static java.util.Collections.singletonList;
 import static org.assertj.core.api.BDDAssertions.then;
-import static org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler.HANDLER_NAME;
-import static org.github.zzf.mqtt.protocol.model.ConnAck.ACCEPTED;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.embedded.EmbeddedChannel;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.UUID;
-import java.util.concurrent.CompletableFuture;
-import org.github.zzf.mqtt.protocol.server.ServerSession;
-import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
-import org.github.zzf.mqtt.protocol.codec.MqttCodec;
-import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
-import org.github.zzf.mqtt.protocol.model.ConnAck;
-import org.github.zzf.mqtt.protocol.model.Connect;
-import org.github.zzf.mqtt.protocol.model.ControlPacket;
-import org.github.zzf.mqtt.protocol.model.Disconnect;
-import org.github.zzf.mqtt.protocol.model.PubAck;
-import org.github.zzf.mqtt.protocol.model.PubComp;
-import org.github.zzf.mqtt.protocol.model.PubRec;
-import org.github.zzf.mqtt.protocol.model.PubRel;
-import org.github.zzf.mqtt.protocol.model.Publish;
-import org.github.zzf.mqtt.protocol.model.SubAck;
-import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.protocol.model.UnsubAck;
-import org.github.zzf.mqtt.protocol.model.Unsubscribe;
-import org.jetbrains.annotations.NotNull;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.BDDMockito;
 
 class ClusterServerSessionHandlerTest {
 

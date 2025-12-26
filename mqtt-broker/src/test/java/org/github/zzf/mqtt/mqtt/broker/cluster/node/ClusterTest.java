@@ -10,7 +10,7 @@ import java.util.Set;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
-import org.github.zzf.mqtt.mqtt.broker.node.DefaultBroker;
+import org.github.zzf.mqtt.server.DefaultBroker;
 import org.junit.jupiter.api.Test;
 
 class ClusterTest {

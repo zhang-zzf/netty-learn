@@ -5,7 +5,7 @@ import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.NodeMessage;
-import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
 import org.github.zzf.mqtt.protocol.model.Publish;
 
 

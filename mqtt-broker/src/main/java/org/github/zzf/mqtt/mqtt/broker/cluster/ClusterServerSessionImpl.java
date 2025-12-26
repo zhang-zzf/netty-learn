@@ -8,7 +8,7 @@ import java.util.Queue;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
-import org.github.zzf.mqtt.mqtt.broker.node.DefaultServerSession;
+import org.github.zzf.mqtt.server.DefaultServerSession;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;

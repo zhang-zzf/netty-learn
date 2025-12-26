@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker.node;
+package org.github.zzf.mqtt.server;
 
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DISCONNECT;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PINGREQ;

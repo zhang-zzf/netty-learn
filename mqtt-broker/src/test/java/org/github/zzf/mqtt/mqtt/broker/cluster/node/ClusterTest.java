@@ -11,13 +11,20 @@ import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
 import org.github.zzf.mqtt.server.DefaultBroker;
+import org.github.zzf.mqtt.server.RoutingTableImpl;
+import org.github.zzf.mqtt.server.TopicBlockerImpl;
+import org.github.zzf.mqtt.server.TopicTreeRetain;
 import org.junit.jupiter.api.Test;
 
 class ClusterTest {
 
     ClusterBrokerState dbRepo = mock(ClusterBrokerState.class);
     Cluster cluster = new Cluster();
-    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, new DefaultBroker(packet -> 0x00), cluster);
+    DefaultBroker nodeBroker = new DefaultBroker(packet -> 0x00,
+            new RoutingTableImpl(),
+            TopicBlockerImpl.DEFAULT,
+            TopicTreeRetain.DEFAULT);
+    ClusterBroker clusterBroker = new ClusterBrokerImpl(dbRepo, nodeBroker, cluster);
 
     @Test
     void given_whenBuildPublish_when() {

@@ -20,7 +20,7 @@ import org.github.zzf.mqtt.protocol.server.Topic.Subscriber;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-21
  */
-public class RoutingTableImpl implements RoutingTable ,AutoCloseable{
+public class RoutingTableImpl implements RoutingTable, AutoCloseable {
 
     // todo metric 监控订阅的数量和统计信息
     final TopicTree<Topic> tree = new TopicTree<>("RoutingTable");

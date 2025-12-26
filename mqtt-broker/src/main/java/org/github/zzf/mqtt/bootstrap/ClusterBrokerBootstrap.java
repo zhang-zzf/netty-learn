@@ -1,8 +1,8 @@
 package org.github.zzf.mqtt.bootstrap;
 
+import java.util.function.Supplier;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.server.Authenticator;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBroker;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterBrokerState;
@@ -10,10 +10,12 @@ import org.github.zzf.mqtt.mqtt.broker.cluster.ClusterServerSessionHandler;
 import org.github.zzf.mqtt.mqtt.broker.cluster.infra.redis.ClusterBrokerStateImpl;
 import org.github.zzf.mqtt.mqtt.broker.cluster.infra.redis.RedisConfiguration;
 import org.github.zzf.mqtt.mqtt.broker.cluster.node.Cluster;
+import org.github.zzf.mqtt.protocol.server.Authenticator;
 import org.github.zzf.mqtt.server.DefaultBroker;
 import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
-
-import java.util.function.Supplier;
+import org.github.zzf.mqtt.server.RoutingTableImpl;
+import org.github.zzf.mqtt.server.TopicBlockerImpl;
+import org.github.zzf.mqtt.server.TopicTreeRetain;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -27,9 +29,14 @@ public class ClusterBrokerBootstrap {
         if (!Boolean.getBoolean("spring.enable")) {
             Authenticator authenticator = packet -> 0x00;
             final Cluster cluster = new Cluster();
-            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), new DefaultBroker(authenticator), cluster);
+            DefaultBroker nodeBroker = new DefaultBroker(authenticator,
+                    new RoutingTableImpl(),
+                    TopicBlockerImpl.DEFAULT,
+                    TopicTreeRetain.DEFAULT);
+            final ClusterBroker clusterBroker = new ClusterBrokerImpl(redisClusterDbRepo(), nodeBroker, cluster);
             startBroker(authenticator, cluster, clusterBroker);
-        } else {
+        }
+        else {
             log.info("start BrokerBootstrap with Spring Context");
             ClusterBrokerBootstrapInSpringContext.main(args);
         }
@@ -37,8 +44,8 @@ public class ClusterBrokerBootstrap {
 
     @SneakyThrows
     public static void startBroker(Authenticator authenticator,
-                                   Cluster cluster,
-                                   ClusterBroker clusterBroker) {
+            Cluster cluster,
+            ClusterBroker clusterBroker) {
         Supplier<DefaultServerSessionHandler> handlerSupplier = () ->
                 new ClusterServerSessionHandler(3, cluster);
         BrokerBootstrap.startServer(handlerSupplier);

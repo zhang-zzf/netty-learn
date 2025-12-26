@@ -34,22 +34,28 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
  */
 @Slf4j
 public class DefaultBroker implements Broker {
-
-    final Authenticator authenticator;
-
-    final RoutingTable routingTable = new RoutingTableImpl();
     /**
      * ClientIdentifier -> Session
      */
     // todo 监控 cleanSession = 0 / 1 数量
     final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
 
-    final TopicBlocker blockedTopic = TopicBlockerImpl.DEFAULT;
+    final Authenticator authenticator;
 
-    final RetainPublishManager retainPublishManager = TopicTreeRetain.DEFAULT;
+    final RoutingTable routingTable ;
 
-    public DefaultBroker(Authenticator authenticator) {
+    final TopicBlocker blockedTopic ;
+
+    final RetainPublishManager retainPublishManager ;
+
+    public DefaultBroker(Authenticator authenticator,
+            RoutingTable routingTable,
+            TopicBlocker blockedTopic,
+            RetainPublishManager retainPublishManager) {
         this.authenticator = authenticator;
+        this.routingTable = routingTable;
+        this.blockedTopic = blockedTopic;
+        this.retainPublishManager = retainPublishManager;
         this.self = this;
     }
 

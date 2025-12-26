@@ -25,13 +25,16 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.server.Broker;
-import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverSecureWebsocketServerInitializer;
 import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverWebsocketServerInitializer;
+import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
+import org.github.zzf.mqtt.protocol.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.server.DefaultBroker;
 import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
-import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
+import org.github.zzf.mqtt.server.RoutingTableImpl;
+import org.github.zzf.mqtt.server.TopicBlockerImpl;
+import org.github.zzf.mqtt.server.TopicTreeRetain;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -47,14 +50,18 @@ public class BrokerBootstrap {
 
     static {
         MQTT_SERVER_THREAD_NUM = Integer.getInteger("mqtt.server.thread.num",
-            Runtime.getRuntime().availableProcessors() * 2);
+                Runtime.getRuntime().availableProcessors() * 2);
         log.info("MQTT_SERVER_THREAD_NUM-> {}", MQTT_SERVER_THREAD_NUM);
     }
 
     @SneakyThrows
     public static void main(String[] args) {
         if (!Boolean.getBoolean("spring.enable")) {
-            Broker broker = new DefaultBroker(packet -> 0x00);
+            Broker broker = new DefaultBroker(
+                    packet -> 0x00,
+                    new RoutingTableImpl(),
+                    TopicBlockerImpl.DEFAULT,
+                    TopicTreeRetain.DEFAULT);
             startServer(() -> new DefaultServerSessionHandler(broker, 3));
         }
         else {
@@ -71,7 +78,7 @@ public class BrokerBootstrap {
     }
 
     public static void startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
-        SSLException {
+            SSLException {
         /**
          * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
          */
@@ -106,7 +113,7 @@ public class BrokerBootstrap {
     }
 
     private static Channel mqttOverSecureWebSocket(InetSocketAddress address,
-        Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+            Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         // 配置 websocket tls bootstrap
         DefaultThreadFactory workerTF = new DefaultThreadFactory("wss-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
@@ -115,23 +122,23 @@ public class BrokerBootstrap {
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         SslContext sslCtx = SslContextBuilder.forServer(
-                ClassLoader.getSystemResourceAsStream(certPath),
-                ClassLoader.getSystemResourceAsStream(keyPath))
-            .build();
+                        ClassLoader.getSystemResourceAsStream(certPath),
+                        ClassLoader.getSystemResourceAsStream(keyPath))
+                .build();
         try {
             ChannelFuture future = new ServerBootstrap()
-                .group(bossGroup, workerGroup)
-                // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(new MqttOverSecureWebsocketServerInitializer("/mqtt", sslCtx, handlerSupplier))
-                .bind(address).sync()
-                .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", address))
-                .channel().closeFuture().addListener(f -> {
-                    bossGroup.shutdownGracefully();
-                    workerGroup.shutdownGracefully();
-                    log.info("MQTT over Websocket(TLS) server was shutdown.");
-                });
+                    .group(bossGroup, workerGroup)
+                    // 设置 Channel 类型，通过反射创建 Channel 对象
+                    .channel(NioServerSocketChannel.class)
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
+                    .childHandler(new MqttOverSecureWebsocketServerInitializer("/mqtt", sslCtx, handlerSupplier))
+                    .bind(address).sync()
+                    .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", address))
+                    .channel().closeFuture().addListener(f -> {
+                        bossGroup.shutdownGracefully();
+                        workerGroup.shutdownGracefully();
+                        log.info("MQTT over Websocket(TLS) server was shutdown.");
+                    });
             return future.channel();
         } catch (Exception e) {
             log.info("MQTT over Websocket(TLS) server was shutdown.", e);
@@ -141,25 +148,26 @@ public class BrokerBootstrap {
         }
     }
 
-    private static Channel mqttOverWebsocket(InetSocketAddress address, Supplier<DefaultServerSessionHandler> handlerSupplier) {
+    private static Channel mqttOverWebsocket(InetSocketAddress address,
+            Supplier<DefaultServerSessionHandler> handlerSupplier) {
         DefaultThreadFactory bossTF = new DefaultThreadFactory("ws-worker");
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("ws-boss");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()
-                .group(bossGroup, workerGroup)
-                // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(new MqttOverWebsocketServerInitializer("/mqtt", handlerSupplier))
-                .bind(address).sync()
-                .addListener(f -> log.info("MQTT over Websocket server listened at {}", address))
-                .channel().closeFuture().addListener(f -> {
-                    log.info("MQTT over Websocket server was shutdown.");
-                    bossGroup.shutdownGracefully();
-                    workerGroup.shutdownGracefully();
-                });
+                    .group(bossGroup, workerGroup)
+                    // 设置 Channel 类型，通过反射创建 Channel 对象
+                    .channel(NioServerSocketChannel.class)
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
+                    .childHandler(new MqttOverWebsocketServerInitializer("/mqtt", handlerSupplier))
+                    .bind(address).sync()
+                    .addListener(f -> log.info("MQTT over Websocket server listened at {}", address))
+                    .channel().closeFuture().addListener(f -> {
+                        log.info("MQTT over Websocket server was shutdown.");
+                        bossGroup.shutdownGracefully();
+                        workerGroup.shutdownGracefully();
+                    });
             return future.channel();
         } catch (Exception e) {
             log.info("MQTT over Websocket server was shutdown.", e);
@@ -170,7 +178,7 @@ public class BrokerBootstrap {
     }
 
     private static Channel secureMqttServer(InetSocketAddress address,
-        Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+            Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
         DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtts-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtts-boss");
@@ -178,32 +186,32 @@ public class BrokerBootstrap {
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         final SslContext sslCtx = SslContextBuilder.forServer(
-                ClassLoader.getSystemResourceAsStream(certPath),
-                ClassLoader.getSystemResourceAsStream(keyPath))
-            .build();
+                        ClassLoader.getSystemResourceAsStream(certPath),
+                        ClassLoader.getSystemResourceAsStream(keyPath))
+                .build();
         try {
             ChannelFuture future = new ServerBootstrap()
-                .group(bossGroup, workerGroup)
-                // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    protected void initChannel(SocketChannel ch) throws Exception {
-                        ch.pipeline()
-                            .addLast(sslCtx.newHandler(ch.alloc()))
-                            .addLast(new MqttCodec())
-                            .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
-                        ;
-                    }
-                })
-                .bind(address).sync()
-                .addListener(f -> log.info("MQTT TLS server listened at {}", address))
-                .channel().closeFuture().addListener(f -> {
-                    log.info("MQTT TLS server was shutdown.");
-                    bossGroup.shutdownGracefully();
-                    workerGroup.shutdownGracefully();
-                });
+                    .group(bossGroup, workerGroup)
+                    // 设置 Channel 类型，通过反射创建 Channel 对象
+                    .channel(NioServerSocketChannel.class)
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel ch) throws Exception {
+                            ch.pipeline()
+                                    .addLast(sslCtx.newHandler(ch.alloc()))
+                                    .addLast(new MqttCodec())
+                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                            ;
+                        }
+                    })
+                    .bind(address).sync()
+                    .addListener(f -> log.info("MQTT TLS server listened at {}", address))
+                    .channel().closeFuture().addListener(f -> {
+                        log.info("MQTT TLS server was shutdown.");
+                        bossGroup.shutdownGracefully();
+                        workerGroup.shutdownGracefully();
+                    });
             return future.channel();
         } catch (Exception e) {
             log.info("MQTT TLS server was shutdown.", e);
@@ -214,35 +222,35 @@ public class BrokerBootstrap {
     }
 
     private static Channel mqttServer(InetSocketAddress address,
-        Supplier<DefaultServerSessionHandler> handlerSupplier) {
+            Supplier<DefaultServerSessionHandler> handlerSupplier) {
         DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss", false, Thread.MAX_PRIORITY);
         NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
         DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtt-worker");
         NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
         try {
             ChannelFuture future = new ServerBootstrap()
-                .group(bossGroup, workerGroup)
-                // 设置 Channel 类型，通过反射创建 Channel 对象
-                .channel(NioServerSocketChannel.class)
-                .handler(new LoggingHandler(LogLevel.DEBUG))
-                .childHandler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    protected void initChannel(SocketChannel ch) throws Exception {
-                        ch.pipeline()
-                            .addLast(new MqttCodec())
-                            .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
-                            .addLast(new ControlPacketRecycler())
-                        ;
-                    }
-                })
-                .bind(address)
-                .sync()
-                .addListener(f -> log.info("MQTT server listened at {}", address))
-                .channel().closeFuture().addListener(f -> {
-                    bossGroup.shutdownGracefully();
-                    workerGroup.shutdownGracefully();
-                    log.info("MQTT server was shutdown.");
-                });
+                    .group(bossGroup, workerGroup)
+                    // 设置 Channel 类型，通过反射创建 Channel 对象
+                    .channel(NioServerSocketChannel.class)
+                    .handler(new LoggingHandler(LogLevel.DEBUG))
+                    .childHandler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        protected void initChannel(SocketChannel ch) throws Exception {
+                            ch.pipeline()
+                                    .addLast(new MqttCodec())
+                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                                    .addLast(new ControlPacketRecycler())
+                            ;
+                        }
+                    })
+                    .bind(address)
+                    .sync()
+                    .addListener(f -> log.info("MQTT server listened at {}", address))
+                    .channel().closeFuture().addListener(f -> {
+                        bossGroup.shutdownGracefully();
+                        workerGroup.shutdownGracefully();
+                        log.info("MQTT server was shutdown.");
+                    });
             return future.channel();
         } catch (Exception e) {
             log.info("MQTT server was shutdown.", e);

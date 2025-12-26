@@ -6,6 +6,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.server.DefaultBroker;
 import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.server.RoutingTableImpl;
+import org.github.zzf.mqtt.server.TopicBlockerImpl;
+import org.github.zzf.mqtt.server.TopicTreeRetain;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -29,7 +32,10 @@ public class BrokerBootstrapInSpringContext {
 
     @Bean
     public Broker defaultBroker() {
-        return new DefaultBroker(packet -> 0x00);
+        return new DefaultBroker(packet -> 0x00,
+                new RoutingTableImpl(),
+                TopicBlockerImpl.DEFAULT,
+                TopicTreeRetain.DEFAULT);
     }
 
     @Configuration

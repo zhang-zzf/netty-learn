@@ -24,6 +24,20 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
     }
 
     @Override
+    public List<Publish> match(String tf) {
+        List<Publish> ret = new ArrayList<>();
+        dfsMatch(tf.split(LEVEL_SEPARATOR), 0, root, ret, false);
+        return postHandle(ret, tf);
+    }
+
+    private List<Publish> postHandle(List<Publish> ret, String tf) {
+        if (tf.startsWith(MULTI_LEVEL_WILDCARD) || tf.startsWith(SINGLE_LEVEL_WILDCARD)) {
+            return ret.stream().filter(d -> !d.topicName().startsWith($)).toList();
+        }
+        return ret;
+    }
+
+    @Override
     public CompletableFuture<List<Publish>> match(String... topicFilters) {
         if (topicFilters.length == 0) {
             return CompletableFuture.completedFuture(emptyList());
@@ -32,6 +46,7 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
             List<Publish> ret = new ArrayList<>();
             for (String tf : topicFilters) {
                 dfsMatch(tf.split(LEVEL_SEPARATOR), 0, root, ret, false);
+                ret = postHandle(ret, tf);
             }
             return ret;
         }, executor);
@@ -57,8 +72,8 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
             dfsMatch(topicLevels, levelIdx + 1, child, ret, false);
         }
         else if (topicLevel.equals(MULTI_LEVEL_WILDCARD)) {
+            addNode(ret, cur); // 'a/#' will match 'a' 'a/b' 'a/b/c' 'a/c'
             for (Node<Publish> node : cur.childNodes.values()) {
-                addNode(ret, node);// same level of '#'
                 dfsMatch(topicLevels, levelIdx + 1, node, ret, true);
             }
         }

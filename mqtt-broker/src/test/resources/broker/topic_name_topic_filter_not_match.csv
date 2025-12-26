@@ -13,10 +13,8 @@ sport/tennis/player1,sport/tennis
 sport/tennis/player1,sport/tennis/+/ranking
 sport/tennis/player1,sport/tennis/player1/ranking
 sport/tennis/player1,sport/+/player1/ranking
-sport/tennis/player1,#/tennis
 $SYS/monitor,+/monitor
 $SYS/monitor,#
-sport/tennis/player1,sport/tennis/player1#
 sport/tennis/player1,sport/tennis/+/player1
 sport/tennis/player1/ranking,sport/tennis/+
 
@@ -25,8 +23,6 @@ sport/tennis/player1,sport/tennis/player2
 sport/tennis/player1,sport/tennis/+/ranking
 sport/tennis/player1,sport/tennis/player1/ranking
 sport/tennis/player1,sport/+/player1/ranking
-sport/tennis/player1,#/tennis
-sport/tennis/player1,sport/tennis/player1#
 sport/tennis/player1,sport/tennis/+/player1
 sport/tennis/player1/ranking,sport/tennis/+
 sport/tennis/player1/ranking,sport/+/+
@@ -104,3 +100,23 @@ $SYS/monitor,+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/monitor
 $SYS/monitor,+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/#
 $SYS/monitor,+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/monitor
 $SYS/monitor,+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/+/#
+
+
+sport/tennis/player1,sport/tennis/player2
+sport/tennis/player1,sport/tennis
+sport/tennis/player1/ranking,sport/tennis/player1
+sport/tennis/player1,sport/tennis/player1/ranking
+sport/tennis/player1/ranking,sport/tennis/player1/ranking/score
+
+
+sport/tennis/player1/ranking,sport/tennis/+
+sport/tennis/player1/ranking,sport/+/+
+sport/tennis/player1,sport/tennis/+/ranking
+
+$SYS/monitor,+/monitor
+$SYS/monitor,#
+$SYS/monitor,+/#
+$SYS/monitor,+/+/monitor
+$SYS/monitor,+/+/#
+$SYS/monitor/Clients,+/monitor/+
+$SYS/monitor/Clients,+/monitor/#

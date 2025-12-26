@@ -61,7 +61,7 @@ public class TopicTree<T> implements AutoCloseable {
             // n will point to the child after add
             n = n.addChild(new Node<>(level));
             if (lastLevel(i, topicLevels)) {
-                n.topicFilter = topicFilter;
+                n.topic = topicFilter;
                 dataOp.accept(n.data);
             }
         }
@@ -78,7 +78,7 @@ public class TopicTree<T> implements AutoCloseable {
 
     private void dfsRemoveTopic(String[] topicLevels, int levelIdx, Node<T> node, Consumer<AtomicReference<T>> dataOp) {
         if (levelIdx >= topicLevels.length) {
-            node.topicFilter = null;
+            node.topic = null;
             dataOp.accept(node.data);
             return;
         }
@@ -113,8 +113,8 @@ public class TopicTree<T> implements AutoCloseable {
     }
 
     private boolean dollarMatch(Node<T> t) {
-        if (t.topicFilter.startsWith(MULTI_LEVEL_WILDCARD)
-            || t.topicFilter.startsWith(SINGLE_LEVEL_WILDCARD)) {
+        if (t.topic.startsWith(MULTI_LEVEL_WILDCARD)
+            || t.topic.startsWith(SINGLE_LEVEL_WILDCARD)) {
             return false;
         }
         return true;
@@ -153,7 +153,7 @@ public class TopicTree<T> implements AutoCloseable {
     }
 
     private void addNode(List<Node<T>> ret, Node<T> node) {
-        if (node.topicFilter != null) {
+        if (node.topic != null) {
             ret.add(node);
         }
     }
@@ -188,7 +188,7 @@ public class TopicTree<T> implements AutoCloseable {
     public static class Node<T> {
 
         final String level;
-        volatile String topicFilter;
+        volatile String topic;
         final AtomicReference<T> data = new AtomicReference<>();
         /* child Nodes */
         final ConcurrentMap<String, Node<T>> childNodes

@@ -32,11 +32,11 @@ public class TopicTree<T> implements AutoCloseable {
     public TopicTree(String threadName) {
         this.threadName = threadName;
         this.executor = new ThreadPoolExecutor(1, 1,
-            60, TimeUnit.SECONDS,
-            // 使用无界队列
-            new LinkedBlockingDeque<>(),
-            (r) -> new Thread(r, threadName),
-            new ThreadPoolExecutor.AbortPolicy()
+                60, TimeUnit.SECONDS,
+                // 使用无界队列
+                new LinkedBlockingDeque<>(),
+                (r) -> new Thread(r, threadName),
+                new ThreadPoolExecutor.AbortPolicy()
         );
     }
 
@@ -48,11 +48,13 @@ public class TopicTree<T> implements AutoCloseable {
     // tree root
     protected final Node<T> root = new Node<>("*");
 
-    public CompletableFuture<Void> add(String topicFilter, Consumer<AtomicReference<T>> dataOp) {
+    public CompletableFuture<Void> add(String topicFilter,
+            Consumer<AtomicReference<T>> dataOp) {
         return runAsync(() -> doAdd(topicFilter, dataOp), executor);
     }
 
-    private void doAdd(String topicFilter, Consumer<AtomicReference<T>> dataOp) {
+    private void doAdd(String topicFilter,
+            Consumer<AtomicReference<T>> dataOp) {
         // todo "//"  "/...." ".../"
         String[] topicLevels = topicFilter.split(LEVEL_SEPARATOR);
         Node<T> n = root;
@@ -67,16 +69,21 @@ public class TopicTree<T> implements AutoCloseable {
         }
     }
 
-    public CompletableFuture<Void> del(String topicFilter, Consumer<AtomicReference<T>> dataOp) {
+    public CompletableFuture<Void> del(String topicFilter,
+            Consumer<AtomicReference<T>> dataOp) {
         return runAsync(() -> doDel(topicFilter, dataOp), executor);
     }
 
-    private void doDel(String topicFilter, Consumer<AtomicReference<T>> dataOp) {
+    private void doDel(String topicFilter,
+            Consumer<AtomicReference<T>> dataOp) {
         String[] topicLevels = topicFilter.split(LEVEL_SEPARATOR);
         dfsRemoveTopic(topicLevels, 0, root, dataOp);
     }
 
-    private void dfsRemoveTopic(String[] topicLevels, int levelIdx, Node<T> node, Consumer<AtomicReference<T>> dataOp) {
+    private void dfsRemoveTopic(String[] topicLevels,
+            int levelIdx,
+            Node<T> node,
+            Consumer<AtomicReference<T>> dataOp) {
         if (levelIdx >= topicLevels.length) {
             node.topic = null;
             dataOp.accept(node.data);
@@ -106,15 +113,15 @@ public class TopicTree<T> implements AutoCloseable {
             stream = ret.stream();
         }
         return stream
-            .map(n -> n.data.get())
-            .filter(Objects::nonNull)
-            .toList()
-            ;
+                .map(n -> n.data.get())
+                .filter(Objects::nonNull)
+                .toList()
+                ;
     }
 
     private boolean dollarMatch(Node<T> t) {
         if (t.topic.startsWith(MULTI_LEVEL_WILDCARD)
-            || t.topic.startsWith(SINGLE_LEVEL_WILDCARD)) {
+                || t.topic.startsWith(SINGLE_LEVEL_WILDCARD)) {
             return false;
         }
         return true;
@@ -131,7 +138,10 @@ public class TopicTree<T> implements AutoCloseable {
         return Optional.ofNullable(cur).map(n -> n.data.get());
     }
 
-    private void dfsMatch(String[] topicLevels, int levelIdx, Node<T> cur, List<Node<T>> ret) {
+    private void dfsMatch(String[] topicLevels,
+            int levelIdx,
+            Node<T> cur,
+            List<Node<T>> ret) {
         Node<T> n;
         if (levelIdx == topicLevels.length) {
             addNode(ret, cur);
@@ -152,13 +162,15 @@ public class TopicTree<T> implements AutoCloseable {
         }
     }
 
-    private void addNode(List<Node<T>> ret, Node<T> node) {
+    private void addNode(List<Node<T>> ret,
+            Node<T> node) {
         if (node.topic != null) {
             ret.add(node);
         }
     }
 
-    static boolean lastLevel(int level, String[] levelArray) {
+    static boolean lastLevel(int level,
+            String[] levelArray) {
         return level == levelArray.length - 1;
     }
 
@@ -192,7 +204,7 @@ public class TopicTree<T> implements AutoCloseable {
         final AtomicReference<T> data = new AtomicReference<>();
         /* child Nodes */
         final ConcurrentMap<String, Node<T>> childNodes
-            = new ConcurrentHashMap<>(Integer.getInteger("TopicTree.Node.default.childNodes", 4));
+                = new ConcurrentHashMap<>(Integer.getInteger("TopicTree.Node.default.childNodes", 4));
 
         public Node(String level) {
             this.level = level;

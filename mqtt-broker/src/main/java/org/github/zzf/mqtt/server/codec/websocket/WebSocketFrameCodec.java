@@ -13,14 +13,13 @@
  * License for the specific language governing permissions and limitations
  * under the License.
  */
-package org.github.zzf.mqtt.mqtt.broker.codec.websocket;
+package org.github.zzf.mqtt.server.codec.websocket;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.MessageToMessageCodec;
 import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
-
 import java.util.List;
 
 /**
@@ -29,12 +28,16 @@ import java.util.List;
 public class WebSocketFrameCodec extends MessageToMessageCodec<WebSocketFrame, ByteBuf> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
+    protected void encode(ChannelHandlerContext ctx,
+            ByteBuf msg,
+            List<Object> out) {
         out.add(new BinaryWebSocketFrame(msg.retain()));
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) {
+    protected void decode(ChannelHandlerContext ctx,
+            WebSocketFrame frame,
+            List<Object> out) {
         // ping and pong frames already handled
         if (!(frame instanceof BinaryWebSocketFrame)) {
             String message = "unsupported frame type: " + frame.getClass().getName();

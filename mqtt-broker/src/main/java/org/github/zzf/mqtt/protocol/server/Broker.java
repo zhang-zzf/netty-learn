@@ -17,7 +17,8 @@ public interface Broker {
     /**
      * Connect Event
      */
-    ServerSession onConnect(Connect connect, Channel channel);
+    ServerSession onConnect(Connect connect,
+            Channel channel);
 
     /**
      * Publish Event
@@ -36,12 +37,14 @@ public interface Broker {
     /**
      * register a subscription between the session and the topic
      */
-    List<Subscribe.Subscription> subscribe(ServerSession session, Collection<Subscription> subscriptions);
+    List<Subscribe.Subscription> subscribe(ServerSession session,
+            Collection<Subscription> subscriptions);
 
     /**
      * deregister a subscription between the session and the topic
      */
-    void unsubscribe(ServerSession session, Collection<Subscription> subscriptions);
+    void unsubscribe(ServerSession session,
+            Collection<Subscription> subscriptions);
 
     // ServerSession session(String clientIdentifier);
 

@@ -14,7 +14,9 @@ import org.github.zzf.mqtt.protocol.model.ControlPacket;
 public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
-    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
+    public void write(ChannelHandlerContext ctx,
+            Object msg,
+            ChannelPromise promise) {
         if (msg instanceof ControlPacket cp) {
             // core: zero-copy
             ByteBuf buf = cp.toByteBuf();
@@ -28,7 +30,9 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
     }
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, ControlPacket msg, ByteBuf out) {
+    protected void encode(ChannelHandlerContext ctx,
+            ControlPacket msg,
+            ByteBuf out) {
         // code should not go here.
         throw new UnsupportedOperationException();
         // this will cause 1 time memory copy
@@ -36,7 +40,9 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
+    protected void decode(ChannelHandlerContext ctx,
+            ByteBuf in,
+            List<Object> out) {
         int packetLength = ControlPacket.tryPickupPacket(in);
         if (packetLength == -1) {// can not decode a packet
             return;

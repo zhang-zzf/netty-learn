@@ -11,9 +11,7 @@ public interface Authenticator {
     int AUTHENTICATE_SUCCESS = 0x00;
 
     /**
-     * @return 0x00 authenticate success;
-     * 0x02 Connection Refused, identifier rejected;
-     * 0x04 Connection Refused, bad username or password
+     * @return 0x00 authenticate success; 0x02 Connection Refused, identifier rejected; 0x04 Connection Refused, bad username or password
      */
     int authenticate(Connect packet);
 

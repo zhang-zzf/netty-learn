@@ -22,7 +22,6 @@ import java.util.Objects;
 import java.util.Queue;
 import java.util.Set;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.micrometer.utils.MetricUtil;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Disconnect;
@@ -33,10 +32,11 @@ import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.UnsubAck;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
-import org.github.zzf.mqtt.protocol.session.AbstractSession;
-import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
+import org.github.zzf.mqtt.protocol.session.AbstractSession;
+import org.github.zzf.mqtt.protocol.session.ControlPacketContext;
+import org.github.zzf.mqtt.server.metric.MetricUtil;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -65,7 +65,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
      */
     private volatile Publish willMessage;
 
-    public DefaultServerSession(Connect connect, Channel channel, DefaultBroker broker, ServerSession previous) {
+    public DefaultServerSession(Connect connect,
+            Channel channel,
+            DefaultBroker broker,
+            ServerSession previous) {
         this(connect, channel, broker, true);
         // The Client and Server MUST store the Session after the Client and Server are disconnected
         // 按照 mqtt 协议 Client 会保存和重新发送未确认的消息。若 Client 未按照协议设计可能导致 inQueue 异常
@@ -92,11 +95,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
     }
 
-    public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
+    public DefaultServerSession(Connect connect,
+            Channel channel,
+            Broker broker) {
         this(connect, channel, broker, false);
     }
 
-    public DefaultServerSession(Connect connect, Channel channel, Broker broker, boolean isResumed) {
+    public DefaultServerSession(Connect connect,
+            Channel channel,
+            Broker broker,
+            boolean isResumed) {
         super(connect.clientIdentifier(), connect.cleanSession(), channel);
         this.broker = broker;
         this.connect = connect;

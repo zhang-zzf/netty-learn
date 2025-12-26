@@ -171,21 +171,4 @@ class TopicTreeRetainTest {
         }
     }
 
-
-    @Test
-    void givenDefaultInstance_whenUse_thenWorks() {
-        // 测试默认实例
-        then(TopicTreeRetain.DEFAULT).isNotNull();
-
-        String topicName = "default/test";
-        Publish publish = Publish.outgoing(1, topicName, Unpooled.copiedBuffer("default payload", java.nio.charset.StandardCharsets.UTF_8));
-
-        TopicTreeRetain.DEFAULT.add(publish).join();
-        List<Publish> result = TopicTreeRetain.DEFAULT.match(topicName);
-        then(result).isNotEmpty();
-        then(result.get(0).topicName()).isEqualTo(topicName);
-
-        // 清理
-        TopicTreeRetain.DEFAULT.del(publish).join();
-    }
 }

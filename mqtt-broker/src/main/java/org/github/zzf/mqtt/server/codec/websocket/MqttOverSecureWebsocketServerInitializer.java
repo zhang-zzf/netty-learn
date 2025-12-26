@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker.codec.websocket;
+package org.github.zzf.mqtt.server.codec.websocket;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -8,10 +8,10 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import io.netty.handler.ssl.SslContext;
 import lombok.RequiredArgsConstructor;
-import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
-
-import java.util.function.Supplier;
+import org.github.zzf.mqtt.protocol.server.Broker;
+import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
 
 @RequiredArgsConstructor
 public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
@@ -19,7 +19,8 @@ public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer
     final String subProtocols = "mqtt";
     private final String websocketPath;
     private final SslContext sslCtx;
-    private final Supplier<DefaultServerSessionHandler> handlerSupplier;
+    private final Broker broker;
+    private final int activeIdleTimeoutSecond;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -39,7 +40,8 @@ public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer
                 // mqtt codec
                 .addLast(new MqttCodec())
                 // mqtt SessionHandler
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
+                .addLast(new ControlPacketRecycler())
         ;
 
     }

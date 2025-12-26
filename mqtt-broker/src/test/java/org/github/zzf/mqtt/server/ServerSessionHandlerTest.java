@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker;
+package org.github.zzf.mqtt.server;
 
 import static org.assertj.core.api.BDDAssertions.then;
 

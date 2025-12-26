@@ -70,40 +70,52 @@ public class Connect extends ControlPacket {
         }
     }
 
-    public static Connect from(String clientIdentifier, short keepAlive) {
+    public static Connect from(String clientIdentifier,
+            short keepAlive) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1, (byte) 0x02, keepAlive, clientIdentifier, null, null, null,
-            null);
+                null);
     }
 
-    public static Connect from(String clientIdentifier, boolean cleanSession, short keepAlive) {
+    public static Connect from(String clientIdentifier,
+            boolean cleanSession,
+            short keepAlive) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1,
-            cleanSession, false, 0, false,
-            false, false,
-            keepAlive,
-            clientIdentifier,
-            null, null,
-            null, null);
+                cleanSession, false, 0, false,
+                false, false,
+                keepAlive,
+                clientIdentifier,
+                null, null,
+                null, null);
     }
 
-    public static Connect from(int willQos, boolean willRetain,
-        short keepAlive,
-        String clientIdentifier,
-        String willTopic, ByteBuf willMessage) {
+    public static Connect from(int willQos,
+            boolean willRetain,
+            short keepAlive,
+            String clientIdentifier,
+            String willTopic,
+            ByteBuf willMessage) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1,
-            true, true, willQos, willRetain, false, false,
-            keepAlive,
-            clientIdentifier,
-            willTopic, willMessage,
-            null, null);
+                true, true, willQos, willRetain, false, false,
+                keepAlive,
+                clientIdentifier,
+                willTopic, willMessage,
+                null, null);
     }
 
-    public static Connect from(String protocolName, byte protocolLevel,
-        boolean cleanSession, boolean willFlag, int willQos, boolean willRetain,
-        boolean passwordFlag, boolean usernameFlag,
-        short keepAlive,
-        String clientIdentifier,
-        String willTopic, ByteBuf willMessage,
-        String username, ByteBuf password) {
+    public static Connect from(String protocolName,
+            byte protocolLevel,
+            boolean cleanSession,
+            boolean willFlag,
+            int willQos,
+            boolean willRetain,
+            boolean passwordFlag,
+            boolean usernameFlag,
+            short keepAlive,
+            String clientIdentifier,
+            String willTopic,
+            ByteBuf willMessage,
+            String username,
+            ByteBuf password) {
         if (willQos < 0 || willQos > 2) {
             throw new IllegalArgumentException("willQoS is illegal");
         }
@@ -125,29 +137,41 @@ public class Connect extends ControlPacket {
             connectFlags |= 0x80;
         }
         return from(protocolName, protocolLevel, connectFlags, keepAlive,
-            clientIdentifier, willTopic, willMessage, username, password);
+                clientIdentifier, willTopic, willMessage, username, password);
     }
 
     public static Connect from(String protocolName,
-        byte protocolLevel, byte connectFlags, short keepAlive,
-        String clientIdentifier, String willTopic, ByteBuf willMessage,
-        String username, ByteBuf password) {
+            byte protocolLevel,
+            byte connectFlags,
+            short keepAlive,
+            String clientIdentifier,
+            String willTopic,
+            ByteBuf willMessage,
+            String username,
+            ByteBuf password) {
         int remainingLength = VARIABLE_HEADER_LENGTH
-            + (clientIdentifier == null ? 2 : clientIdentifier.getBytes(UTF_8).length + 2)
-            + (willTopic == null ? 0 : willTopic.getBytes(UTF_8).length + 2)
-            + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
-            + (username == null ? 0 : username.getBytes(UTF_8).length + 2)
-            + (password == null ? 0 : password.readableBytes() + 2);
+                + (clientIdentifier == null ? 2 : clientIdentifier.getBytes(UTF_8).length + 2)
+                + (willTopic == null ? 0 : willTopic.getBytes(UTF_8).length + 2)
+                + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
+                + (username == null ? 0 : username.getBytes(UTF_8).length + 2)
+                + (password == null ? 0 : password.readableBytes() + 2);
         return new Connect(CONNECT, remainingLength, protocolName,
-            protocolLevel, connectFlags, keepAlive, clientIdentifier,
-            willTopic, willMessage,
-            username, password);
+                protocolLevel, connectFlags, keepAlive, clientIdentifier,
+                willTopic, willMessage,
+                username, password);
     }
 
-    private Connect(byte _0byte, int remainingLength, String protocolName,
-        byte protocolLevel, byte connectFlags, short keepAlive,
-        String clientIdentifier, String willTopic, ByteBuf willMessage,
-        String username, ByteBuf password) {
+    private Connect(byte _0byte,
+            int remainingLength,
+            String protocolName,
+            byte protocolLevel,
+            byte connectFlags,
+            short keepAlive,
+            String clientIdentifier,
+            String willTopic,
+            ByteBuf willMessage,
+            String username,
+            ByteBuf password) {
         super(_0byte, remainingLength);
         this.protocolName = protocolName;
         this.protocolLevel = protocolLevel;
@@ -198,7 +222,7 @@ public class Connect extends ControlPacket {
         }
         // all direct ByteBuf
         return compositeBuffer()
-            .addComponents(true, fixedHeader, varHeader, payload);
+                .addComponents(true, fixedHeader, varHeader, payload);
     }
 
     public int keepAlive() {

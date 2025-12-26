@@ -46,7 +46,11 @@ public class Publish extends ControlPacket {
     /**
      * outgoing Publish Message
      */
-    private Publish(byte _0byte, int remainingLength, short packetIdentifier, ByteBuf payload, String topicName) {
+    private Publish(byte _0byte,
+            int remainingLength,
+            short packetIdentifier,
+            ByteBuf payload,
+            String topicName) {
         super(_0byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.topicName = topicName;
@@ -64,19 +68,28 @@ public class Publish extends ControlPacket {
      * @param packetIdentifier packet ID
      * @return a Publish Packet that have the save data as source
      */
-    public static Publish outgoing(Publish origin, String topicName, byte qos, short packetIdentifier) {
+    public static Publish outgoing(Publish origin,
+            String topicName,
+            byte qos,
+            short packetIdentifier) {
         Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload);
         // metric meta
         ret.copyMeta(origin);
         return ret;
     }
 
-    public static Publish outgoing(int qos, String topicName, ByteBuf payload) {
+    public static Publish outgoing(int qos,
+            String topicName,
+            ByteBuf payload) {
         return outgoing(false, qos, false, topicName, (short) 0, payload);
     }
 
-    public static Publish outgoing(boolean retain, int qos, boolean dup,
-        String topicName, short packetIdentifier, ByteBuf payload) {
+    public static Publish outgoing(boolean retain,
+            int qos,
+            boolean dup,
+            String topicName,
+            short packetIdentifier,
+            ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
@@ -99,7 +112,7 @@ public class Publish extends ControlPacket {
         }
         // the CompositeBuffer will be released by netty
         return compositeBuffer()
-            .addComponents(true, fixedHeader, varHeader, payload);
+                .addComponents(true, fixedHeader, varHeader, payload);
     }
 
     /**
@@ -120,7 +133,9 @@ public class Publish extends ControlPacket {
         return needAck(qos());
     }
 
-    static byte build_0Byte(boolean retain, int qos, boolean dup) {
+    static byte build_0Byte(boolean retain,
+            int qos,
+            boolean dup) {
         byte _0Byte = 0x30;
         if (retain) {
             _0Byte |= 0x01;
@@ -248,7 +263,8 @@ public class Publish extends ControlPacket {
         return meta;
     }
 
-    public void addMeta(String n, Object v) {
+    public void addMeta(String n,
+            Object v) {
         if (meta == null) {
             meta = new HashMap<>(4);
         }

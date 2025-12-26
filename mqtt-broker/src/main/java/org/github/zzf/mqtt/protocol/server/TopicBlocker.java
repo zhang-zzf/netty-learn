@@ -6,7 +6,7 @@ import java.util.concurrent.CompletableFuture;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-23
  */
-public interface TopicBlocker {
+public interface TopicBlocker extends AutoCloseable {
 
     /**
      * return the first Topic that match the TopicName;

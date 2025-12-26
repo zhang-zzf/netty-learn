@@ -42,11 +42,11 @@ public class DefaultBroker implements Broker {
 
     final Authenticator authenticator;
 
-    final RoutingTable routingTable ;
+    final RoutingTable routingTable;
 
-    final TopicBlocker blockedTopic ;
+    final TopicBlocker blockedTopic;
 
-    final RetainPublishManager retainPublishManager ;
+    final RetainPublishManager retainPublishManager;
 
     public DefaultBroker(Authenticator authenticator,
             RoutingTable routingTable,
@@ -60,13 +60,14 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public List<Subscribe.Subscription> subscribe(ServerSession session, Collection<Subscription> subscriptions) {
+    public List<Subscribe.Subscription> subscribe(ServerSession session,
+            Collection<Subscription> subscriptions) {
         if (subscriptions == null) {
             return emptyList();
         }
         List<Subscription> permitted = subscriptions.stream()
-            .map(sub -> decideSubscriptionQos(session, sub))
-            .collect(toList());
+                .map(sub -> decideSubscriptionQos(session, sub))
+                .collect(toList());
         // sync
         routingTable.subscribe(session.clientIdentifier(), permitted).join();
         //
@@ -84,7 +85,8 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public void unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
+    public void unsubscribe(ServerSession session,
+            Collection<Subscription> subscriptions) {
         // sync
         routingTable.unsubscribe(session.clientIdentifier(), subscriptions).join();
     }
@@ -102,7 +104,7 @@ public class DefaultBroker implements Broker {
                 int qos = qoS(packet.qos(), subscriber.qos());
                 // use a shadow copy of the origin Publish
                 Publish outgoing = Publish.outgoing(false /* must set retain to false before forward the PublishPacket */,
-                    qos, false, topic.topicFilter(), packetIdentifier(session, qos), packet.payload());
+                        qos, false, topic.topicFilter(), packetIdentifier(session, qos), packet.payload());
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }
@@ -122,11 +124,13 @@ public class DefaultBroker implements Broker {
         return false;
     }
 
-    public static short packetIdentifier(ServerSession session, int qos) {
+    public static short packetIdentifier(ServerSession session,
+            int qos) {
         return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
     }
 
-    public static int qoS(int packetQos, int tfQos) {
+    public static int qoS(int packetQos,
+            int tfQos) {
         return Math.min(packetQos, tfQos);
     }
 
@@ -137,7 +141,8 @@ public class DefaultBroker implements Broker {
     // 1. cleanSession = 0 then cleanSession = 1
     //
     @Override
-    public ServerSession onConnect(Connect connect, Channel channel) {
+    public ServerSession onConnect(Connect connect,
+            Channel channel) {
         log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
         // The Server MUST respond to the CONNECT Packet
         // with a CONNACK return code 0x01 (unacceptable protocol level) and then
@@ -182,7 +187,8 @@ public class DefaultBroker implements Broker {
         return session;
     }
 
-    protected Subscribe.Subscription decideSubscriptionQos(ServerSession session, Subscribe.Subscription sub) {
+    protected Subscribe.Subscription decideSubscriptionQos(ServerSession session,
+            Subscribe.Subscription sub) {
         // todo decide qos
         int qos = sub.qos();
         return new Subscribe.Subscription(sub.topicFilter(), qos);
@@ -204,7 +210,7 @@ public class DefaultBroker implements Broker {
         else {
             // use a copy of the origin
             Publish packet = Publish.outgoing(publish.retainFlag(), (byte) publish.qos(),
-                publish.dup(), publish.topicName(), (short) 0, publish.payload().copy());
+                    publish.dup(), publish.topicName(), (short) 0, publish.payload().copy());
             // save the retained message
             retainPublishManager.add(packet);
         }
@@ -250,8 +256,8 @@ public class DefaultBroker implements Broker {
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"broker\":\"")
-            .append(this.getClass().getSimpleName()).append("@").append(Integer.toHexString(hashCode()))
-            .append('\"').append(',');
+                .append(this.getClass().getSimpleName()).append("@").append(Integer.toHexString(hashCode()))
+                .append('\"').append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 }

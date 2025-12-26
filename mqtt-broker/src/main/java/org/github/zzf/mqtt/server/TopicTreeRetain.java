@@ -17,8 +17,6 @@ import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
  */
 public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublishManager {
 
-    public static final TopicTreeRetain DEFAULT = new TopicTreeRetain("RetainPublishManager");
-
     public TopicTreeRetain(String threadName) {
         super(threadName);
     }
@@ -30,7 +28,8 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
         return postHandle(ret, tf);
     }
 
-    private List<Publish> postHandle(List<Publish> ret, String tf) {
+    private List<Publish> postHandle(List<Publish> ret,
+            String tf) {
         if (tf.startsWith(MULTI_LEVEL_WILDCARD) || tf.startsWith(SINGLE_LEVEL_WILDCARD)) {
             return ret.stream().filter(d -> !d.topicName().startsWith($)).toList();
         }
@@ -52,7 +51,11 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
         }, executor);
     }
 
-    private void dfsMatch(String[] topicLevels, int levelIdx, Node<Publish> cur, List<Publish> ret, boolean matched) {
+    private void dfsMatch(String[] topicLevels,
+            int levelIdx,
+            Node<Publish> cur,
+            List<Publish> ret,
+            boolean matched) {
         if (matched) {
             addNode(ret, cur);
             for (Node<Publish> node : cur.childNodes.values()) {
@@ -84,7 +87,8 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
         }
     }
 
-    private void addNode(List<Publish> ret, Node<Publish> n) {
+    private void addNode(List<Publish> ret,
+            Node<Publish> n) {
         Publish data = n.data.get();
         if (data != null) {
             ret.add(data);
@@ -97,8 +101,8 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(packets)
-            .map(d -> add(d.topicName(), (AtomicReference<Publish> data) -> data.set(d)))
-            .toArray(CompletableFuture[]::new)
+                .map(d -> add(d.topicName(), (AtomicReference<Publish> data) -> data.set(d)))
+                .toArray(CompletableFuture[]::new)
         );
     }
 
@@ -108,8 +112,8 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(packets)
-            .map(d -> del(d.topicName(), (AtomicReference<Publish> data) -> data.set(null)))
-            .toArray(CompletableFuture[]::new)
+                .map(d -> del(d.topicName(), (AtomicReference<Publish> data) -> data.set(null)))
+                .toArray(CompletableFuture[]::new)
         );
     }
 }

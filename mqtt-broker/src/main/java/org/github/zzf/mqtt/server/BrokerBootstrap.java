@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.bootstrap;
+package org.github.zzf.mqtt.server;
 
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.Channel;
@@ -15,96 +15,97 @@ import io.netty.util.concurrent.DefaultThreadFactory;
 import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Supplier;
 import javax.net.ssl.SSLException;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverSecureWebsocketServerInitializer;
-import org.github.zzf.mqtt.mqtt.broker.codec.websocket.MqttOverWebsocketServerInitializer;
 import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
+import org.github.zzf.mqtt.protocol.server.Authenticator;
 import org.github.zzf.mqtt.protocol.server.Broker;
-import org.github.zzf.mqtt.server.DefaultBroker;
-import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
-import org.github.zzf.mqtt.server.RoutingTableImpl;
-import org.github.zzf.mqtt.server.TopicBlockerImpl;
-import org.github.zzf.mqtt.server.TopicTreeRetain;
+import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
+import org.github.zzf.mqtt.protocol.server.RoutingTable;
+import org.github.zzf.mqtt.protocol.server.TopicBlocker;
+import org.github.zzf.mqtt.server.codec.websocket.MqttOverSecureWebsocketServerInitializer;
+import org.github.zzf.mqtt.server.codec.websocket.MqttOverWebsocketServerInitializer;
 
-/**
- * @author zhanfeng.zhang@icloud.com
- * @date 2022/07/01
- */
 @Slf4j
+@Builder
 public class BrokerBootstrap {
 
-    private static final Map<String, ListenPort> LISTENED_SERVER = new HashMap<>(8);
-    public static final Map<String, ListenPort> LISTENED_SERVERS = Collections.unmodifiableMap(LISTENED_SERVER);
+    private final Map<String, ListenPort> LISTENED_SERVERS = new HashMap<>(8);
 
-    public static final int MQTT_SERVER_THREAD_NUM;
+    Authenticator authenticator;
+    RoutingTable routingTable;
+    TopicBlocker topicBlocker;
+    RetainPublishManager retainPublishManager;
+    int workerThreadNum;
+    /* mqtt://host:port,mqtts://host:port,ws://host:port,wss://host:port */
+    String serverListenedAddress;
+    int activeIdleTimeoutSecond;
 
-    static {
-        MQTT_SERVER_THREAD_NUM = Integer.getInteger("mqtt.server.thread.num",
-                Runtime.getRuntime().availableProcessors() * 2);
-        log.info("MQTT_SERVER_THREAD_NUM-> {}", MQTT_SERVER_THREAD_NUM);
+    @SneakyThrows
+    public BrokerBootstrap start() {
+        // mqtt / mqtts / ws / wss use the same Broker
+        Broker broker = new DefaultBroker(authenticator, routingTable, topicBlocker, retainPublishManager);
+        startServer(broker);
+        return this;
     }
 
     @SneakyThrows
-    public static void main(String[] args) {
-        if (!Boolean.getBoolean("spring.enable")) {
-            Broker broker = new DefaultBroker(
-                    packet -> 0x00,
-                    new RoutingTableImpl(),
-                    TopicBlockerImpl.DEFAULT,
-                    TopicTreeRetain.DEFAULT);
-            startServer(() -> new DefaultServerSessionHandler(broker, 3));
-        }
-        else {
-            // start with spring context
-            log.info("BrokerBootstrap in spring context");
-            BrokerBootstrapInSpringContext.main(args);
-        }
-    }
-
-    public static void shutdownServer() {
+    public void shutdown() {
+        // first shutdown the listened servers
         for (Map.Entry<String, ListenPort> e : LISTENED_SERVERS.entrySet()) {
-            e.getValue().getChannel().close();
+            log.info("Shutdown Server... -> {}", e.getValue());
+            e.getValue().getChannel().close().sync().addListener(f -> {
+                if (f.isSuccess()) {
+                    log.info("Server Shutdown Success: -> {}", e.getValue());
+                }
+                else {
+                    log.error("Server Shutdown Failed: -> {}", e.getValue());
+                }
+            });
+        }
+        if (routingTable != null) {
+            routingTable.close();
+        }
+        if (topicBlocker != null) {
+            topicBlocker.close();
+        }
+        if (retainPublishManager != null) {
+            retainPublishManager.close();
         }
     }
 
-    public static void startServer(Supplier<DefaultServerSessionHandler> handlerSupplier) throws URISyntaxException,
-            SSLException {
-        /**
-         * ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"]
-         */
-        String addressArray = System.getProperty("mqtt.server.listened", "mqtt://0.0.0.0:1883");
-        log.info("mqtt.server.listened: {}", addressArray);
-        String[] addressList = addressArray.split(",");
+
+    public void startServer(Broker broker) throws URISyntaxException, SSLException {
+        /* ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"] */
+        String[] addressList = serverListenedAddress.split(",");
         for (String address : addressList) {
             URI uri = new URI(address.trim());
             InetSocketAddress bindAddress = new InetSocketAddress(uri.getHost(), uri.getPort());
             Channel channel;
             switch (uri.getScheme()) {
                 case "mqtt":
-                    channel = mqttServer(bindAddress, handlerSupplier);
-                    LISTENED_SERVER.put("mqtt", new ListenPort(address, channel));
+                    channel = mqttServer(bindAddress, broker);
+                    LISTENED_SERVERS.put("mqtt", new ListenPort(address, channel));
                     break;
                 case "mqtts":
-                    channel = secureMqttServer(bindAddress, handlerSupplier);
-                    LISTENED_SERVER.put("mqtts", new ListenPort(address, channel));
+                    channel = secureMqttServer(bindAddress, broker);
+                    LISTENED_SERVERS.put("mqtts", new ListenPort(address, channel));
                     break;
                 case "ws":
-                    channel = mqttOverWebsocket(bindAddress, handlerSupplier);
-                    LISTENED_SERVER.put("ws", new ListenPort(address, channel));
+                    channel = mqttOverWebsocket(bindAddress, broker);
+                    LISTENED_SERVERS.put("ws", new ListenPort(address, channel));
                     break;
                 case "wss":
-                    channel = mqttOverSecureWebSocket(bindAddress, handlerSupplier);
-                    LISTENED_SERVER.put("wss", new ListenPort(address, channel));
+                    channel = mqttOverSecureWebSocket(bindAddress, broker);
+                    LISTENED_SERVERS.put("wss", new ListenPort(address, channel));
                     break;
                 default:
                     throw new UnsupportedOperationException("Unsupported Schema: " + uri.getScheme());
@@ -112,13 +113,11 @@ public class BrokerBootstrap {
         }
     }
 
-    private static Channel mqttOverSecureWebSocket(InetSocketAddress address,
-            Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
+    private Channel mqttOverSecureWebSocket(InetSocketAddress address,
+            Broker broker) throws SSLException {
         // 配置 websocket tls bootstrap
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("wss-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("wss-boss");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(workerThreadNum, new DefaultThreadFactory("wss-worker"));
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("wss-boss"));
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         SslContext sslCtx = SslContextBuilder.forServer(
@@ -131,7 +130,7 @@ public class BrokerBootstrap {
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.DEBUG))
-                    .childHandler(new MqttOverSecureWebsocketServerInitializer("/mqtt", sslCtx, handlerSupplier))
+                    .childHandler(new MqttOverSecureWebsocketServerInitializer("/mqtt", sslCtx, broker, activeIdleTimeoutSecond))
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT over Websocket(TLS) server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
@@ -148,19 +147,17 @@ public class BrokerBootstrap {
         }
     }
 
-    private static Channel mqttOverWebsocket(InetSocketAddress address,
-            Supplier<DefaultServerSessionHandler> handlerSupplier) {
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("ws-worker");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("ws-boss");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
+    private Channel mqttOverWebsocket(InetSocketAddress address,
+            Broker broker) {
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("ws-boss"));
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(workerThreadNum, new DefaultThreadFactory("ws-worker"));
         try {
             ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
                     // 设置 Channel 类型，通过反射创建 Channel 对象
                     .channel(NioServerSocketChannel.class)
                     .handler(new LoggingHandler(LogLevel.DEBUG))
-                    .childHandler(new MqttOverWebsocketServerInitializer("/mqtt", handlerSupplier))
+                    .childHandler(new MqttOverWebsocketServerInitializer("/mqtt", broker, activeIdleTimeoutSecond))
                     .bind(address).sync()
                     .addListener(f -> log.info("MQTT over Websocket server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
@@ -177,12 +174,10 @@ public class BrokerBootstrap {
         }
     }
 
-    private static Channel secureMqttServer(InetSocketAddress address,
-            Supplier<DefaultServerSessionHandler> handlerSupplier) throws SSLException {
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtts-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtts-boss");
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
+    private Channel secureMqttServer(InetSocketAddress address,
+            Broker broker) throws SSLException {
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("mqtts-boss"));
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(workerThreadNum, new DefaultThreadFactory("mqtts-worker"));
         String certPath = System.getProperty("mqtt.server.ssl.cert", "cert/netty.zhanfengzhang.top.pem");
         String keyPath = System.getProperty("mqtt.server.ssl.key", "cert/netty.zhanfengzhang.top.pkcs8.key");
         final SslContext sslCtx = SslContextBuilder.forServer(
@@ -201,7 +196,8 @@ public class BrokerBootstrap {
                             ch.pipeline()
                                     .addLast(sslCtx.newHandler(ch.alloc()))
                                     .addLast(new MqttCodec())
-                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
+                                    .addLast(new ControlPacketRecycler())
                             ;
                         }
                     })
@@ -221,12 +217,10 @@ public class BrokerBootstrap {
         }
     }
 
-    private static Channel mqttServer(InetSocketAddress address,
-            Supplier<DefaultServerSessionHandler> handlerSupplier) {
-        DefaultThreadFactory bossTF = new DefaultThreadFactory("mqtt-boss", false, Thread.MAX_PRIORITY);
-        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, bossTF);
-        DefaultThreadFactory workerTF = new DefaultThreadFactory("mqtt-worker");
-        NioEventLoopGroup workerGroup = new NioEventLoopGroup(MQTT_SERVER_THREAD_NUM, workerTF);
+    private Channel mqttServer(InetSocketAddress address,
+            Broker broker) {
+        NioEventLoopGroup bossGroup = new NioEventLoopGroup(1, new DefaultThreadFactory("mqtt-boss", false, Thread.MAX_PRIORITY));
+        NioEventLoopGroup workerGroup = new NioEventLoopGroup(workerThreadNum, new DefaultThreadFactory("mqtt-worker"));
         try {
             ChannelFuture future = new ServerBootstrap()
                     .group(bossGroup, workerGroup)
@@ -238,14 +232,12 @@ public class BrokerBootstrap {
                         protected void initChannel(SocketChannel ch) throws Exception {
                             ch.pipeline()
                                     .addLast(new MqttCodec())
-                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                                    .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
                                     .addLast(new ControlPacketRecycler())
                             ;
                         }
                     })
-                    .bind(address)
-                    .sync()
-                    .addListener(f -> log.info("MQTT server listened at {}", address))
+                    .bind(address).sync().addListener(f -> log.info("MQTT server listened at {}", address))
                     .channel().closeFuture().addListener(f -> {
                         bossGroup.shutdownGracefully();
                         workerGroup.shutdownGracefully();

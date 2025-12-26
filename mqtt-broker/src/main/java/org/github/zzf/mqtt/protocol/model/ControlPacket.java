@@ -35,7 +35,8 @@ public abstract class ControlPacket {
     protected final int remainingLength;
     private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
 
-    protected ControlPacket(byte byte0, int remainingLength) {
+    protected ControlPacket(byte byte0,
+            int remainingLength) {
         this.byte0 = byte0;
         this.remainingLength = remainingLength;
     }

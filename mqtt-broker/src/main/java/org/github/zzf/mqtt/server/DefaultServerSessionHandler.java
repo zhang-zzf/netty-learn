@@ -14,10 +14,10 @@ import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Connect.AuthenticationException;
 import org.github.zzf.mqtt.protocol.model.Connect.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
-import org.github.zzf.mqtt.protocol.session.AbstractSession;
-import org.github.zzf.mqtt.protocol.session.Session;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
+import org.github.zzf.mqtt.protocol.session.AbstractSession;
+import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -36,10 +36,10 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     public static final String HANDLER_NAME = DefaultServerSessionHandler.class.getSimpleName();
     public static final String ACTIVE_IDLE_TIMEOUT_HANDLER = "activeIdleTimeoutHandler";
 
+    final Broker broker;
+    final int activeIdleTimeoutSecond;
     protected ServerSession session;
-    private final Broker broker;
-    private final int activeIdleTimeoutSecond;
-    private ReadTimeoutHandler activeIdleTimeoutHandler;
+    ReadTimeoutHandler activeIdleTimeoutHandler;
 
     private final ChannelFutureListener SESSION_ESTABLISHED_CALLBACK = future -> {
         if (future.isSuccess() && session instanceof AbstractSession as) {
@@ -57,7 +57,8 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) {
+    public void channelRead(ChannelHandlerContext ctx,
+            Object msg) {
         // receive a packet, remove the activeIdleTimeoutHandler
         removeActiveIdleTimeoutHandler(ctx);
         if (!(msg instanceof ControlPacket cp)) {
@@ -72,7 +73,8 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         ctx.fireChannelRead(cp);
     }
 
-    private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
+    private void channelRead0(ChannelHandlerContext ctx,
+            ControlPacket cp) {
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {
@@ -107,10 +109,10 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             // send ConnAck
             ConnAck connAck = session.isResumed() ? ConnAck.acceptedWithStoredSession() : ConnAck.accepted();
             ctx.writeAndFlush(connAck)
-                .addListener(LOG_ON_FAILURE)
-                .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
-                .addListener(SESSION_ESTABLISHED_CALLBACK)
+                    .addListener(LOG_ON_FAILURE)
+                    .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                    .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
+                    .addListener(SESSION_ESTABLISHED_CALLBACK)
             ;
             // keep alive
             if (connect.keepAlive() > 0) {
@@ -123,7 +125,8 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {
+    private void addClientKeepAliveHandler(ChannelHandlerContext ctx,
+            int keepAlive) {
         // If the Keep Alive value is non-zero and the Server does not receive a Control Packet from the Client
         // within one and a half times the Keep Alive time period, it MUST disconnect the Network Connection to the
         // Client as if the network had failed
@@ -149,7 +152,8 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+    public void exceptionCaught(ChannelHandlerContext ctx,
+            Throwable cause) {
         log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel -> channel: {}", ctx.channel());
         log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
         ctx.channel().close();

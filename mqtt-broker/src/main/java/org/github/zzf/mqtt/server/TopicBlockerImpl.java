@@ -13,14 +13,9 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-23
  */
-public class TopicBlockerImpl implements TopicBlocker,AutoCloseable {
+public class TopicBlockerImpl implements TopicBlocker, AutoCloseable {
 
     final TopicTree<String> tree = new TopicTree<>("TopicBlocker");
-
-    public static final TopicBlocker DEFAULT = new TopicBlockerImpl() {{
-        String tfConfig = System.getProperty("mqtt.server.block.tf", "+/server/#");
-        add(tfConfig.split(","));
-    }};
 
     @Override
     public Topic match(String topicName) {
@@ -34,8 +29,8 @@ public class TopicBlockerImpl implements TopicBlocker,AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(tfs)
-            .map(d -> tree.add(d, (AtomicReference<String> data) -> data.set(d)))
-            .toArray(CompletableFuture[]::new)
+                .map(d -> tree.add(d, (AtomicReference<String> data) -> data.set(d)))
+                .toArray(CompletableFuture[]::new)
         );
     }
 
@@ -45,8 +40,8 @@ public class TopicBlockerImpl implements TopicBlocker,AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(tfs)
-            .map(d -> tree.del(d, (AtomicReference<String> data) -> data.set(null)))
-            .toArray(CompletableFuture[]::new)
+                .map(d -> tree.del(d, (AtomicReference<String> data) -> data.set(null)))
+                .toArray(CompletableFuture[]::new)
         );
     }
 

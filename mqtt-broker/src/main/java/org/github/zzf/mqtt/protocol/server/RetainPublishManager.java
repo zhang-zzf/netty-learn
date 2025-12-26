@@ -8,7 +8,7 @@ import org.github.zzf.mqtt.protocol.model.Publish;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-24
  */
-public interface RetainPublishManager {
+public interface RetainPublishManager extends AutoCloseable {
 
     CompletableFuture<List<Publish>> match(String... topicFilter);
 

@@ -11,7 +11,8 @@ public class SubAck extends ControlPacket {
     private short packetIdentifier;
     private List<Subscribe.Subscription> subscriptions;
 
-    public static SubAck from(short packetIdentifier, List<Subscribe.Subscription> subscriptions) {
+    public static SubAck from(short packetIdentifier,
+            List<Subscribe.Subscription> subscriptions) {
         int rl = 2 + subscriptions.size();
         return new SubAck(rl, packetIdentifier, subscriptions);
     }
@@ -20,7 +21,9 @@ public class SubAck extends ControlPacket {
         return from((short) 0, subscriptions);
     }
 
-    private SubAck(int remainingLength, short packetIdentifier, List<Subscribe.Subscription> subscriptions) {
+    private SubAck(int remainingLength,
+            short packetIdentifier,
+            List<Subscribe.Subscription> subscriptions) {
         super(SUBACK, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;

@@ -61,7 +61,9 @@ public abstract class AbstractSession implements Session {
      * 是否发送 Publish Packet
      */
     // private volatile Thread sendingPublishThread;
-    protected AbstractSession(String clientIdentifier, boolean cleanSession, Channel channel) {
+    protected AbstractSession(String clientIdentifier,
+            boolean cleanSession,
+            Channel channel) {
         this.clientIdentifier = checkNotNull(clientIdentifier, "clientIdentifier");
         this.cleanSession = cleanSession;
         this.channel = checkNotNull(channel);
@@ -99,7 +101,8 @@ public abstract class AbstractSession implements Session {
         return promise;
     }
 
-    private void doSendControlPacketExceptPublish(ControlPacket packet, ChannelPromise promise) {
+    private void doSendControlPacketExceptPublish(ControlPacket packet,
+            ChannelPromise promise) {
         if (!isActive()) {
             log.warn("sender({}): . -> DISCARDED, Session is not bind to a Channel, discard the ControlPacket", cId());
             promise.setFailure(new IllegalStateException("Session is not bind to a Channel"));
@@ -127,7 +130,8 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private void doSendPublish(Publish packet, final ChannelPromise promise) {
+    private void doSendPublish(Publish packet,
+            final ChannelPromise promise) {
         // Session 使用 EventLoop 更改内部状态
         assert channel.eventLoop().inEventLoop();
         log.debug("sender({}/{}) Publish . -> INIT: {}", cId(), packet.pId(), packet);
@@ -146,7 +150,8 @@ public abstract class AbstractSession implements Session {
         }
     }
 
-    private void doSendAtMostOncePublish(Publish packet, ChannelPromise promise) {
+    private void doSendAtMostOncePublish(Publish packet,
+            ChannelPromise promise) {
         if (isActive()) {// online, send immediately
             // qos0 比 qos1/qos2 更早发送。。？ OK (match the mqtt protocol)
             channel.writeAndFlush(packet).addListener(f -> {
@@ -168,13 +173,15 @@ public abstract class AbstractSession implements Session {
         return channel.isActive();
     }
 
-    private void doSendAtLeastOncePublish(Publish packet, ChannelPromise promise) {
+    private void doSendAtLeastOncePublish(Publish packet,
+            ChannelPromise promise) {
         enqueueOutQueueAndSend(packet);
         // anyway the result is success (match the QoS rules)
         promise.setSuccess();
     }
 
-    private void doSendExactlyOncePublish(Publish packet, ChannelPromise promise) {
+    private void doSendExactlyOncePublish(Publish packet,
+            ChannelPromise promise) {
         // check duplicated, very little chance
         if (outQueueQos2DuplicateCheck(packet)) {
             log.warn("sender({}/{}) Publish INIT -> DUPLICATED", cId(), packet.pId());
@@ -251,7 +258,8 @@ public abstract class AbstractSession implements Session {
         });
     }
 
-    private boolean headOfQueue(short pId, Queue<ControlPacketContext> queue) {
+    private boolean headOfQueue(short pId,
+            Queue<ControlPacketContext> queue) {
         ControlPacketContext head = queue.peek();
         return head != null && head.packetIdentifier() == pId;
     }
@@ -462,7 +470,7 @@ public abstract class AbstractSession implements Session {
     private void debugPacketInfo(Publish packet) {
         if (log.isDebugEnabled()) {
             log.debug("receiver({}/{}) Publish . -> RECEIVED : {}\n{}", cId(), packet.pId(), packet,
-                ByteBufUtil.prettyHexDump(packet.payload()));
+                    ByteBufUtil.prettyHexDump(packet.payload()));
         }
     }
 
@@ -532,12 +540,12 @@ public abstract class AbstractSession implements Session {
      */
     private void doSendPubRec(short packetIdentifier) {
         doWrite(new PubRec(packetIdentifier))
-            .addListener(f -> log.debug("receiver({}/{}) Publish HANDLED -> [PUB_REC sent]", cId(), hexPId(packetIdentifier)));
+                .addListener(f -> log.debug("receiver({}/{}) Publish HANDLED -> [PUB_REC sent]", cId(), hexPId(packetIdentifier)));
     }
 
     protected ControlPacketContext createNewCpx(Publish packet,
-        ControlPacketContext.Status status,
-        ControlPacketContext.Type type) {
+            ControlPacketContext.Status status,
+            ControlPacketContext.Type type) {
         return new ControlPacketContext(packet, status, type);
     }
 
@@ -560,11 +568,11 @@ public abstract class AbstractSession implements Session {
 
     private ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
-            // todo 测试 异常如何处理？，所有 Listener 都会被执行？
-            // 当前实现是直接关闭 channel
-            .addListener(FIRE_EXCEPTION_ON_FAILURE)
-            .addListener(LOG_ON_FAILURE)
-            ;
+                // todo 测试 异常如何处理？，所有 Listener 都会被执行？
+                // 当前实现是直接关闭 channel
+                .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                .addListener(LOG_ON_FAILURE)
+                ;
     }
 
     @Override

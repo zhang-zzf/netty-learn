@@ -31,7 +31,8 @@ public class Unsubscribe extends ControlPacket {
         return from((short) 0, subscriptions);
     }
 
-    public static Unsubscribe from(short packetIdentifier, List<Subscribe.Subscription> subscriptions) {
+    public static Unsubscribe from(short packetIdentifier,
+            List<Subscribe.Subscription> subscriptions) {
         if (subscriptions.isEmpty()) {
             throw new IllegalArgumentException();
         }
@@ -42,9 +43,10 @@ public class Unsubscribe extends ControlPacket {
         return new Unsubscribe(_0_BYTE, remainingLength, packetIdentifier, subscriptions);
     }
 
-    private Unsubscribe(byte _0Byte, int remainingLength,
-                        short packetIdentifier,
-                        List<Subscribe.Subscription> subscriptions) {
+    private Unsubscribe(byte _0Byte,
+            int remainingLength,
+            short packetIdentifier,
+            List<Subscribe.Subscription> subscriptions) {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;
@@ -94,16 +96,19 @@ public class Unsubscribe extends ControlPacket {
                     final Object listValue = (subscriptions).get(i);
                     if (listValue instanceof CharSequence) {
                         sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
-                    } else {
+                    }
+                    else {
                         sb.append(Objects.toString(listValue, ""));
                     }
                     if (i < listSize - 1) {
                         sb.append(",");
-                    } else {
+                    }
+                    else {
                         sb.append("]");
                     }
                 }
-            } else {
+            }
+            else {
                 sb.append("[]");
             }
             sb.append(',');

@@ -4,7 +4,6 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import java.util.Set;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
-import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**

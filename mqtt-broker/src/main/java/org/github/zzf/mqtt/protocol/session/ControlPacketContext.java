@@ -36,7 +36,9 @@ public class ControlPacketContext {
     private final AtomicReference<Status> status;
     private final Type type;
 
-    public ControlPacketContext(Publish packet, Status status, Type type) {
+    public ControlPacketContext(Publish packet,
+            Status status,
+            Type type) {
         this.packet = packet;
         this.status = new AtomicReference<>(status);
         this.type = type;
@@ -50,7 +52,8 @@ public class ControlPacketContext {
         return markStatus(status(), update);
     }
 
-    public ControlPacketContext markStatus(Status expect, Status update) {
+    public ControlPacketContext markStatus(Status expect,
+            Status update) {
         if (!status.compareAndSet(expect, update)) {
             throw new IllegalStateException();
         }
@@ -77,11 +80,11 @@ public class ControlPacketContext {
         }
         Status s = status();
         if (packet.atLeastOnce()
-            && (s == HANDLED || s == PUB_ACK)) {
+                && (s == HANDLED || s == PUB_ACK)) {
             return true;
         }
         if (packet.exactlyOnce()
-            && (s == HANDLED || s == PUB_REC || s == PUB_COMP)) {
+                && (s == HANDLED || s == PUB_REC || s == PUB_COMP)) {
             return true;
         }
         return false;

@@ -20,7 +20,8 @@ import org.github.zzf.mqtt.protocol.model.Publish;
 public class ControlPacketRecycler extends ChannelInboundHandlerAdapter {
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+    public void channelRead(ChannelHandlerContext ctx,
+            Object msg) throws Exception {
         if (msg instanceof ControlPacket) {
             if (msg instanceof Publish packet) {
                 // core: zero-copy

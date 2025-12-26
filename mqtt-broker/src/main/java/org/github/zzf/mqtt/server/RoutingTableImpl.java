@@ -20,23 +20,25 @@ import org.github.zzf.mqtt.protocol.server.Topic.Subscriber;
  * @author : zhanfeng.zhang@icloud.com
  * @date : 2025-12-21
  */
-public class RoutingTableImpl implements RoutingTable, AutoCloseable {
+public class RoutingTableImpl implements RoutingTable {
 
     // todo metric 监控订阅的数量和统计信息
     final TopicTree<Topic> tree = new TopicTree<>("RoutingTable");
 
     @Override
-    public CompletableFuture<Void> subscribe(String clientId, Collection<Subscription> subscriptions) {
+    public CompletableFuture<Void> subscribe(String clientId,
+            Collection<Subscription> subscriptions) {
         if (subscriptions == null || subscriptions.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(subscriptions.stream()
-            .map(s -> this.subscribe(clientId, s))
-            .toArray(CompletableFuture[]::new)
+                .map(s -> this.subscribe(clientId, s))
+                .toArray(CompletableFuture[]::new)
         );
     }
 
-    private CompletableFuture<Void> subscribe(String clientId, Subscription subscription) {
+    private CompletableFuture<Void> subscribe(String clientId,
+            Subscription subscription) {
         Consumer<AtomicReference<Topic>> dataOp = (AtomicReference<Topic> data) -> {
             TopicImpl topic = (TopicImpl) data.updateAndGet(t -> {
                 if (t == null) {
@@ -51,17 +53,19 @@ public class RoutingTableImpl implements RoutingTable, AutoCloseable {
     }
 
     @Override
-    public CompletableFuture<Void> unsubscribe(String clientId, Collection<Subscription> subscriptions) {
+    public CompletableFuture<Void> unsubscribe(String clientId,
+            Collection<Subscription> subscriptions) {
         if (subscriptions == null || subscriptions.isEmpty()) {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(subscriptions.stream()
-            .map(s -> this.unsubscribe(clientId, s))
-            .toArray(CompletableFuture[]::new)
+                .map(s -> this.unsubscribe(clientId, s))
+                .toArray(CompletableFuture[]::new)
         );
     }
 
-    private CompletableFuture<Void> unsubscribe(String clientId, Subscription subscription) {
+    private CompletableFuture<Void> unsubscribe(String clientId,
+            Subscription subscription) {
         return tree.del(subscription.topicFilter(), (AtomicReference<Topic> data) -> {
             TopicImpl topic = (TopicImpl) data.get();
             if (topic != null) {
@@ -97,7 +101,7 @@ public class RoutingTableImpl implements RoutingTable, AutoCloseable {
 
         final String tf;
         final ConcurrentMap<String, Subscriber> subscribers
-            = new ConcurrentHashMap<>(Integer.getInteger("TopicImpl.subscribers.default.size", 4));
+                = new ConcurrentHashMap<>(Integer.getInteger("TopicImpl.subscribers.default.size", 4));
 
         @Override
         public String topicFilter() {

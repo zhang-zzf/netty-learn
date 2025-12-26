@@ -1,4 +1,4 @@
-package org.github.zzf.mqtt.mqtt.broker.codec.websocket;
+package org.github.zzf.mqtt.server.codec.websocket;
 
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.socket.SocketChannel;
@@ -7,17 +7,18 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import lombok.RequiredArgsConstructor;
-import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
-
-import java.util.function.Supplier;
+import org.github.zzf.mqtt.protocol.server.Broker;
+import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
 
 @RequiredArgsConstructor
 public class MqttOverWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
 
     final String subProtocols = "mqtt";
     private final String websocketPath;
-    private final Supplier<DefaultServerSessionHandler> handlerSupplier;
+    private final Broker broker;
+    private final int activeIdleTimeoutSecond;
 
     @Override
     protected void initChannel(SocketChannel ch) {
@@ -35,7 +36,8 @@ public class MqttOverWebsocketServerInitializer extends ChannelInitializer<Socke
                 // mqtt codec
                 .addLast(new MqttCodec())
                 // mqtt SessionHandler
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, handlerSupplier.get())
+                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
+                .addLast(new ControlPacketRecycler())
         ;
 
     }

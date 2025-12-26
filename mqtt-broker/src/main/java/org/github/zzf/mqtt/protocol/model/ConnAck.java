@@ -24,7 +24,8 @@ public class ConnAck extends ControlPacket {
         this(false, returnCode);
     }
 
-    public ConnAck(boolean sp, int returnCode) {
+    public ConnAck(boolean sp,
+            int returnCode) {
         super((byte) 0x20, 0x02);
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0

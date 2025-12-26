@@ -1,9 +1,8 @@
-package org.github.zzf.mqtt.micrometer.utils;
+package org.github.zzf.mqtt.server.metric;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
-
 import java.time.Duration;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,10 +25,12 @@ public class MetricUtil {
      * Timer 监控
      *
      * @param metricName "指标名"
-     * @param value 要记录的 count 值，默认单位 TimeUnit.NANOSECONDS
-     * @param tags 对应业务监控中的 "字段"。可以为空。
+     * @param value      要记录的 count 值，默认单位 TimeUnit.NANOSECONDS
+     * @param tags       对应业务监控中的 "字段"。可以为空。
      */
-    public static final void nanoTime(String metricName, long value, String... tags) {
+    public static final void nanoTime(String metricName,
+            long value,
+            String... tags) {
         if (!metricOn) {
             return;
         }
@@ -51,10 +52,12 @@ public class MetricUtil {
      * Timer 监控
      *
      * @param metricName "指标名"
-     * @param value 要记录的 count 值，默认单位 TimeUnit.MILLISECONDS
-     * @param tags 对应业务监控中的 "字段"。可以为空。
+     * @param value      要记录的 count 值，默认单位 TimeUnit.MILLISECONDS
+     * @param tags       对应业务监控中的 "字段"。可以为空。
      */
-    public static final void time(String metricName, long value, String... tags) {
+    public static final void time(String metricName,
+            long value,
+            String... tags) {
         if (!metricOn) {
             return;
         }
@@ -72,7 +75,8 @@ public class MetricUtil {
         timer.record(value, TimeUnit.MILLISECONDS);
     }
 
-    private static String id(String metricName, String[] tags) {
+    private static String id(String metricName,
+            String[] tags) {
         StringBuilder buf = new StringBuilder(metricName);
         for (String tag : tags) {
             buf.append(tag);
@@ -85,9 +89,10 @@ public class MetricUtil {
      * <p>value == 1 即为记录的QPS</p>
      *
      * @param metricName "指标名"
-     * @param tags 对应业务监控中的 "字段"。可以为空。
+     * @param tags       对应业务监控中的 "字段"。可以为空。
      */
-    public static final void count(String metricName, String... tags) {
+    public static final void count(String metricName,
+            String... tags) {
         if (!metricOn) {
             return;
         }
@@ -99,24 +104,29 @@ public class MetricUtil {
      * <p>value == 1 即为记录的QPS</p>
      *
      * @param metricName "指标名"
-     * @param value 要记录的 count 值
-     * @param tags 对应业务监控中的 "字段"。可以为空。
+     * @param value      要记录的 count 值
+     * @param tags       对应业务监控中的 "字段"。可以为空。
      */
-    public static final void count(String metricName, int value, String... tags) {
+    public static final void count(String metricName,
+            int value,
+            String... tags) {
         if (!metricOn) {
             return;
         }
         Metrics.counter(metricName, tags).increment(value);
     }
 
-    public static final void gauge(String metricName, Map map) {
+    public static final void gauge(String metricName,
+            Map map) {
         if (!metricOn) {
             return;
         }
         Metrics.gauge(metricName, map, Map::size);
     }
 
-    public static final void gauge(String metricName, long val, String... tags) {
+    public static final void gauge(String metricName,
+            long val,
+            String... tags) {
         if (!metricOn) {
             return;
         }

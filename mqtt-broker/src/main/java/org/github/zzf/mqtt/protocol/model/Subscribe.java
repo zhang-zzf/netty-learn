@@ -28,7 +28,8 @@ public class Subscribe extends ControlPacket {
         return from((short) 0, subscriptions);
     }
 
-    public static Subscribe from(short packetIdentifier, List<Subscription> subscriptions) {
+    public static Subscribe from(short packetIdentifier,
+            List<Subscription> subscriptions) {
         if (subscriptions.isEmpty()) {
             throw new IllegalArgumentException();
         }
@@ -39,7 +40,10 @@ public class Subscribe extends ControlPacket {
         return new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
     }
 
-    private Subscribe(byte _0Byte, int remainingLength, short packetIdentifier, List<Subscription> subscriptions) {
+    private Subscribe(byte _0Byte,
+            int remainingLength,
+            short packetIdentifier,
+            List<Subscription> subscriptions) {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;
@@ -136,7 +140,8 @@ public class Subscribe extends ControlPacket {
         private final String topicFilter;
         private final int qos;
 
-        public Subscription(String topicFilter, int qos) {
+        public Subscription(String topicFilter,
+                int qos) {
             this.topicFilter = topicFilter;
             this.qos = qos;
         }

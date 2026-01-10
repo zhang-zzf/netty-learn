@@ -28,16 +28,16 @@ import java.util.List;
 public class WebSocketFrameCodec extends MessageToMessageCodec<WebSocketFrame, ByteBuf> {
 
     @Override
-    protected void encode(ChannelHandlerContext ctx,
-            ByteBuf msg,
-            List<Object> out) {
+    protected void encode(ChannelHandlerContext ctx, ByteBuf msg, List<Object> out) {
+        // todo optimize zero-copy
+        // todo test memory-leak
         out.add(new BinaryWebSocketFrame(msg.retain()));
     }
 
     @Override
-    protected void decode(ChannelHandlerContext ctx,
-            WebSocketFrame frame,
-            List<Object> out) {
+    protected void decode(ChannelHandlerContext ctx, WebSocketFrame frame, List<Object> out) {
+        // todo optimize zero-copy
+        // todo test memory-leak
         // ping and pong frames already handled
         if (!(frame instanceof BinaryWebSocketFrame)) {
             String message = "unsupported frame type: " + frame.getClass().getName();

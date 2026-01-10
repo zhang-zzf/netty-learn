@@ -23,7 +23,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.protocol.server.Authenticator;
 import org.github.zzf.mqtt.protocol.server.Broker;
@@ -183,12 +182,12 @@ public class BrokerBootstrap {
                     .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        protected void initChannel(SocketChannel ch) throws Exception {
+                        protected void initChannel(SocketChannel ch) {
                             ch.pipeline()
                                     .addLast(sslCtx.newHandler(ch.alloc()))
                                     .addLast(new MqttCodec())
                                     .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
-                                    .addLast(new ControlPacketRecycler())
+                                    .addLast(new MqttCodec.Recycler())
                             ;
                         }
                     })
@@ -220,11 +219,11 @@ public class BrokerBootstrap {
                     .handler(new LoggingHandler(LogLevel.DEBUG))
                     .childHandler(new ChannelInitializer<SocketChannel>() {
                         @Override
-                        protected void initChannel(SocketChannel ch) throws Exception {
+                        protected void initChannel(SocketChannel ch) {
                             ch.pipeline()
                                     .addLast(new MqttCodec())
                                     .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
-                                    .addLast(new ControlPacketRecycler())
+                                    .addLast(new MqttCodec.Recycler())
                             ;
                         }
                     })

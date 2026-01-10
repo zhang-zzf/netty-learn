@@ -1,7 +1,5 @@
 package org.github.zzf.mqtt;
 
-import java.net.URISyntaxException;
-import javax.net.ssl.SSLException;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 import org.github.zzf.mqtt.server.BrokerBootstrap;
@@ -13,7 +11,7 @@ import org.github.zzf.mqtt.server.metric.MicroMeterMetrics;
 @Slf4j
 public class Application {
 
-    public static void main(String[] args) throws URISyntaxException, SSLException {
+    public static void main(String[] args) {
         //
         int workerThreadNum = Integer.getInteger("mqtt.server.thread.num",
                 Runtime.getRuntime().availableProcessors() * 2);
@@ -23,7 +21,7 @@ public class Application {
                 "mqtt://0.0.0.0:1883,mqtts://0.0.0.0:8883,ws://0.0.0.0:80,wss://0.0.0.0:443");
         log.info("mqtt.server.listened: {}", serverListenedAddress);
         //
-        BrokerBootstrap brokerBootstrap = BrokerBootstrap.builder()
+        BrokerBootstrap.builder()
                 .authenticator(packet -> 0x00)
                 .routingTable(new DefaultRoutingTable())
                 .retainPublishManager(new TopicTreeRetain("RetainPublishManager"))
@@ -32,6 +30,7 @@ public class Application {
                 .serverListenedAddress(serverListenedAddress)
                 .activeIdleTimeoutSecond(Integer.getInteger("mqtt.server.active.idle.timeout.second", 3))
                 .build()
+                // start the Broker
                 .start();
         // metric
         String appName = System.getProperty("appName", "mqtt-broker");

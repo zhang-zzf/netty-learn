@@ -8,7 +8,6 @@ import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import io.netty.handler.ssl.SslContext;
 import lombok.RequiredArgsConstructor;
-import org.github.zzf.mqtt.protocol.codec.ControlPacketRecycler;
 import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
@@ -41,7 +40,7 @@ public class MqttOverSecureWebsocketServerInitializer extends ChannelInitializer
                 .addLast(new MqttCodec())
                 // mqtt SessionHandler
                 .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
-                .addLast(new ControlPacketRecycler())
+                .addLast(new MqttCodec.Recycler())
         ;
 
     }

@@ -576,9 +576,12 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public short nextPacketIdentifier() {
-        int id = packetIdentifier.incrementAndGet();
+        int id = packetIdentifier.getAndIncrement();
         if (id >= Short.MAX_VALUE) {
             packetIdentifier.set(Short.MIN_VALUE);
+            id = packetIdentifier.getAndIncrement();
+        }
+        if (id == 0) {// non-zero 16-bit Packet Identifie
             id = packetIdentifier.getAndIncrement();
         }
         return (short) id;

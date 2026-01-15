@@ -140,8 +140,7 @@ public class Subscribe extends ControlPacket {
         private final String topicFilter;
         private final int qos;
 
-        public Subscription(String topicFilter,
-                int qos) {
+        public Subscription(String topicFilter, int qos) {
             this.topicFilter = topicFilter;
             this.qos = qos;
         }

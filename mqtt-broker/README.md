@@ -4,6 +4,11 @@
 
 - WebSocketFrameCodec
 
+## mqtt3.1.1 -> mqtt5.0 changes
+
+- DISCONNECT Client to Server or Server to Client
+- Topic Alias
+
 ## 构建历史
 
 ### jar-basic-archetype 1.0-RELEASE

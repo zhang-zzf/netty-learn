@@ -41,7 +41,7 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         int packetLength = ControlPacket.tryPickupPacket(in);
-        if (packetLength == -1) {// can not decode a packet
+        if (packetLength == ControlPacket.INCOMPLETE_PACKET) {// can not decode a packet
             return;
         }
         // core: zero-copy

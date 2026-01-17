@@ -32,12 +32,13 @@ public abstract class ControlPacket {
     public static final byte PINGRESP = (byte) 0xD0;
     public static final byte DISCONNECT = (byte) 0xE0;
 
+    public static final int INCOMPLETE_PACKET = -1;
+
     protected final byte byte0;
     protected final int remainingLength;
     private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
 
-    protected ControlPacket(byte byte0,
-            int remainingLength) {
+    protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
         this.remainingLength = remainingLength;
     }
@@ -115,19 +116,18 @@ public abstract class ControlPacket {
     }
 
     public static int tryPickupPacket(ByteBuf in) {
-        int packetLength = -1;
         if (in.readableBytes() < MIN_PACKET_LENGTH) {
-            return packetLength;
+            return INCOMPLETE_PACKET;
         }
         in.markReaderIndex();
         try {
             in.readByte();
             int remainingLength = readRemainingLength(in);
             if (in.readableBytes() < remainingLength) {
-                return packetLength;
+                return INCOMPLETE_PACKET;
             }
             // fixed header length + remainingLength
-            packetLength = (_0_BYTE_LENGTH + remainingLengthByteCnt(remainingLength)) + remainingLength;
+            return (_0_BYTE_LENGTH + remainingLengthToByteBuf(remainingLength).readableBytes()) + remainingLength;
         } catch (Exception e) {
             in.resetReaderIndex();
             log.error("tryPickupPacket failed: {}", ByteBufUtil.hexDump(in));
@@ -135,11 +135,6 @@ public abstract class ControlPacket {
         } finally {
             in.resetReaderIndex();
         }
-        return packetLength;
-    }
-
-    private static int remainingLengthByteCnt(int remainingLength) {
-        return remainingLengthToByteBuf(remainingLength).readableBytes();
     }
 
     /**
@@ -188,15 +183,13 @@ public abstract class ControlPacket {
         /** {@link Publish#toByteBuf()} */
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
         ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
-        int packetLength = 1 + remainingLengthByteBuf.readableBytes() + remainingLength;
+        int packetLength = _0_BYTE_LENGTH + remainingLengthByteBuf.readableBytes() + remainingLength;
         ByteBuf buf = directBuffer(packetLength);
         buf.writeByte(this.byte0);
         // remainingLength field
         buf.writeBytes(remainingLengthByteBuf);
         return buf;
     }
-
-    ;
 
     protected ByteBuf fixedHeaderByteBuf() {
         // use direct buf will optimize netty zero-copy when write to Channel

@@ -165,10 +165,10 @@ public abstract class ControlPacket {
             case CONNECT -> new Connect(incoming);
             case CONNACK -> new ConnAck(incoming);
             case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
-            case PUBACK -> new PubAck(incoming);
-            case PUBREC -> new PubRec(incoming);
-            case PUBREL -> new PubRel(incoming);
-            case PUBCOMP -> new PubComp(incoming);
+            case PUBACK -> new PubAck.V50(incoming);
+            case PUBREC -> new PubRec.V50(incoming);
+            case PUBREL -> new PubRel.V50(incoming);
+            case PUBCOMP -> new PubComp.V50(incoming);
             case SUBSCRIBE -> new Subscribe(incoming);
             case SUBACK -> new SubAck(incoming);
             case UNSUBSCRIBE -> new Unsubscribe(incoming);

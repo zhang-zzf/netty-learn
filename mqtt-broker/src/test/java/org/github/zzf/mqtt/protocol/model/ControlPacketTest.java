@@ -1,15 +1,17 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import lombok.extern.slf4j.Slf4j;
-import org.junit.jupiter.api.Test;
-
-import java.util.concurrent.atomic.AtomicLong;
-
 import static org.assertj.core.api.BDDAssertions.then;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.hexPId;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.hexPIdToShort;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.readVariableByteInteger;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.variableByteIntegerLength;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.writeVariableByteInteger;
+
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import java.util.concurrent.atomic.AtomicLong;
+import lombok.extern.slf4j.Slf4j;
+import org.junit.jupiter.api.Test;
 
 @Slf4j
 class ControlPacketTest {
@@ -35,6 +37,17 @@ class ControlPacketTest {
         buf.writeByte(0xf2);
         // can not decode a ControlPacket
         then(ControlPacket.tryPickupPacket(buf)).isEqualTo(-1);
+    }
+
+    @Test
+    void givenVariableByteIntegerLength_when_then() {
+        ByteBuf buf = Unpooled.buffer(4);
+        for (int i = 0; i < 268435455; i++) {
+            int length = variableByteIntegerLength(i);
+            writeVariableByteInteger(buf, i);
+            then(buf.readableBytes()).isEqualTo(length);
+            then(readVariableByteInteger(buf)).isEqualTo(i);
+        }
     }
 
 }

@@ -84,17 +84,20 @@ public class Publish extends ControlPacket {
         // fixed header
         ByteBuf fixedHeader = fixedHeaderByteBuf();
         // variable header
-        int variableHeaderLength = remainingLength - payload.readableBytes();
-        ByteBuf varHeader = directBuffer(variableHeaderLength);
-        byte[] topicNameBytes = topicName.getBytes(UTF_8);
-        varHeader.writeShort(topicNameBytes.length);
-        varHeader.writeBytes(topicNameBytes);
-        if (needAck()) {
-            varHeader.writeShort(packetIdentifier);
-        }
+        ByteBuf varHeader = varHeaderByteBuf();
         // the CompositeBuffer will be released by netty
         return compositeBuffer()
                 .addComponents(true, fixedHeader, varHeader, payload);
+    }
+
+    protected ByteBuf varHeaderByteBuf() {
+        int variableHeaderLength = remainingLength - payload.readableBytes();
+        ByteBuf varHeader = directBuffer(variableHeaderLength);
+        writeUTF8String(varHeader, topicName);
+        if (needAck()) {
+            varHeader.writeShort(packetIdentifier);
+        }
+        return varHeader;
     }
 
     /**
@@ -256,6 +259,7 @@ public class Publish extends ControlPacket {
 
     public static class V50 extends Publish {
 
+        // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
 
         static V50 incoming(ByteBuf incoming) {
@@ -287,6 +291,13 @@ public class Publish extends ControlPacket {
         @Override
         protected boolean packetValidate() {
             return super.packetValidate() && validateProperties();
+        }
+
+        @Override
+        protected ByteBuf varHeaderByteBuf() {
+            ByteBuf buf = super.varHeaderByteBuf();
+            properties.writeToByteBuf(buf);
+            return buf;
         }
 
         private boolean validateProperties() {

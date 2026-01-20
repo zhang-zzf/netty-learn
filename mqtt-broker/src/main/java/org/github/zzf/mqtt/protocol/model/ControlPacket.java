@@ -89,39 +89,23 @@ public abstract class ControlPacket {
      */
     private static ControlPacket buildControlPacketFrom(ByteBuf incoming) {
         byte _0byte = incoming.getByte(incoming.readerIndex());
-        switch (type(_0byte)) {
-            case CONNECT:
-                return new Connect(incoming);
-            case CONNACK:
-                return new ConnAck(incoming);
-            case PUBLISH:
-                // core: zero-copy
-                return Publish.incoming(incoming);
-            case PUBACK:
-                return new PubAck(incoming);
-            case PUBREC:
-                return new PubRec(incoming);
-            case PUBREL:
-                return new PubRel(incoming);
-            case PUBCOMP:
-                return new PubComp(incoming);
-            case SUBSCRIBE:
-                return new Subscribe(incoming);
-            case SUBACK:
-                return new SubAck(incoming);
-            case UNSUBSCRIBE:
-                return new Unsubscribe(incoming);
-            case UNSUBACK:
-                return new UnsubAck(incoming);
-            case PINGREQ:
-                return new PingReq(incoming);
-            case PINGRESP:
-                return new PingResp(incoming);
-            case DISCONNECT:
-                return new Disconnect(incoming);
-            default:
-                throw new IllegalArgumentException();
-        }
+        return switch (type(_0byte)) {
+            case CONNECT -> new Connect(incoming);
+            case CONNACK -> new ConnAck(incoming);
+            case PUBLISH ->/* core: zero-copy */ Publish.incoming(incoming);
+            case PUBACK -> new PubAck(incoming);
+            case PUBREC -> new PubRec(incoming);
+            case PUBREL -> new PubRel(incoming);
+            case PUBCOMP -> new PubComp(incoming);
+            case SUBSCRIBE -> new Subscribe(incoming);
+            case SUBACK -> new SubAck(incoming);
+            case UNSUBSCRIBE -> new Unsubscribe(incoming);
+            case UNSUBACK -> new UnsubAck(incoming);
+            case PINGREQ -> new PingReq(incoming);
+            case PINGRESP -> new PingResp(incoming);
+            case DISCONNECT -> new Disconnect(incoming);
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     public static int tryPickupPacket(ByteBuf in) {
@@ -136,14 +120,46 @@ public abstract class ControlPacket {
                 return INCOMPLETE_PACKET;
             }
             // fixed header length + remainingLength
-            return (_0_BYTE_LENGTH + remainingLengthToByteBuf(remainingLength).readableBytes()) + remainingLength;
+            return _0_BYTE_LENGTH + variableByteIntegerLength(remainingLength) + remainingLength;
         } catch (Exception e) {
-            in.resetReaderIndex();
             log.error("tryPickupPacket failed: {}", ByteBufUtil.hexDump(in));
             throw e;
         } finally {
             in.resetReaderIndex();
         }
+    }
+
+    public static ControlPacket fromV50(ByteBuf incoming) {
+        ControlPacket controlPacket = buildControlPacketFromV50(incoming);
+        // should read all the bytes out of the packet.
+        if (incoming.isReadable()) {// control packet is illegal.
+            throw new MalformedPacketException();
+        }
+        if (!controlPacket.packetValidate()) {
+            throw new MalformedPacketException();
+        }
+        return controlPacket;
+    }
+
+    private static ControlPacket buildControlPacketFromV50(ByteBuf incoming) {
+        byte _0byte = incoming.getByte(incoming.readerIndex());
+        return switch (type(_0byte)) {
+            case CONNECT -> new Connect(incoming);
+            case CONNACK -> new ConnAck(incoming);
+            case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
+            case PUBACK -> new PubAck(incoming);
+            case PUBREC -> new PubRec(incoming);
+            case PUBREL -> new PubRel(incoming);
+            case PUBCOMP -> new PubComp(incoming);
+            case SUBSCRIBE -> new Subscribe(incoming);
+            case SUBACK -> new SubAck(incoming);
+            case UNSUBSCRIBE -> new Unsubscribe(incoming);
+            case UNSUBACK -> new UnsubAck(incoming);
+            case PINGREQ -> new PingReq(incoming);
+            case PINGRESP -> new PingResp(incoming);
+            case DISCONNECT -> new Disconnect(incoming);
+            default -> throw new IllegalArgumentException();
+        };
     }
 
     /**
@@ -191,12 +207,11 @@ public abstract class ControlPacket {
         // use direct buf will optimize netty zero-copy when write to Channel
         /** {@link Publish#toByteBuf()} */
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
-        ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
-        int packetLength = _0_BYTE_LENGTH + remainingLengthByteBuf.readableBytes() + remainingLength;
+        int packetLength = _0_BYTE_LENGTH + variableByteIntegerLength(remainingLength) + remainingLength;
         ByteBuf buf = directBuffer(packetLength);
-        buf.writeByte(this.byte0);
+        writeByte(buf, this.byte0);
         // remainingLength field
-        buf.writeBytes(remainingLengthByteBuf);
+        writeVariableByteInteger(buf, remainingLength);
         return buf;
     }
 
@@ -204,12 +219,11 @@ public abstract class ControlPacket {
         // use direct buf will optimize netty zero-copy when write to Channel
         /** {@link Publish#toByteBuf()} */
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
-        ByteBuf remainingLengthByteBuf = remainingLengthToByteBuf(this.remainingLength);
-        int fixedHeaderLength = 1 + remainingLengthByteBuf.readableBytes();
+        int fixedHeaderLength = 1 + variableByteIntegerLength(remainingLength);
         ByteBuf buf = directBuffer(fixedHeaderLength);
-        buf.writeByte(this.byte0);
+        writeByte(buf, byte0);
         // remainingLength field
-        buf.writeBytes(remainingLengthByteBuf);
+        writeVariableByteInteger(buf, remainingLength);
         return buf;
     }
 
@@ -218,8 +232,7 @@ public abstract class ControlPacket {
     }
 
     /**
-     * heap buffer 强制使用 Unpooled
-     * // BUG: 若使用 Pooled，需要手动释放
+     * heap buffer 强制使用 Unpooled // BUG: 若使用 Pooled，需要手动释放
      */
     protected static ByteBuf heapBuffer(int capacity) {
         return Unpooled.buffer(capacity);
@@ -229,8 +242,7 @@ public abstract class ControlPacket {
         return BYTE_BUF_ALLOCATOR.compositeDirectBuffer();
     }
 
-    private static ByteBuf remainingLengthToByteBuf(int remainingLength) {
-        ByteBuf buf = heapBuffer(4);
+    static ByteBuf writeVariableByteInteger(ByteBuf buf, int remainingLength) {
         int rl = remainingLength;
         do {
             int encodedByte = rl % 128;
@@ -264,6 +276,7 @@ public abstract class ControlPacket {
         // MQTT 5.0 Properties 静态常量定义
         // 消息相关属性
         public static final int PAYLOAD_FORMAT_INDICATOR = 0x01;
+        // If present, the Four Byte value is the lifetime of the Application Message in seconds
         public static final int MESSAGE_EXPIRY_INTERVAL = 0x02;
         public static final int CONTENT_TYPE = 0x03;
 
@@ -312,6 +325,7 @@ public abstract class ControlPacket {
 
         // 用户属性
         public static final int USER_PROPERTY = 0x26;
+        public static final Properties EMPTY = new Properties();
 
         final List<Property> properties;
 
@@ -320,15 +334,34 @@ public abstract class ControlPacket {
         }
 
         Properties(List<Property> properties) {
+            if (properties == null) {
+                throw new MalformedPacketException();
+            }
             this.properties = properties;
         }
 
-        public static Properties empty() {
-            return new Properties();
+        public boolean isEmpty() {
+            return properties.isEmpty();
         }
 
         public static Properties incoming(ByteBuf byteBuf) {
             return new Properties(decode(byteBuf));
+        }
+
+        public ByteBuf writeToByteBuf(ByteBuf buf) {
+            writeVariableByteInteger(buf, calcPropertyLength());
+            for (Property p : properties) {
+                p.write(buf);
+            }
+            return buf;
+        }
+
+        public int calcPropertyLength() {
+            int propertyLength = 0;
+            for (Property p : properties) {
+                propertyLength += p.bytesLength();
+            }
+            return propertyLength;
         }
 
         private static List<Property> decode(ByteBuf buf) {
@@ -558,6 +591,7 @@ public abstract class ControlPacket {
             }
             return true;
         }
+
     }
 
     static abstract class Property {
@@ -566,6 +600,10 @@ public abstract class ControlPacket {
         public Property(int id) {
             this.id = id;
         }
+
+        abstract int bytesLength();
+
+        abstract ByteBuf write(ByteBuf buf);
     }
 
     static class ByteProperty extends Property {
@@ -574,6 +612,18 @@ public abstract class ControlPacket {
         public ByteProperty(int type, byte value) {
             super(type);
             this.value = value;
+        }
+
+        @Override
+        int bytesLength() {
+            return 2;
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeByte(buf, value);
+            return buf;
         }
     }
 
@@ -584,6 +634,18 @@ public abstract class ControlPacket {
             super(type);
             this.value = value;
         }
+
+        @Override
+        int bytesLength() {
+            return 3;
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeTwoByteInteger(buf, value);
+            return buf;
+        }
     }
 
     static class FourByteIntegerProperty extends Property {
@@ -592,6 +654,18 @@ public abstract class ControlPacket {
         public FourByteIntegerProperty(int type, long value) {
             super(type);
             this.value = value;
+        }
+
+        @Override
+        int bytesLength() {
+            return 5;
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeFourByteInteger(buf, value);
+            return buf;
         }
     }
 
@@ -602,6 +676,18 @@ public abstract class ControlPacket {
             super(type);
             this.value = value;
         }
+
+        @Override
+        int bytesLength() {
+            return 1 + 2 + value.getBytes(UTF_8).length;
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeUTF8String(buf, value);
+            return buf;
+        }
     }
 
     static class BinaryDataProperty extends Property {
@@ -611,6 +697,18 @@ public abstract class ControlPacket {
             super(type);
             this.value = value;
         }
+
+        @Override
+        int bytesLength() {
+            return 1 + 2 + value.readableBytes();
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeBinaryData(buf, value);
+            return buf;
+        }
     }
 
     static class VariableByteIntegerProperty extends Property {
@@ -619,6 +717,18 @@ public abstract class ControlPacket {
         public VariableByteIntegerProperty(int type, int value) {
             super(type);
             this.value = value;
+        }
+
+        @Override
+        int bytesLength() {
+            return 1 + variableByteIntegerLength(value);
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeVariableByteInteger(buf, value);
+            return buf;
         }
     }
 
@@ -630,6 +740,19 @@ public abstract class ControlPacket {
             super(type);
             this.key = key;
             this.value = value;
+        }
+
+        @Override
+        int bytesLength() {
+            return 1 + 2 + key.getBytes(UTF_8).length + 2 + value.getBytes(UTF_8).length;
+        }
+
+        @Override
+        ByteBuf write(ByteBuf buf) {
+            writeVariableByteInteger(buf, id);
+            writeUTF8String(buf, key);
+            writeUTF8String(buf, value);
+            return buf;
         }
     }
 
@@ -655,10 +778,25 @@ public abstract class ControlPacket {
     }
 
     /**
+     * Bits in a byte are labelled 7 to 0. Bit number 7 is the most significant bit, the least significant bit is
+     * assigned bit number 0.
+     */
+    public static ByteBuf writeByte(ByteBuf buf, byte val) {
+        return buf.writeByte(val);
+    }
+
+    /**
      * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
      */
     public static int readTwoByteInteger(ByteBuf buf) {
         return buf.readUnsignedShort();
+    }
+
+    /**
+     * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
+     */
+    public static ByteBuf writeTwoByteInteger(ByteBuf buf, int val) {
+        return buf.writeShort(val);
     }
 
     /**
@@ -669,11 +807,33 @@ public abstract class ControlPacket {
     }
 
     /**
+     * Four Byte Integer data values are 32-bit unsigned integers in big-endian order
+     */
+    public static ByteBuf writeFourByteInteger(ByteBuf buf, long val) {
+        return buf.writeInt((int) val);
+    }
+
+
+    /**
      * the maximum size of a UTF-8 Encoded String is 65,535 bytes
      */
     public static String readUTF8String(ByteBuf buf) {
         // todo: must use buf.readUnsignedShort() to decode the string length
         return buf.readCharSequence(buf.readUnsignedShort(), UTF_8).toString();
+    }
+
+    /**
+     * all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes
+     */
+    public static ByteBuf writeUTF8String(ByteBuf buf, String str) {
+        if (str == null) {
+            throw new IllegalArgumentException();
+        }
+        byte[] bytes = str.getBytes(UTF_8);
+        // 明确表示使用 unsigned short 表示
+        buf.writeShort((short) (bytes.length & 0xffff));
+        buf.writeBytes(bytes);
+        return buf;
     }
 
     /**
@@ -697,6 +857,15 @@ public abstract class ControlPacket {
         return rl;
     }
 
+    public static int variableByteIntegerLength(int value) {
+        int ret = 0;
+        do {
+            ret += 1;
+            value /= 128;
+        } while (value > 0);
+        return ret;
+    }
+
     /**
      * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
      * that number of bytes
@@ -706,6 +875,20 @@ public abstract class ControlPacket {
         ByteBuf ret = heapBuffer(length);
         buf.readBytes(ret);
         return ret;
+    }
+
+    /**
+     * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
+     * that number of bytes
+     */
+    static ByteBuf writeBinaryData(ByteBuf buf, ByteBuf data) {
+        if (data == null) {
+            throw new IllegalArgumentException();
+        }
+        // 明确表示使用 unsigned short 表示
+        buf.writeShort((short) (data.readableBytes() & 0xffff));
+        buf.writeBytes(data);
+        return buf;
     }
 
     public static boolean validateTopicName(String topicName) {
@@ -765,5 +948,5 @@ public abstract class ControlPacket {
             super(msg);
         }
     }
-    
+
 }

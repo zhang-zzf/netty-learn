@@ -1,5 +1,7 @@
 package org.github.zzf.mqtt.protocol.codec;
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.INCOMPLETE_PACKET;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
@@ -41,12 +43,26 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
         int packetLength = ControlPacket.tryPickupPacket(in);
-        if (packetLength == ControlPacket.INCOMPLETE_PACKET) {// can not decode a packet
+        if (packetLength == INCOMPLETE_PACKET) {// can not decode a packet
             return;
         }
         // core: zero-copy
         ByteBuf incoming = in.readRetainedSlice(packetLength);
         out.add(ControlPacket.from(incoming));
+    }
+
+    public static class V50 extends MqttCodec {
+
+        @Override
+        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
+            int packetLength = ControlPacket.tryPickupPacket(in);
+            if (packetLength == INCOMPLETE_PACKET) {// can not decode a packet
+                return;
+            }
+            // core: zero-copy
+            ByteBuf incoming = in.readRetainedSlice(packetLength);
+            out.add(ControlPacket.fromV50(incoming));
+        }
     }
 
     /**

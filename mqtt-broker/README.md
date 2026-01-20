@@ -3,6 +3,10 @@
 ## todo
 
 - WebSocketFrameCodec
+- ByteBuf.writeShort(int) 0~65535 的写入和读取
+  - ByteBuf.readUnsignedShort()
+- String -> byte[] 
+  - 参考 ByteBufTest.given中文_whenWriteByteBuf_thenFailed
 
 ## mqtt3.1.1 -> mqtt5.0 changes
 

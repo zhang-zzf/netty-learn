@@ -348,8 +348,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-            .addComponent(true, header)
-            .addComponent(true, body);
+                .addComponent(true, header)
+                .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // release CompositeByteBuf 会 release 底层的每个 ByteBuf
         then(req.release()).isTrue();
@@ -371,8 +371,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-            .addComponent(true, header)
-            .addComponent(true, body);
+                .addComponent(true, header)
+                .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // release CompositeByteBuf 会 release 底层的每个 ByteBuf
         then(req.release()).isTrue();
@@ -393,8 +393,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-            .addComponent(true, header)
-            .addComponent(true, body);
+                .addComponent(true, header)
+                .addComponent(true, body);
         then(req.refCnt()).isEqualTo(1);
         // retain the CompositeByteBuf
         req.retain();
@@ -425,8 +425,8 @@ class ByteBufTest {
         ByteBuf body = Unpooled.buffer(32);
         body.writeLong(Long.MAX_VALUE);
         CompositeByteBuf req = Unpooled.compositeBuffer()
-            .addComponent(true, header)
-            .addComponent(true, body);
+                .addComponent(true, header)
+                .addComponent(true, body);
         // 释放底层 Component
         then(header.release()).isTrue();
         then(req.refCnt()).isEqualTo(1);
@@ -463,10 +463,10 @@ class ByteBufTest {
      */
     @Test
     void given中文_when_then() {
-        //Unicode编码:4E00
+        // Unicode编码:4E00
         then("一".length()).isEqualTo(1);
         then("一".toCharArray()).contains('一');
-        //Unicode编码:9FA5
+        // Unicode编码:9FA5
         then("龥".length()).isEqualTo(1);
         then("龥".toCharArray()).contains('龥');
         // Unicode编码:2B739 `𫜹` 占两个 unicode 字符，也就是两个 char，也就是4字节，也就是32位
@@ -567,6 +567,25 @@ class ByteBufTest {
         // reset 2 time
         buf.resetReaderIndex();
         then(buf.readerIndex()).isEqualTo(readIndex);
+    }
+
+    /**
+     * TwoByteInteger
+     */
+    @Test
+    void givenTwoByteInteger_when_then() {
+        ByteBuf buf = Unpooled.buffer(8);
+        for (int i = 0; i < 65535; i++) {
+            buf.writeShort(i);
+            int twoByteInteger = buf.readUnsignedShort();
+            then(twoByteInteger).isEqualTo(i);
+        }
+        for (int i = 0; i < 65535; i++) {
+            // 使用 (short)(value & 0xFFFF) 确保了无论原始 int 值是多少，最终结果都是正确的无符号16位表示
+            buf.writeShort((short) (i & 0xffff));
+            int twoByteInteger = buf.readUnsignedShort();
+            then(twoByteInteger).isEqualTo(i);
+        }
     }
 
 }

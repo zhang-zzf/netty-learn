@@ -38,12 +38,30 @@ public abstract class ControlPacket {
     public static final byte DISCONNECT = (byte) 0xE0;
 
     public static final int INCOMPLETE_PACKET = -1;
-
-    private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
-
     public static final String MULTI_LEVEL_WILDCARD = "#";
     public static final String SINGLE_LEVEL_WILDCARD = "+";
-
+    // 0 0x00 The message is accepted. Publication of the QoS 1 message proceeds.
+    public static final byte REASON_CODE_SUCCESS = 0x00;
+    // 16 0x10 No matching subscribers - The message is accepted but there are no subscribers.
+    public static final byte REASON_CODE_NO_MATCHING_SUBSCRIBERS = 0x10;
+    // 128 0x80 Unspecified error - The receiver does not accept the publish but either does not want to reveal the reason.
+    public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80;
+    // 131 0x83 Implementation specific error - The PUBLISH is valid but the receiver is not willing to accept it.
+    public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83;
+    // 135 0x87 Not authorized - The PUBLISH is not authorized.
+    public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87;
+    // 144 0x90 Topic Name invalid - The Topic Name is not malformed, but is not accepted by this Client or Server.
+    public static final byte REASON_CODE_TOPIC_NAME_INVALID = (byte) 0x90;
+    // 145 0x91 Packet identifier in use - The Packet Identifier is already in use.
+    public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91;
+    // 151 0x97 Quota exceeded - An implementation or administrative imposed limit has been exceeded.
+    public static final byte REASON_CODE_QUOTA_EXCEEDED = (byte) 0x97;
+    // 153 0x99 Payload format invalid - The payload format does not match the specified Payload Format Indicator.
+    public static final byte REASON_CODE_PAYLOAD_FORMAT_INVALID = (byte) 0x99;
+    // 146 0x92 The Packet Identifier is not known.
+    // This is not an error during recovery, but at other times indicates a mismatch between the Session State on the Client and Server.
+    public static final byte REASON_CODE_PACKET_ID_NOT_FOUND = (byte) 0x92;
+    private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
     protected final byte byte0;
     protected final int remainingLength;
 
@@ -162,19 +180,8 @@ public abstract class ControlPacket {
         };
     }
 
-    /**
-     * validate the packet after build it
-     */
-    protected boolean packetValidate() {
-        return true;
-    }
-
     private static byte type(byte _0byte) {
         return (byte) (_0byte & 0xF0);
-    }
-
-    public byte type() {
-        return type(this.byte0);
     }
 
     static int readRemainingLength(ByteBuf buf) {
@@ -196,35 +203,6 @@ public abstract class ControlPacket {
             }
         }
         return rl;
-    }
-
-    /**
-     * model to ByteBuf
-     *
-     * @return ByteBuf
-     */
-    public ByteBuf toByteBuf() {
-        // use direct buf will optimize netty zero-copy when write to Channel
-        /** {@link Publish#toByteBuf()} */
-        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
-        int packetLength = _0_BYTE_LENGTH + variableByteIntegerLength(remainingLength) + remainingLength;
-        ByteBuf buf = directBuffer(packetLength);
-        writeByte(buf, this.byte0);
-        // remainingLength field
-        writeVariableByteInteger(buf, remainingLength);
-        return buf;
-    }
-
-    protected ByteBuf fixedHeaderByteBuf() {
-        // use direct buf will optimize netty zero-copy when write to Channel
-        /** {@link Publish#toByteBuf()} */
-        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
-        int fixedHeaderLength = 1 + variableByteIntegerLength(remainingLength);
-        ByteBuf buf = directBuffer(fixedHeaderLength);
-        writeByte(buf, byte0);
-        // remainingLength field
-        writeVariableByteInteger(buf, remainingLength);
-        return buf;
     }
 
     protected static ByteBuf directBuffer(int capacity) {
@@ -263,6 +241,193 @@ public abstract class ControlPacket {
         return Integer.valueOf(hexPId.substring(2), 16).shortValue();
     }
 
+    /**
+     * Bits in a byte are labelled 7 to 0. Bit number 7 is the most significant bit, the least significant bit is
+     * assigned bit number 0.
+     */
+    public static byte readByte(ByteBuf buf) {
+        return buf.readByte();
+    }
+
+    /**
+     * Bits in a byte are labelled 7 to 0. Bit number 7 is the most significant bit, the least significant bit is
+     * assigned bit number 0.
+     */
+    public static ByteBuf writeByte(ByteBuf buf, byte val) {
+        return buf.writeByte(val);
+    }
+
+    /**
+     * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
+     */
+    public static int readTwoByteInteger(ByteBuf buf) {
+        return buf.readUnsignedShort();
+    }
+
+    /**
+     * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
+     */
+    public static ByteBuf writeTwoByteInteger(ByteBuf buf, int val) {
+        return buf.writeShort(val);
+    }
+
+    /**
+     * Four Byte Integer data values are 32-bit unsigned integers in big-endian order
+     */
+    public static long readFourByteInteger(ByteBuf buf) {
+        return buf.readUnsignedInt();
+    }
+
+    /**
+     * Four Byte Integer data values are 32-bit unsigned integers in big-endian order
+     */
+    public static ByteBuf writeFourByteInteger(ByteBuf buf, long val) {
+        return buf.writeInt((int) val);
+    }
+
+    /**
+     * the maximum size of a UTF-8 Encoded String is 65,535 bytes
+     */
+    public static String readUTF8String(ByteBuf buf) {
+        // todo: must use buf.readUnsignedShort() to decode the string length
+        return buf.readCharSequence(buf.readUnsignedShort(), UTF_8).toString();
+    }
+
+    /**
+     * all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes
+     */
+    public static ByteBuf writeUTF8String(ByteBuf buf, String str) {
+        if (str == null) {
+            throw new IllegalArgumentException();
+        }
+        byte[] bytes = str.getBytes(UTF_8);
+        // 明确表示使用 unsigned short 表示
+        buf.writeShort((short) (bytes.length & 0xffff));
+        buf.writeBytes(bytes);
+        return buf;
+    }
+
+    /**
+     * MAX: 268,435,455 (0xFF, 0xFF, 0xFF, 0x7F) < Integer.MAX 2,147,483,647
+     */
+    public static int readVariableByteInteger(ByteBuf buf) {
+        int rl = 0;
+        int multiplier = 1;
+        while (true) {
+            if (buf.readableBytes() == 0 /* not enough bytes */
+                    || multiplier > 0x80 * 0x80 * 0x80 /* too many bytes */) {
+                throw new IllegalArgumentException();
+            }
+            byte encodeByte = buf.readByte();
+            rl += (encodeByte & 0x7F) * multiplier;
+            if ((encodeByte & 0x80) == 0) {
+                break;
+            }
+            multiplier *= 0x80;
+        }
+        return rl;
+    }
+
+    public static int variableByteIntegerLength(int value) {
+        int ret = 0;
+        do {
+            ret += 1;
+            value /= 128;
+        } while (value > 0);
+        return ret;
+    }
+
+    /**
+     * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
+     * that number of bytes
+     */
+    public static ByteBuf readBinaryData(ByteBuf buf) {
+        int length = buf.readUnsignedShort();
+        ByteBuf ret = heapBuffer(length);
+        buf.readBytes(ret);
+        return ret;
+    }
+
+    /**
+     * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
+     * that number of bytes
+     */
+    static ByteBuf writeBinaryData(ByteBuf buf, ByteBuf data) {
+        if (data == null) {
+            throw new IllegalArgumentException();
+        }
+        // 明确表示使用 unsigned short 表示
+        buf.writeShort((short) (data.readableBytes() & 0xffff));
+        buf.writeBytes(data);
+        return buf;
+    }
+
+    public static boolean validateTopicName(String topicName) {
+        if (topicName == null || topicName.isEmpty()) {
+            return false;
+        }
+        return !topicName.contains(MULTI_LEVEL_WILDCARD)
+                && !topicName.contains(SINGLE_LEVEL_WILDCARD);
+    }
+
+    public static ByteBuf writeProperties(ByteBuf buf, Properties properties) {
+        properties.writeToByteBuf(buf);
+        return buf;
+    }
+
+    public static boolean validateReasonCode(byte reasonCode) {
+        return reasonCode == REASON_CODE_SUCCESS
+                || reasonCode == REASON_CODE_NO_MATCHING_SUBSCRIBERS
+                || reasonCode == REASON_CODE_UNSPECIFIED_ERROR
+                || reasonCode == REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR
+                || reasonCode == REASON_CODE_NOT_AUTHORIZED
+                || reasonCode == REASON_CODE_TOPIC_NAME_INVALID
+                || reasonCode == REASON_CODE_PACKET_ID_IN_USE
+                || reasonCode == REASON_CODE_QUOTA_EXCEEDED
+                || reasonCode == REASON_CODE_PAYLOAD_FORMAT_INVALID;
+
+    }
+
+    /**
+     * validate the packet after build it
+     */
+    protected boolean packetValidate() {
+        return true;
+    }
+
+    public byte type() {
+        return type(this.byte0);
+    }
+
+    /**
+     * model to ByteBuf
+     *
+     * @return ByteBuf
+     */
+    public ByteBuf toByteBuf() {
+        // use direct buf will optimize netty zero-copy when write to Channel
+        /** {@link Publish#toByteBuf()} */
+        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
+        int packetLength = _0_BYTE_LENGTH + variableByteIntegerLength(remainingLength) + remainingLength;
+        ByteBuf buf = directBuffer(packetLength);
+        writeByte(buf, this.byte0);
+        // remainingLength field
+        writeVariableByteInteger(buf, remainingLength);
+        return buf;
+    }
+
+    protected ByteBuf fixedHeaderByteBuf() {
+        // use direct buf will optimize netty zero-copy when write to Channel
+        /** {@link Publish#toByteBuf()} */
+        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
+        int fixedHeaderLength = 1 + variableByteIntegerLength(remainingLength);
+        ByteBuf buf = directBuffer(fixedHeaderLength);
+        writeByte(buf, byte0);
+        // remainingLength field
+        writeVariableByteInteger(buf, remainingLength);
+        return buf;
+    }
+
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
@@ -270,6 +435,19 @@ public abstract class ControlPacket {
         sb.append("\"byte0\":\"0x").append(String.format("%02X", byte0)).append("\",");
         sb.append("\"remainingLength\":").append(remainingLength).append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    /**
+     * 数据类型枚举
+     */
+    public enum DataRepresentation {
+        BYTE,
+        TWO_BYTE_INTEGER,
+        FOUR_BYTE_INTEGER,
+        VARIABLE_BYTE_INTEGER,
+        UTF_8_ENCODED_STRING,
+        BINARY_DATA,
+        UTF_8_STRING_PAIR
     }
 
     public static class Properties {
@@ -340,28 +518,8 @@ public abstract class ControlPacket {
             this.properties = properties;
         }
 
-        public boolean isEmpty() {
-            return properties.isEmpty();
-        }
-
         public static Properties incoming(ByteBuf byteBuf) {
             return new Properties(decode(byteBuf));
-        }
-
-        public ByteBuf writeToByteBuf(ByteBuf buf) {
-            writeVariableByteInteger(buf, calcPropertyLength());
-            for (Property p : properties) {
-                p.write(buf);
-            }
-            return buf;
-        }
-
-        public int calcPropertyLength() {
-            int propertyLength = 0;
-            for (Property p : properties) {
-                propertyLength += p.bytesLength();
-            }
-            return propertyLength;
         }
 
         private static List<Property> decode(ByteBuf buf) {
@@ -586,10 +744,27 @@ public abstract class ControlPacket {
                 return false;
             }
             // Response Topic MUST NOT contain wildcard characters
-            if (topic.contains("+") || topic.contains("#")) {
-                return false;
+            return !topic.contains("+") && !topic.contains("#");
+        }
+
+        public boolean isEmpty() {
+            return properties.isEmpty();
+        }
+
+        public ByteBuf writeToByteBuf(ByteBuf buf) {
+            writeVariableByteInteger(buf, calcPropertyLength());
+            for (Property p : properties) {
+                p.write(buf);
             }
-            return true;
+            return buf;
+        }
+
+        public int calcPropertyLength() {
+            int propertyLength = 0;
+            for (Property p : properties) {
+                propertyLength += p.bytesLength();
+            }
+            return propertyLength;
         }
 
     }
@@ -754,152 +929,6 @@ public abstract class ControlPacket {
             writeUTF8String(buf, value);
             return buf;
         }
-    }
-
-    /**
-     * 数据类型枚举
-     */
-    public enum DataRepresentation {
-        BYTE,
-        TWO_BYTE_INTEGER,
-        FOUR_BYTE_INTEGER,
-        VARIABLE_BYTE_INTEGER,
-        UTF_8_ENCODED_STRING,
-        BINARY_DATA,
-        UTF_8_STRING_PAIR
-    }
-
-    /**
-     * Bits in a byte are labelled 7 to 0. Bit number 7 is the most significant bit, the least significant bit is
-     * assigned bit number 0.
-     */
-    public static byte readByte(ByteBuf buf) {
-        return buf.readByte();
-    }
-
-    /**
-     * Bits in a byte are labelled 7 to 0. Bit number 7 is the most significant bit, the least significant bit is
-     * assigned bit number 0.
-     */
-    public static ByteBuf writeByte(ByteBuf buf, byte val) {
-        return buf.writeByte(val);
-    }
-
-    /**
-     * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
-     */
-    public static int readTwoByteInteger(ByteBuf buf) {
-        return buf.readUnsignedShort();
-    }
-
-    /**
-     * Two Byte Integer data values are 16-bit unsigned integers in big-endian order
-     */
-    public static ByteBuf writeTwoByteInteger(ByteBuf buf, int val) {
-        return buf.writeShort(val);
-    }
-
-    /**
-     * Four Byte Integer data values are 32-bit unsigned integers in big-endian order
-     */
-    public static long readFourByteInteger(ByteBuf buf) {
-        return buf.readUnsignedInt();
-    }
-
-    /**
-     * Four Byte Integer data values are 32-bit unsigned integers in big-endian order
-     */
-    public static ByteBuf writeFourByteInteger(ByteBuf buf, long val) {
-        return buf.writeInt((int) val);
-    }
-
-
-    /**
-     * the maximum size of a UTF-8 Encoded String is 65,535 bytes
-     */
-    public static String readUTF8String(ByteBuf buf) {
-        // todo: must use buf.readUnsignedShort() to decode the string length
-        return buf.readCharSequence(buf.readUnsignedShort(), UTF_8).toString();
-    }
-
-    /**
-     * all UTF-8 encoded strings can have any length in the range 0 to 65535 bytes
-     */
-    public static ByteBuf writeUTF8String(ByteBuf buf, String str) {
-        if (str == null) {
-            throw new IllegalArgumentException();
-        }
-        byte[] bytes = str.getBytes(UTF_8);
-        // 明确表示使用 unsigned short 表示
-        buf.writeShort((short) (bytes.length & 0xffff));
-        buf.writeBytes(bytes);
-        return buf;
-    }
-
-    /**
-     * MAX: 268,435,455 (0xFF, 0xFF, 0xFF, 0x7F) < Integer.MAX 2,147,483,647
-     */
-    public static int readVariableByteInteger(ByteBuf buf) {
-        int rl = 0;
-        int multiplier = 1;
-        while (true) {
-            if (buf.readableBytes() == 0 /* not enough bytes */
-                    || multiplier > 0x80 * 0x80 * 0x80 /* too many bytes */) {
-                throw new IllegalArgumentException();
-            }
-            byte encodeByte = buf.readByte();
-            rl += (encodeByte & 0x7F) * multiplier;
-            if ((encodeByte & 0x80) == 0) {
-                break;
-            }
-            multiplier *= 0x80;
-        }
-        return rl;
-    }
-
-    public static int variableByteIntegerLength(int value) {
-        int ret = 0;
-        do {
-            ret += 1;
-            value /= 128;
-        } while (value > 0);
-        return ret;
-    }
-
-    /**
-     * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
-     * that number of bytes
-     */
-    public static ByteBuf readBinaryData(ByteBuf buf) {
-        int length = buf.readUnsignedShort();
-        ByteBuf ret = heapBuffer(length);
-        buf.readBytes(ret);
-        return ret;
-    }
-
-    /**
-     * Binary Data is represented by a Two Byte Integer length which indicates the number of data bytes, followed by
-     * that number of bytes
-     */
-    static ByteBuf writeBinaryData(ByteBuf buf, ByteBuf data) {
-        if (data == null) {
-            throw new IllegalArgumentException();
-        }
-        // 明确表示使用 unsigned short 表示
-        buf.writeShort((short) (data.readableBytes() & 0xffff));
-        buf.writeBytes(data);
-        return buf;
-    }
-
-    public static boolean validateTopicName(String topicName) {
-        if (topicName == null || topicName.isEmpty()) {
-            return false;
-        }
-        if (topicName.contains(MULTI_LEVEL_WILDCARD)
-                || topicName.contains(SINGLE_LEVEL_WILDCARD)) {
-            return false;
-        }
-        return true;
     }
 
     /**

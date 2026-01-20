@@ -21,10 +21,35 @@ public class Publish extends ControlPacket {
     public static final int AT_LEAST_ONCE = 1;
     public static final int EXACTLY_ONCE = 2;
     public static final short NO_PACKET_IDENTIFIER = 0;
-
+    public static final String META_P_RECEIVE_NANO = "p_receive_nano";
+    /**
+     * Publish Receive time
+     */
+    public static final String META_P_RECEIVE_MILLIS = "p_receive_millis";
+    public static final String META_P_SOURCE = "p_source";
+    public static final String META_P_SOURCE_BROKER = "broker";
+    public static final String META_NM_WRAP = "nm_wrap";
+    public static final String META_NM_RECEIVE = "nm_receive";
     final String topicName;
     final short packetIdentifier;
     final ByteBuf payload;
+    /**
+     * not protocol field
+     * <p>just for metric usage</p>
+     * <p>Client or Broker 接受到 Publish 的时间</p>
+     * <p>default to 0</p>
+     */
+    private Map<String, Object> meta;
+
+    Publish(byte byte0, int remainingLength,
+            String topicName, short packetIdentifier,
+            ByteBuf payload) {
+        super(byte0, remainingLength);
+        this.topicName = topicName;
+        this.packetIdentifier = packetIdentifier;
+        this.payload = payload;
+        initMetricMetaData();
+    }
 
     static Publish incoming(ByteBuf incoming) {
         byte byte0 = readByte(incoming);
@@ -37,23 +62,6 @@ public class Publish extends ControlPacket {
         return new Publish(byte0, remainingLength,
                 topicName, packetIdentifier,
                 payload);
-    }
-
-    Publish(byte byte0, int remainingLength,
-            String topicName, short packetIdentifier,
-            ByteBuf payload) {
-        super(byte0, remainingLength);
-        this.topicName = topicName;
-        this.packetIdentifier = packetIdentifier;
-        this.payload = payload;
-        initMetricMetaData();
-    }
-
-    private void initMetricMetaData() {
-        // metric 多线程 同步 性能是否存在问题？
-        // 线程封闭，无多线程同步
-        addMeta(META_P_RECEIVE_NANO, System.nanoTime());
-        addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }
 
     public static Publish outgoing(int qos,
@@ -79,6 +87,40 @@ public class Publish extends ControlPacket {
         return ret;
     }
 
+    /**
+     * whether the qos need receiver ack
+     *
+     * @return true / false;
+     */
+    public static boolean needAck(int qos) {
+        return qos == AT_LEAST_ONCE || qos == EXACTLY_ONCE;
+    }
+
+    static byte build_0Byte(boolean retain,
+            int qos,
+            boolean dup) {
+        byte _0Byte = 0x30;
+        if (retain) {
+            _0Byte |= 0x01;
+        }
+        _0Byte |= (byte) (qos << 1);
+        if (dup) {
+            _0Byte |= 0x08;
+        }
+        return _0Byte;
+    }
+
+    public static int qos(byte byte0) {
+        return (byte0 & 0x06) >> 1;
+    }
+
+    private void initMetricMetaData() {
+        // metric 多线程 同步 性能是否存在问题？
+        // 线程封闭，无多线程同步
+        addMeta(META_P_RECEIVE_NANO, System.nanoTime());
+        addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
+    }
+
     @Override
     public ByteBuf toByteBuf() {
         // fixed header
@@ -101,35 +143,12 @@ public class Publish extends ControlPacket {
     }
 
     /**
-     * whether the qos need receiver ack
-     *
-     * @return true / false;
-     */
-    public static boolean needAck(int qos) {
-        return qos == AT_LEAST_ONCE || qos == EXACTLY_ONCE;
-    }
-
-    /**
      * whether the packet need receiver ack
      *
      * @return true / false;
      */
     public boolean needAck() {
         return needAck(qos());
-    }
-
-    static byte build_0Byte(boolean retain,
-            int qos,
-            boolean dup) {
-        byte _0Byte = 0x30;
-        if (retain) {
-            _0Byte |= 0x01;
-        }
-        _0Byte |= (byte) (qos << 1);
-        if (dup) {
-            _0Byte |= 0x08;
-        }
-        return _0Byte;
     }
 
     @Override
@@ -154,10 +173,6 @@ public class Publish extends ControlPacket {
 
     public int qos() {
         return qos(byte0);
-    }
-
-    public static int qos(byte byte0) {
-        return (byte0 & 0x06) >> 1;
     }
 
     public boolean retainFlag() {
@@ -223,24 +238,6 @@ public class Publish extends ControlPacket {
         return hexPId(packetIdentifier);
     }
 
-    /**
-     * not protocol field
-     * <p>just for metric usage</p>
-     * <p>Client or Broker 接受到 Publish 的时间</p>
-     * <p>default to 0</p>
-     */
-    private Map<String, Object> meta;
-
-    public static final String META_P_RECEIVE_NANO = "p_receive_nano";
-    /**
-     * Publish Receive time
-     */
-    public static final String META_P_RECEIVE_MILLIS = "p_receive_millis";
-    public static final String META_P_SOURCE = "p_source";
-    public static final String META_P_SOURCE_BROKER = "broker";
-    public static final String META_NM_WRAP = "nm_wrap";
-    public static final String META_NM_RECEIVE = "nm_receive";
-
     public Map<String, Object> meta() {
         return meta;
     }
@@ -262,6 +259,13 @@ public class Publish extends ControlPacket {
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
 
+        V50(byte byte0, int remainingLength,
+                String topicName, short packetIdentifier, Properties properties,
+                ByteBuf payload) {
+            super(byte0, remainingLength, topicName, packetIdentifier, payload);
+            this.properties = properties;
+        }
+
         static V50 incoming(ByteBuf incoming) {
             byte byte0 = incoming.readByte();
             int remainingLength = readRemainingLength(incoming);
@@ -277,13 +281,6 @@ public class Publish extends ControlPacket {
                     payload);
         }
 
-        V50(byte byte0, int remainingLength,
-            String topicName, short packetIdentifier, Properties properties,
-            ByteBuf payload) {
-            super(byte0, remainingLength, topicName, packetIdentifier, payload);
-            this.properties = properties;
-        }
-
         public Properties properties() {
             return this.properties;
         }
@@ -296,7 +293,7 @@ public class Publish extends ControlPacket {
         @Override
         protected ByteBuf varHeaderByteBuf() {
             ByteBuf buf = super.varHeaderByteBuf();
-            properties.writeToByteBuf(buf);
+            writeProperties(buf, properties);
             return buf;
         }
 

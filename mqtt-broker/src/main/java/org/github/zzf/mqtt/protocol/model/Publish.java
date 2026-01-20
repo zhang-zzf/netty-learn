@@ -1,6 +1,14 @@
 package org.github.zzf.mqtt.protocol.model;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CONTENT_TYPE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CORRELATION_DATA;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MESSAGE_EXPIRY_INTERVAL;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.PAYLOAD_FORMAT_INDICATOR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.RESPONSE_TOPIC;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SUBSCRIPTION_IDENTIFIER;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.TOPIC_ALIAS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
@@ -14,25 +22,30 @@ public class Publish extends ControlPacket {
     public static final int EXACTLY_ONCE = 2;
     public static final short NO_PACKET_IDENTIFIER = 0;
 
-    private final String topicName;
-    private final short packetIdentifier;
-    private final ByteBuf payload;
-    private int variableHeaderLength = 0;
+    final String topicName;
+    final short packetIdentifier;
+    final ByteBuf payload;
 
-    public Publish(ByteBuf incoming) {
-        super(incoming);
-        short topicNameLng = incoming.readShort();
-        this.topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
-        variableHeaderLength += 2 + topicNameLng;
-        if (needAck()) {
-            this.packetIdentifier = incoming.readShort();
-            variableHeaderLength += 2;
-        }
-        else {
-            this.packetIdentifier = 0;
-        }
+    static Publish incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readRemainingLength(incoming);
+        int topicNameLng = readTwoByteInteger(incoming);
+        String topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
+        short packetIdentifier = needAck(qos(byte0)) ? incoming.readShort() : 0;
         // core: zero-copy
-        this.payload = incoming.readSlice(incoming.readableBytes());
+        ByteBuf payload = incoming.readSlice(incoming.readableBytes());
+        return new Publish(byte0, remainingLength,
+                topicName, packetIdentifier,
+                payload);
+    }
+
+    Publish(byte byte0, int remainingLength,
+            String topicName, short packetIdentifier,
+            ByteBuf payload) {
+        super(byte0, remainingLength);
+        this.topicName = topicName;
+        this.packetIdentifier = packetIdentifier;
+        this.payload = payload;
         initMetricMetaData();
     }
 
@@ -43,59 +56,27 @@ public class Publish extends ControlPacket {
         addMeta(META_P_RECEIVE_MILLIS, System.currentTimeMillis());
     }
 
-    /**
-     * outgoing Publish Message
-     */
-    private Publish(byte _0byte,
-            int remainingLength,
-            short packetIdentifier,
-            ByteBuf payload,
-            String topicName) {
-        super(_0byte, remainingLength);
-        this.packetIdentifier = packetIdentifier;
-        this.topicName = topicName;
-        this.payload = payload;
-        this.variableHeaderLength = remainingLength - payload.readableBytes();
-        if (!packetValidate()) {
-            throw new IllegalArgumentException("Invalid packet");
-        }
-    }
-
-    /**
-     * Publish to Publish use Zero-Copy of ByteBuf for payload
-     *
-     * @param origin           source
-     * @param packetIdentifier packet ID
-     * @return a Publish Packet that have the save data as source
-     */
-    public static Publish outgoing(Publish origin,
-            String topicName,
-            byte qos,
-            short packetIdentifier) {
-        Publish ret = outgoing(origin.retainFlag(), qos, false, topicName, packetIdentifier, origin.payload);
-        // metric meta
-        ret.copyMeta(origin);
-        return ret;
-    }
-
     public static Publish outgoing(int qos,
             String topicName,
             ByteBuf payload) {
         return outgoing(false, qos, false, topicName, (short) 0, payload);
     }
 
-    public static Publish outgoing(boolean retain,
-            int qos,
-            boolean dup,
-            String topicName,
-            short packetIdentifier,
+    public static Publish outgoing(boolean retain, int qos, boolean dup,
+            String topicName, short packetIdentifier,
             ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
         int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
         // remainingLength field
         int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
-        return new Publish(_0byte, remainingLength, packetIdentifier, payload, topicName);
+        Publish ret = new Publish(_0byte, remainingLength,
+                topicName, packetIdentifier,
+                payload);
+        if (!ret.packetValidate()) {
+            throw new MalformedPacketException();
+        }
+        return ret;
     }
 
     @Override
@@ -103,6 +84,7 @@ public class Publish extends ControlPacket {
         // fixed header
         ByteBuf fixedHeader = fixedHeaderByteBuf();
         // variable header
+        int variableHeaderLength = remainingLength - payload.readableBytes();
         ByteBuf varHeader = directBuffer(variableHeaderLength);
         byte[] topicNameBytes = topicName.getBytes(UTF_8);
         varHeader.writeShort(topicNameBytes.length);
@@ -163,19 +145,16 @@ public class Publish extends ControlPacket {
         return super.packetValidate();
     }
 
-    private boolean validateTopicName(String topicName) {
-        if (topicName == null || topicName.isEmpty()) {
-            return false;
-        }
-        return true;
-    }
-
     public boolean dup() {
         return (byte0 & 0x08) != 0;
     }
 
     public int qos() {
-        return (this.byte0 & 0x06) >> 1;
+        return qos(byte0);
+    }
+
+    public static int qos(byte byte0) {
+        return (byte0 & 0x06) >> 1;
     }
 
     public boolean retainFlag() {
@@ -273,6 +252,64 @@ public class Publish extends ControlPacket {
 
     private void copyMeta(Publish origin) {
         meta = origin.meta;
+    }
+
+    public static class V50 extends Publish {
+
+        final Properties properties;
+
+        static V50 incoming(ByteBuf incoming) {
+            byte byte0 = incoming.readByte();
+            int remainingLength = readRemainingLength(incoming);
+            int topicNameLng = incoming.readUnsignedShort();
+            String topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
+            short packetIdentifier = needAck(qos(byte0)) ? incoming.readShort() : 0;
+            // core: zero-copy
+            Properties properties = Properties.incoming(incoming.readSlice(readVariableByteInteger(incoming)));
+            // core: zero-copy
+            ByteBuf payload = incoming.readSlice(incoming.readableBytes());
+            return new V50(byte0, remainingLength,
+                    topicName, packetIdentifier, properties,
+                    payload);
+        }
+
+        V50(byte byte0, int remainingLength,
+            String topicName, short packetIdentifier, Properties properties,
+            ByteBuf payload) {
+            super(byte0, remainingLength, topicName, packetIdentifier, payload);
+            this.properties = properties;
+        }
+
+        public Properties properties() {
+            return this.properties;
+        }
+
+        @Override
+        protected boolean packetValidate() {
+            return super.packetValidate() && validateProperties();
+        }
+
+        private boolean validateProperties() {
+            if (this.properties == null) {
+                return true;
+            }
+            for (Property p : this.properties.properties) {
+                switch (p.id) {
+                    case PAYLOAD_FORMAT_INDICATOR:
+                    case MESSAGE_EXPIRY_INTERVAL:
+                    case TOPIC_ALIAS:
+                    case RESPONSE_TOPIC:
+                    case CORRELATION_DATA:
+                    case USER_PROPERTY:
+                    case SUBSCRIPTION_IDENTIFIER:
+                    case CONTENT_TYPE:
+                        break;
+                    default:
+                        return false;
+                }
+            }
+            return true;
+        }
     }
 
 }

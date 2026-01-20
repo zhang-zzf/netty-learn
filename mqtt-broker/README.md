@@ -8,6 +8,8 @@
 
 - DISCONNECT Client to Server or Server to Client
 - Topic Alias
+-  Message Expiry Interval
+- bug: imcoming.readShort() 获取到的值可能为负数，解析 UTF8 字符串时异常
 
 ## 构建历史
 

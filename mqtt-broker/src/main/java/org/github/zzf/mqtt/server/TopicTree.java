@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 import lombok.extern.slf4j.Slf4j;
+import org.github.zzf.mqtt.protocol.model.ControlPacket;
 
 /**
  * 设计思路： 1. 写操作单线程串行更改 1. 多线程无锁读
@@ -41,8 +42,8 @@ public class TopicTree<T> implements AutoCloseable {
     }
 
     static final String LEVEL_SEPARATOR = "/";
-    static final String MULTI_LEVEL_WILDCARD = "#";
-    static final String SINGLE_LEVEL_WILDCARD = "+";
+    static final String MULTI_LEVEL_WILDCARD = ControlPacket.MULTI_LEVEL_WILDCARD;
+    static final String SINGLE_LEVEL_WILDCARD = ControlPacket.SINGLE_LEVEL_WILDCARD;
     static final String $ = "$";
 
     // tree root

@@ -265,7 +265,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         String topic = connect.willTopic();
         ByteBuf byteBuf = connect.willMessage();
         boolean retain = connect.willRetainFlag();
-        return Publish.outgoing(retain, (byte) qos, false, topic, (short) 0, byteBuf);
+        return Publish.outgoing(retain, (byte) qos, false,
+                topic, (short) 0,
+                byteBuf);
     }
 
     // todo cleanSession 复制 UT

@@ -76,11 +76,7 @@ public class DefaultBroker implements Broker {
             // async
             retainPublishManager.match(tfs).thenAccept(publishPackets -> {
                 // 移交给 session 绑定的线程，延迟发送
-                session.channel().eventLoop().submit(() -> {
-                    for (Publish publish : publishPackets) {
-                        session.send(publish);
-                    }
-                });
+                session.channel().eventLoop().submit(() -> publishPackets.forEach(session::send));
             });
         }
         return permitted;
@@ -105,7 +101,9 @@ public class DefaultBroker implements Broker {
                 int qos = qoS(packet.qos(), subscriber.qos());
                 // use a shadow copy of the origin Publish
                 Publish outgoing = Publish.outgoing(false /* must set retain to false before forward the PublishPacket */,
-                        qos, false, topic.topicFilter(), packetIdentifier(session, qos), packet.payload());
+                        qos, false,
+                        topic.topicFilter(), packetIdentifier(session, qos),
+                        packet.payload());
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }
@@ -224,8 +222,9 @@ public class DefaultBroker implements Broker {
         }
         else {
             // use a copy of the origin
-            Publish packet = Publish.outgoing(publish.retainFlag(), (byte) publish.qos(),
-                    publish.dup(), publish.topicName(), (short) 0, publish.payload().copy());
+            Publish packet = Publish.outgoing(publish.retainFlag(), (byte) publish.qos(), publish.dup(),
+                    publish.topicName(), (short) 0,
+                    publish.payload().copy());
             // save the retained message
             retainPublishManager.add(packet);
         }

@@ -116,7 +116,7 @@ public abstract class ControlPacket {
             case PUBREL -> new PubRel(incoming);
             case PUBCOMP -> new PubComp(incoming);
             case SUBSCRIBE -> Subscribe.incoming(incoming);
-            case SUBACK -> new SubAck(incoming);
+            case SUBACK -> SubAck.incoming(incoming);
             case UNSUBSCRIBE -> new Unsubscribe(incoming);
             case UNSUBACK -> new UnsubAck(incoming);
             case PINGREQ -> new PingReq(incoming);
@@ -170,7 +170,7 @@ public abstract class ControlPacket {
             case PUBREL -> new PubRel.V50(incoming);
             case PUBCOMP -> new PubComp.V50(incoming);
             case SUBSCRIBE -> Subscribe.V50.incoming(incoming);
-            case SUBACK -> new SubAck(incoming);
+            case SUBACK -> SubAck.V50.incoming(incoming);
             case UNSUBSCRIBE -> new Unsubscribe(incoming);
             case UNSUBACK -> new UnsubAck(incoming);
             case PINGREQ -> new PingReq(incoming);
@@ -247,6 +247,16 @@ public abstract class ControlPacket {
      */
     public static byte readByte(ByteBuf buf) {
         return buf.readByte();
+    }
+
+    public static byte[] readBytes(ByteBuf buf, int length) {
+        byte[] bytes = new byte[length];
+        buf.readBytes(bytes);
+        return bytes;
+    }
+
+    public static ByteBuf writeBytes(ByteBuf buf, byte[] bytes) {
+        return buf.writeBytes(bytes);
     }
 
     /**

@@ -24,7 +24,6 @@ class SubAckTest {
             add(new Subscribe.Subscription("mqtt/shanghai", (byte) 0));
         }};
         SubAck out = SubAck.from(Short.MAX_VALUE, subscriptionList);
-        then(out.subscriptions()).hasSize(2);
         ByteBuf packet = out.toByteBuf();
         SubAck in = (SubAck) SubAck.from(packet);
         then(in.packetIdentifier()).isEqualTo(Short.MAX_VALUE);

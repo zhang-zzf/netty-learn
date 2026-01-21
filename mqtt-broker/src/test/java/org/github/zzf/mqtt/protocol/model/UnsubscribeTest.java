@@ -20,8 +20,8 @@ class UnsubscribeTest {
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
         List<Subscribe.Subscription> subscriptionList = new ArrayList<Subscribe.Subscription>() {{
-            add(new Subscribe.Subscription("tbt/shanghai", 2));
-            add(new Subscribe.Subscription("mqtt/shanghai", 2));
+            add(new Subscribe.Subscription("tbt/shanghai", (byte) 2));
+            add(new Subscribe.Subscription("mqtt/shanghai", (byte) 2));
         }};
         Unsubscribe out = Unsubscribe.from(subscriptionList);
         ByteBuf packet = out.toByteBuf();

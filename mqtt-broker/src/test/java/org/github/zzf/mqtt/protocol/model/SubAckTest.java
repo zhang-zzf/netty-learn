@@ -20,8 +20,8 @@ class SubAckTest {
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
         List<Subscribe.Subscription> subscriptionList = new ArrayList<Subscribe.Subscription>() {{
-            add(new Subscribe.Subscription("tbt/shanghai", 2));
-            add(new Subscribe.Subscription("mqtt/shanghai", 0));
+            add(new Subscribe.Subscription("tbt/shanghai", (byte) 2));
+            add(new Subscribe.Subscription("mqtt/shanghai", (byte) 0));
         }};
         SubAck out = SubAck.from(Short.MAX_VALUE, subscriptionList);
         then(out.subscriptions()).hasSize(2);

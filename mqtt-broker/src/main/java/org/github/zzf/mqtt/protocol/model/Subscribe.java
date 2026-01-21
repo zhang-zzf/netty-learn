@@ -1,6 +1,8 @@
 package org.github.zzf.mqtt.protocol.model;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SUBSCRIPTION_IDENTIFIER;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
@@ -9,19 +11,21 @@ import java.util.Objects;
 
 public class Subscribe extends ControlPacket {
 
-    private final short packetIdentifier;
-    private final List<Subscription> subscriptions;
+    final short packetIdentifier;
+    final List<Subscription> subscriptions;
 
-    Subscribe(ByteBuf incoming) {
-        super(incoming);
-        this.packetIdentifier = incoming.readShort();
-        this.subscriptions = new ArrayList<>();
+    public static Subscribe incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
+        short packetIdentifier = readPacketIdentifier(incoming);
+        List<Subscription> subscriptions = new ArrayList<>();
         while (incoming.isReadable()) {
-            String topic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
-            byte qos = incoming.readByte();
+            String topic = readUTF8String(incoming);
+            byte options = readByte(incoming);
             // todo TopicFilter rule check
-            this.subscriptions.add(new Subscription(topic, qos));
+            subscriptions.add(new Subscription(topic, options));
         }
+        return new Subscribe(byte0, remainingLength, packetIdentifier, subscriptions);
     }
 
     public static Subscribe from(List<Subscription> subscriptions) {
@@ -37,7 +41,11 @@ public class Subscribe extends ControlPacket {
         for (Subscription s : subscriptions) {
             remainingLength += (2 + s.topicFilter().getBytes(UTF_8).length + 1);
         }
-        return new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
+        Subscribe ret = new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
+        if (!ret.packetValidate()) {
+            throw new MalformedPacketException("Invalid packet");
+        }
+        return ret;
     }
 
     private Subscribe(byte _0Byte,
@@ -47,22 +55,21 @@ public class Subscribe extends ControlPacket {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
         this.subscriptions = subscriptions;
-        if (!packetValidate()) {
-            throw new IllegalArgumentException("Invalid packet");
-        }
     }
 
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = super.toByteBuf();
-        buf.writeShort(packetIdentifier);
+        writeTwoByteInteger(buf, packetIdentifier);
         for (Subscription s : subscriptions) {
-            byte[] bytes = s.topicFilter().getBytes(UTF_8);
-            buf.writeShort(bytes.length);
-            buf.writeBytes(bytes);
-            buf.writeByte(s.qos());
+            writeUTF8String(buf, s.topicFilter);
+            writeByte(buf, s.options);
         }
         return buf;
+    }
+
+    private ByteBuf toPacketByteBuf() {
+        return super.toByteBuf();
     }
 
     public List<Subscription> subscriptions() {
@@ -95,10 +102,7 @@ public class Subscribe extends ControlPacket {
             if (!topicFilterValidate(sub.topicFilter)) {
                 return false;
             }
-            if (qos == 0 || qos == 1 || qos == 2) {
-                continue;
-            }
-            else {
+            if (qos != 0 && qos != 1 && qos != 2) {
                 return false;
             }
         }
@@ -137,12 +141,12 @@ public class Subscribe extends ControlPacket {
 
     public static class Subscription {
 
-        private final String topicFilter;
-        private final int qos;
+        final String topicFilter;
+        final byte options;
 
-        public Subscription(String topicFilter, int qos) {
+        public Subscription(String topicFilter, byte options) {
             this.topicFilter = topicFilter;
-            this.qos = qos;
+            this.options = options;
         }
 
         public String topicFilter() {
@@ -150,7 +154,7 @@ public class Subscribe extends ControlPacket {
         }
 
         public int qos() {
-            return this.qos;
+            return this.options & 0x03;
         }
 
         @Override
@@ -176,8 +180,27 @@ public class Subscribe extends ControlPacket {
             if (topicFilter != null) {
                 sb.append("\"topicFilter\":\"").append(topicFilter).append('\"').append(',');
             }
-            sb.append("\"qos\":").append(qos).append(',');
+            sb.append("\"options\":").append(options).append(',');
             return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        }
+
+        public static class V50 extends Subscription {
+
+            public V50(String topicFilter, byte options) {
+                super(topicFilter, options);
+            }
+
+            public boolean noLocal() {
+                return (this.options & 0x04) != 0;
+            }
+
+            public boolean retainAsPublished() {
+                return (this.options & 0x08) != 0;
+            }
+
+            public int retainHandling() {
+                return (this.options & 0x30) >> 4;
+            }
         }
     }
 
@@ -213,6 +236,89 @@ public class Subscribe extends ControlPacket {
             sb.append(',');
         }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public static class V50 extends Subscribe {
+        // If there are no properties, this MUST be indicated by including a Property Length of zero
+        final Properties properties;
+
+        V50(byte byte0, int remainingLength,
+                short packetIdentifier, Properties properties,
+                List<Subscription> subscriptions) {
+            super(byte0, remainingLength, packetIdentifier, subscriptions);
+            this.properties = properties;
+        }
+
+        public static V50 incoming(ByteBuf incoming) {
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            short packetIdentifier = readPacketIdentifier(incoming);
+            Properties properties = readProperties(incoming);
+            List<Subscription> subscriptions = new ArrayList<>();
+            while (incoming.isReadable()) {
+                String topic = readUTF8String(incoming);
+                byte options = readByte(incoming);
+                // todo TopicFilter rule check
+                subscriptions.add(new Subscription(topic, options));
+            }
+            return new V50(byte0, remainingLength,
+                    packetIdentifier, properties,
+                    subscriptions);
+        }
+
+        @Override
+        public ByteBuf toByteBuf() {
+            ByteBuf buf = super.toPacketByteBuf();
+            writeTwoByteInteger(buf, packetIdentifier);
+            writeProperties(buf, properties);
+            for (Subscription s : subscriptions) {
+                writeUTF8String(buf, s.topicFilter);
+                writeByte(buf, s.options);
+            }
+            return buf;
+        }
+
+        public Properties properties() {
+            return this.properties;
+        }
+
+        @Override
+        public boolean packetValidate() {
+            return super.packetValidate()
+                    && validateProperties()
+                    && validateSubscriptionOption();
+        }
+
+        private boolean validateSubscriptionOption() {
+            for (Subscription s : subscriptions) {
+                if (s instanceof Subscription.V50 v50) {
+                    if (v50.retainHandling() == 3) {// It is a Protocol Error to send a Retain Handling value of 3
+                        return false;
+                    }
+                    // Bits 6 and 7 of the Subscription Options byte are reserved for future us
+                    if ((s.options & 0xC0) != 0) {
+                        return false;
+                    }
+                }
+                else {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        private boolean validateProperties() {
+            for (Property p : this.properties.properties) {
+                switch (p.id) {
+                    case SUBSCRIPTION_IDENTIFIER:
+                    case USER_PROPERTY:
+                        break;
+                    default:
+                        return false;
+                }
+            }
+            return true;
+        }
     }
 
 }

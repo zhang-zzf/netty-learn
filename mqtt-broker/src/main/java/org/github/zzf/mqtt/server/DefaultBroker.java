@@ -200,7 +200,7 @@ public class DefaultBroker implements Broker {
             Subscribe.Subscription sub) {
         // todo decide qos
         int qos = sub.qos();
-        return new Subscribe.Subscription(sub.topicFilter(), qos);
+        return new Subscribe.Subscription(sub.topicFilter(), (byte) qos);
     }
 
     private Set<Integer> supportProtocolLevel() {

@@ -11,7 +11,7 @@ public class PubAck extends ControlPacket {
 
     PubAck(ByteBuf incoming) {
         super(incoming);
-        this.packetIdentifier = incoming.readShort();
+        this.packetIdentifier = readPacketIdentifier(incoming);
     }
 
     public PubAck(short packetIdentifier) {
@@ -26,7 +26,7 @@ public class PubAck extends ControlPacket {
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = super.toByteBuf();
-        buf.writeShort(packetIdentifier);
+        writeTwoByteInteger(buf, packetIdentifier);
         return buf;
     }
 
@@ -56,7 +56,7 @@ public class PubAck extends ControlPacket {
             super(incoming);
             if (incoming.isReadable()) {
                 this.reasonCode = readByte(incoming);
-                this.properties = Properties.incoming(incoming.readSlice(readVariableByteInteger(incoming)));
+                this.properties = readProperties(incoming);
             }
             else {
                 // The Reason Code and Property Length can be omitted if the Reason Code is 0x00 (Success)

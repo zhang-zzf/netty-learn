@@ -23,7 +23,7 @@ public class Unsubscribe extends ControlPacket {
         this.subscriptions = new ArrayList<>();
         while (incoming.isReadable()) {
             String topic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
-            this.subscriptions.add(new Subscribe.Subscription(topic, 0));
+            this.subscriptions.add(new Subscribe.Subscription(topic, (byte) 0));
         }
     }
 

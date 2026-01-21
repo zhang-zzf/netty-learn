@@ -586,6 +586,15 @@ class ByteBufTest {
             int twoByteInteger = buf.readUnsignedShort();
             then(twoByteInteger).isEqualTo(i);
         }
+        for (int i = 0; i < 65535; i++) {
+            short twoByteInteger = (short) i;
+            if (i <= 0x7fff) {
+                then(twoByteInteger == i).isTrue();
+            }
+            else {
+                then(twoByteInteger == i - 0x10000).isTrue();
+            }
+        }
     }
 
 }

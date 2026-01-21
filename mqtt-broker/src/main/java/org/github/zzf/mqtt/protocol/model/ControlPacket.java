@@ -76,8 +76,8 @@ public abstract class ControlPacket {
      * @param incoming packet
      */
     protected ControlPacket(ByteBuf incoming) {
-        this.byte0 = incoming.readByte();
-        this.remainingLength = readRemainingLength(incoming);
+        this.byte0 = readByte(incoming);
+        this.remainingLength = readVariableByteInteger(incoming);
     }
 
     /**
@@ -115,7 +115,7 @@ public abstract class ControlPacket {
             case PUBREC -> new PubRec(incoming);
             case PUBREL -> new PubRel(incoming);
             case PUBCOMP -> new PubComp(incoming);
-            case SUBSCRIBE -> new Subscribe(incoming);
+            case SUBSCRIBE -> Subscribe.incoming(incoming);
             case SUBACK -> new SubAck(incoming);
             case UNSUBSCRIBE -> new Unsubscribe(incoming);
             case UNSUBACK -> new UnsubAck(incoming);
@@ -169,7 +169,7 @@ public abstract class ControlPacket {
             case PUBREC -> new PubRec.V50(incoming);
             case PUBREL -> new PubRel.V50(incoming);
             case PUBCOMP -> new PubComp.V50(incoming);
-            case SUBSCRIBE -> new Subscribe(incoming);
+            case SUBSCRIBE -> Subscribe.V50.incoming(incoming);
             case SUBACK -> new SubAck(incoming);
             case UNSUBSCRIBE -> new Unsubscribe(incoming);
             case UNSUBACK -> new UnsubAck(incoming);
@@ -184,7 +184,7 @@ public abstract class ControlPacket {
         return (byte) (_0byte & 0xF0);
     }
 
-    static int readRemainingLength(ByteBuf buf) {
+    private static int readRemainingLength(ByteBuf buf) {
         int rl = 0;
         int multiplier = 1;
         while (true) {
@@ -269,6 +269,10 @@ public abstract class ControlPacket {
      */
     public static ByteBuf writeTwoByteInteger(ByteBuf buf, int val) {
         return buf.writeShort(val);
+    }
+
+    public static short readPacketIdentifier(ByteBuf buf) {
+        return (short) readTwoByteInteger(buf);
     }
 
     /**
@@ -370,8 +374,15 @@ public abstract class ControlPacket {
                 && !topicName.contains(SINGLE_LEVEL_WILDCARD);
     }
 
+    public static Properties readProperties(ByteBuf incoming) {
+        return Properties.incoming(incoming.readSlice(readVariableByteInteger(incoming)));
+    }
+
     public static ByteBuf writeProperties(ByteBuf buf, Properties properties) {
-        properties.writeToByteBuf(buf);
+        writeVariableByteInteger(buf, properties.calcPropertyLength());
+        for (Property p : properties.properties) {
+            p.write(buf);
+        }
         return buf;
     }
 
@@ -410,7 +421,7 @@ public abstract class ControlPacket {
         /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
         int packetLength = _0_BYTE_LENGTH + variableByteIntegerLength(remainingLength) + remainingLength;
         ByteBuf buf = directBuffer(packetLength);
-        writeByte(buf, this.byte0);
+        writeByte(buf, byte0);
         // remainingLength field
         writeVariableByteInteger(buf, remainingLength);
         return buf;
@@ -518,7 +529,7 @@ public abstract class ControlPacket {
             this.properties = properties;
         }
 
-        public static Properties incoming(ByteBuf byteBuf) {
+        private static Properties incoming(ByteBuf byteBuf) {
             return new Properties(decode(byteBuf));
         }
 
@@ -749,14 +760,6 @@ public abstract class ControlPacket {
 
         public boolean isEmpty() {
             return properties.isEmpty();
-        }
-
-        public ByteBuf writeToByteBuf(ByteBuf buf) {
-            writeVariableByteInteger(buf, calcPropertyLength());
-            for (Property p : properties) {
-                p.write(buf);
-            }
-            return buf;
         }
 
         public int calcPropertyLength() {

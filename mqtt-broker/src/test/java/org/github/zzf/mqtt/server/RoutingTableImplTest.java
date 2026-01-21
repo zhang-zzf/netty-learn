@@ -22,7 +22,7 @@ class RoutingTableImplTest {
     void given_whenTopicNameMatchTopicFilter_thenMatch(String topicName, String topicFilter) {
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription)).join();
         then(routingTable.match(topicName)).isNotEmpty();
@@ -40,7 +40,7 @@ class RoutingTableImplTest {
     void given_whenTopicNameMatchTopicFilter_thenNotMatch(String topicName, String topicFilter) {
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription)).join();
         then(routingTable.match(topicName)).isEmpty();
@@ -60,7 +60,7 @@ class RoutingTableImplTest {
     void givenNotEmpty_whenTopic_then(String topicFilter) {
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription)).join();
         then(routingTable.topic(topicFilter)).isNotEmpty();
@@ -78,7 +78,7 @@ class RoutingTableImplTest {
         String topicFilter = "topic/abc/#";
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription)).join();
         then(routingTable.topic(topicFilter)).isNotEmpty();
@@ -93,7 +93,7 @@ class RoutingTableImplTest {
         String topicFilter = "topic/abc/#";
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription)).join();
         then(routingTable.topic(topicFilter)).isNotEmpty();
@@ -109,8 +109,8 @@ class RoutingTableImplTest {
         String topicFilter2 = "topic/abc/#";
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription1 = new Subscription(topicFilter1, 1);
-        Subscription subscription2 = new Subscription(topicFilter2, 1);
+        Subscription subscription1 = new Subscription(topicFilter1, (byte) 1);
+        Subscription subscription2 = new Subscription(topicFilter2, (byte) 1);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription1)).join();
         routingTable.subscribe(clientId, Arrays.asList(subscription2)).join();
@@ -118,7 +118,7 @@ class RoutingTableImplTest {
         then(routingTable.topic(topicFilter2).get().topicFilter()).isEqualTo(topicFilter2);
 
         // 取消订阅一个不存在的主题，应该不影响其他主题
-        Subscription nonExistent = new Subscription("topic/abc", 1);
+        Subscription nonExistent = new Subscription("topic/abc", (byte) 1);
         routingTable.unsubscribe(clientId, Arrays.asList(nonExistent)).join();
         routingTable.unsubscribe(clientId, Arrays.asList(subscription1)).join();
         then(routingTable.topic(topicFilter2)).isNotEmpty();
@@ -130,7 +130,7 @@ class RoutingTableImplTest {
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId1 = "clientId1";
         String clientId2 = "clientId2";
-        Subscription subscription = new Subscription(topicFilter, 1);
+        Subscription subscription = new Subscription(topicFilter, (byte) 1);
 
         routingTable.subscribe(clientId1, Arrays.asList(subscription)).join();
         routingTable.subscribe(clientId2, Arrays.asList(subscription)).join();
@@ -156,8 +156,8 @@ class RoutingTableImplTest {
         String clientId = "clientId";
         String topicFilter1 = "topic1";
         String topicFilter2 = "topic2";
-        Subscription subscription1 = new Subscription(topicFilter1, 1);
-        Subscription subscription2 = new Subscription(topicFilter2, 2);
+        Subscription subscription1 = new Subscription(topicFilter1, (byte) 1);
+        Subscription subscription2 = new Subscription(topicFilter2, (byte) 2);
 
         routingTable.subscribe(clientId, Arrays.asList(subscription1, subscription2)).join();
 
@@ -203,8 +203,8 @@ class RoutingTableImplTest {
         String topicFilter = "topic/test";
         DefaultRoutingTable routingTable = new DefaultRoutingTable();
         String clientId = "clientId";
-        Subscription subscription1 = new Subscription(topicFilter, 0);
-        Subscription subscription2 = new Subscription(topicFilter, 2);
+        Subscription subscription1 = new Subscription(topicFilter, (byte) 0);
+        Subscription subscription2 = new Subscription(topicFilter, (byte) 2);
 
         // 首次订阅，QoS 0
         routingTable.subscribe(clientId, Arrays.asList(subscription1)).join();

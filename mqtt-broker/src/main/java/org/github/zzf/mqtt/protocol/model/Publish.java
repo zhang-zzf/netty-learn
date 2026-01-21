@@ -53,10 +53,9 @@ public class Publish extends ControlPacket {
 
     static Publish incoming(ByteBuf incoming) {
         byte byte0 = readByte(incoming);
-        int remainingLength = readRemainingLength(incoming);
-        int topicNameLng = readTwoByteInteger(incoming);
-        String topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
-        short packetIdentifier = needAck(qos(byte0)) ? incoming.readShort() : 0;
+        int remainingLength = readVariableByteInteger(incoming);
+        String topicName = readUTF8String(incoming);
+        short packetIdentifier = needAck(qos(byte0)) ? readPacketIdentifier(incoming) : 0;
         // core: zero-copy
         ByteBuf payload = incoming.readSlice(incoming.readableBytes());
         return new Publish(byte0, remainingLength,
@@ -137,7 +136,7 @@ public class Publish extends ControlPacket {
         ByteBuf varHeader = directBuffer(variableHeaderLength);
         writeUTF8String(varHeader, topicName);
         if (needAck()) {
-            varHeader.writeShort(packetIdentifier);
+            writeTwoByteInteger(varHeader, packetIdentifier);
         }
         return varHeader;
     }
@@ -267,13 +266,12 @@ public class Publish extends ControlPacket {
         }
 
         static V50 incoming(ByteBuf incoming) {
-            byte byte0 = incoming.readByte();
-            int remainingLength = readRemainingLength(incoming);
-            int topicNameLng = incoming.readUnsignedShort();
-            String topicName = incoming.readCharSequence(topicNameLng, UTF_8).toString();
-            short packetIdentifier = needAck(qos(byte0)) ? incoming.readShort() : 0;
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            String topicName = readUTF8String(incoming);
+            short packetIdentifier = needAck(qos(byte0)) ? readPacketIdentifier(incoming) : 0;
             // core: zero-copy
-            Properties properties = Properties.incoming(incoming.readSlice(readVariableByteInteger(incoming)));
+            Properties properties = readProperties(incoming);
             // core: zero-copy
             ByteBuf payload = incoming.readSlice(incoming.readableBytes());
             return new V50(byte0, remainingLength,

@@ -22,8 +22,8 @@ class SubscribeTest {
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
         List<Subscribe.Subscription> subscriptionList = new ArrayList<Subscribe.Subscription>() {{
-            add(new Subscribe.Subscription("tbt/shanghai", 2));
-            add(new Subscribe.Subscription("mqtt/shanghai", 2));
+            add(new Subscribe.Subscription("tbt/shanghai", (byte) 2));
+            add(new Subscribe.Subscription("mqtt/shanghai", (byte) 2));
         }};
         Subscribe out = Subscribe.from(subscriptionList);
         ByteBuf packet = out.toByteBuf();

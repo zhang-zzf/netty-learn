@@ -372,27 +372,56 @@ public abstract class ControlPacket {
 
     public static abstract class ControlPacketV50 {
 
-        // 0 0x00 The message is accepted. Publication of the QoS 1 message proceeds.
-        public static final byte REASON_CODE_SUCCESS = 0x00;
-        // 16 0x10 No matching subscribers - The message is accepted but there are no subscribers.
-        public static final byte REASON_CODE_NO_MATCHING_SUBSCRIBERS = 0x10;
-        // 128 0x80 Unspecified error - The receiver does not accept the publish but either does not want to reveal the reason.
-        public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80;
-        // 131 0x83 Implementation specific error - The PUBLISH is valid but the receiver is not willing to accept it.
-        public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83;
-        // 135 0x87 Not authorized - The PUBLISH is not authorized.
-        public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87;
-        // 144 0x90 Topic Name invalid - The Topic Name is not malformed, but is not accepted by this Client or Server.
-        public static final byte REASON_CODE_TOPIC_NAME_INVALID = (byte) 0x90;
-        // 145 0x91 Packet identifier in use - The Packet Identifier is already in use.
-        public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91;
-        // 151 0x97 Quota exceeded - An implementation or administrative imposed limit has been exceeded.
-        public static final byte REASON_CODE_QUOTA_EXCEEDED = (byte) 0x97;
-        // 153 0x99 Payload format invalid - The payload format does not match the specified Payload Format Indicator.
-        public static final byte REASON_CODE_PAYLOAD_FORMAT_INVALID = (byte) 0x99;
-        // 146 0x92 The Packet Identifier is not known.
-        // This is not an error during recovery, but at other times indicates a mismatch between the Session State on the Client and Server.
-        public static final byte REASON_CODE_PACKET_ID_NOT_FOUND = (byte) 0x92;
+        // Success codes
+        public static final byte REASON_CODE_SUCCESS = 0x00;          // 0 0x00 Success - CONNACK, PUBACK, PUBREC, PUBREL, PUBCOMP, UNSUBACK, AUTH
+        public static final byte REASON_CODE_NORMAL_DISCONNECTION = 0x00; // 0 0x00 Normal disconnection - DISCONNECT
+        public static final byte REASON_CODE_GRANTED_QOS_0 = 0x00;    // 0 0x00 Granted QoS 0 - SUBACK
+        public static final byte REASON_CODE_GRANTED_QOS_1 = 0x01;    // 1 0x01 Granted QoS 1 - SUBACK
+        public static final byte REASON_CODE_GRANTED_QOS_2 = 0x02;    // 2 0x02 Granted QoS 2 - SUBACK
+        public static final byte REASON_CODE_DISCONNECT_WITH_WILL_MSG = 0x04; // 4 0x04 Disconnect with Will Message - DISCONNECT
+        public static final byte REASON_CODE_NO_MATCHING_SUBSCRIBERS = 0x10; // 16 0x10 No matching subscribers - PUBACK, PUBREC
+        public static final byte REASON_CODE_NO_SUBSCRIPTION_EXISTED = 0x11; // 17 0x11 No subscription existed - UNSUBACK
+        public static final byte REASON_CODE_CONTINUE_AUTHENTICATION = 0x18; // 24 0x18 Continue authentication - AUTH
+        public static final byte REASON_CODE_RE_AUTHENTICATE = 0x19;  // 25 0x19 Re-authenticate - AUTH
+
+        // Error codes
+        public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80; // 128 0x80 Unspecified error - CONNACK, PUBACK, PUBREC, SUBACK, UNSUBACK, DISCONNECT
+        public static final byte REASON_CODE_MALFORMED_PACKET = (byte) 0x81;  // 129 0x81 Malformed Packet - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_PROTOCOL_ERROR = (byte) 0x82;    // 130 0x82 Protocol Error - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83; // 131 0x83 Implementation specific error - CONNACK, PUBACK, PUBREC, SUBACK, UNSUBACK, DISCONNECT
+        public static final byte REASON_CODE_UNSUPPORTED_PROTOCOL_VERSION = (byte) 0x84; // 132 0x84 Unsupported Protocol Version - CONNACK
+        public static final byte REASON_CODE_CLIENT_IDENTIFIER_NOT_VALID = (byte) 0x85; // 133 0x85 Client Identifier not valid - CONNACK
+        public static final byte REASON_CODE_BAD_USER_NAME_OR_PASSWORD = (byte) 0x86; // 134 0x86 Bad User Name or Password - CONNACK
+        public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87; // 135 0x87 Not authorized - CONNACK, PUBACK, PUBREC, SUBACK, UNSUBACK, DISCONNECT
+        public static final byte REASON_CODE_SERVER_UNAVAILABLE = (byte) 0x88; // 136 0x88 Server unavailable - CONNACK
+        public static final byte REASON_CODE_SERVER_BUSY = (byte) 0x89; // 137 0x89 Server busy - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_BANNED = (byte) 0x8A; // 138 0x8A Banned - CONNACK
+        public static final byte REASON_CODE_SERVER_SHUTTING_DOWN = (byte) 0x8B; // 139 0x8B Server shutting down - DISCONNECT
+        public static final byte REASON_CODE_BAD_AUTHENTICATION_METHOD = (byte) 0x8C; // 140 0x8C Bad authentication method - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_KEEP_ALIVE_TIMEOUT = (byte) 0x8D; // 141 0x8D Keep Alive timeout - DISCONNECT
+        public static final byte REASON_CODE_SESSION_TAKEN_OVER = (byte) 0x8E; // 142 0x8E Session taken over - DISCONNECT
+        public static final byte REASON_CODE_TOPIC_FILTER_INVALID = (byte) 0x8F; // 143 0x8F Topic Filter invalid - SUBACK, UNSUBACK, DISCONNECT
+        public static final byte REASON_CODE_TOPIC_NAME_INVALID = (byte) 0x90; // 144 0x90 Topic Name invalid - CONNACK, PUBACK, PUBREC, DISCONNECT
+        public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91; // 145 0x91 Packet Identifier in use - PUBACK, PUBREC, SUBACK, UNSUBACK
+        public static final byte REASON_CODE_PACKET_ID_NOT_FOUND = (byte) 0x92; // 146 0x92 Packet Identifier not found - PUBREL, PUBCOMP
+        public static final byte REASON_CODE_RECEIVE_MAXIMUM_EXCEEDED = (byte) 0x93; // 147 0x93 Receive Maximum exceeded - DISCONNECT
+        public static final byte REASON_CODE_TOPIC_ALIAS_INVALID = (byte) 0x94; // 148 0x94 Topic Alias invalid - DISCONNECT
+        public static final byte REASON_CODE_PACKET_TOO_LARGE = (byte) 0x95; // 149 0x95 Packet too large - CONNACK, PUBACK, PUBREC, DISCONNECT
+        public static final byte REASON_CODE_MESSAGE_RATE_TOO_HIGH = (byte) 0x96; // 150 0x96 Message rate too high - DISCONNECT
+
+        // Additional error codes
+        public static final byte REASON_CODE_QUOTA_EXCEEDED = (byte) 0x97; // 151 0x97 Quota exceeded - CONNACK, PUBACK, PUBREC, SUBACK, DISCONNECT
+        public static final byte REASON_CODE_ADMINISTRATIVE_ACTION = (byte) 0x98; // 152 0x98 Administrative action - DISCONNECT
+        public static final byte REASON_CODE_PAYLOAD_FORMAT_INVALID = (byte) 0x99; // 153 0x99 Payload format invalid - CONNACK, PUBACK, PUBREC, DISCONNECT
+        public static final byte REASON_CODE_RETAIN_NOT_SUPPORTED = (byte) 0x9A; // 154 0x9A Retain not supported - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_QOS_NOT_SUPPORTED = (byte) 0x9B; // 155 0x9B QoS not supported - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_USE_ANOTHER_SERVER = (byte) 0x9C; // 156 0x9C Use another server - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_SERVER_MOVED = (byte) 0x9D; // 157 0x9D Server moved - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_SHARED_SUBSCRIPTIONS_NOT_SUPPORTED = (byte) 0x9E; // 158 0x9E Shared Subscriptions not supported - SUBACK, DISCONNECT
+        public static final byte REASON_CODE_CONNECTION_RATE_EXCEEDED = (byte) 0x9F; // 159 0x9F Connection rate exceeded - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_MAXIMUM_CONNECT_TIME = (byte) 0xA0; // 160 0xA0 Maximum connect time - CONNACK, DISCONNECT
+        public static final byte REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED = (byte) 0xA1; // 161 0xA1 Subscription Identifiers not supported - SUBACK, DISCONNECT
+        public static final byte REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED = (byte) 0xA2; // 162 0xA2 Wildcard Subscriptions not supported - SUBACK, DISCONNECT
 
         public static ControlPacket from(ByteBuf incoming) {
             ControlPacket controlPacket = buildControlPacketFromV50(incoming);

@@ -1,5 +1,6 @@
 package org.github.zzf.mqtt.protocol.model;
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
@@ -50,19 +51,6 @@ public class UnsubAck extends ControlPacket {
     }
 
     public static class V50 extends UnsubAck {
-
-        public static final byte REASON_CODE_SUCCESS = 0x00;
-        public static final byte REASON_CODE_NO_SUBSCRIPTION_EXISTED = 0x11;
-        // 128 0x80 Unspecified error - The subscription is not accepted and the Server either does not wish to reveal the reason
-        public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80;
-        // 131 0x83 Implementation specific error - The SUBSCRIBE is valid but the Server does not accept it
-        public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83;
-        // 135 0x87 Not authorized - The Client is not authorized to make this subscription
-        public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87;
-        // 143 0x8F Topic Filter invalid - The Topic Filter is correctly formed but is not allowed for this Client
-        public static final byte REASON_CODE_TOPIC_FILTER_INVALID = (byte) 0x8F;
-        // 145 0x91 Packet Identifier in use - The specified Packet Identifier is already in use
-        public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91;
 
         final Properties properties;
         final byte[] reasonCodes;

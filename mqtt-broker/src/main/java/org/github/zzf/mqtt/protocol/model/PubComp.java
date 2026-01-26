@@ -129,11 +129,11 @@ public class PubComp extends ControlPacket {
         @Override
         protected boolean packetValidate() {
             return super.packetValidate()
-                    && validatePubCompReasonCode(reasonCode)
+                    && validateReasonCode()
                     && validateProperties();
         }
 
-        boolean validatePubCompReasonCode(byte reasonCode) {
+        boolean validateReasonCode() {
             return reasonCode == REASON_CODE_SUCCESS
                     || reasonCode == REASON_CODE_PACKET_ID_NOT_FOUND;
         }

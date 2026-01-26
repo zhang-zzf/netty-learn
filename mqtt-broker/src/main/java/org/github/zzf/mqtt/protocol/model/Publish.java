@@ -131,6 +131,19 @@ public class Publish extends ControlPacket {
                 .addComponents(true, fixedHeader, varHeader, payload);
     }
 
+    protected ByteBuf fixedHeaderByteBuf() {
+        // use direct buf will optimize netty zero-copy when write to Channel
+        /** {@link Publish#toByteBuf()} */
+        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
+        int fixedHeaderLength = 1 + variableByteIntegerLength(remainingLength);
+        ByteBuf buf = directBuffer(fixedHeaderLength);
+        writeByte(buf, byte0);
+        // remainingLength field
+        writeVariableByteInteger(buf, remainingLength);
+        return buf;
+    }
+
+
     protected ByteBuf varHeaderByteBuf() {
         int variableHeaderLength = remainingLength - payload.readableBytes();
         ByteBuf varHeader = directBuffer(variableHeaderLength);

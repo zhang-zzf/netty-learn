@@ -1,5 +1,14 @@
 package org.github.zzf.mqtt.protocol.model;
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NOT_AUTHORIZED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NO_MATCHING_SUBSCRIBERS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_IN_USE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PAYLOAD_FORMAT_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_QUOTA_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_NAME_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
@@ -119,8 +128,20 @@ public class PubRec extends ControlPacket {
         @Override
         protected boolean packetValidate() {
             return super.packetValidate()
-                    && validateReasonCode(reasonCode)
+                    && validateReasonCode()
                     && validateProperties();
+        }
+
+        private boolean validateReasonCode() {
+            return reasonCode == REASON_CODE_SUCCESS
+                    || reasonCode == REASON_CODE_NO_MATCHING_SUBSCRIBERS
+                    || reasonCode == REASON_CODE_UNSPECIFIED_ERROR
+                    || reasonCode == REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR
+                    || reasonCode == REASON_CODE_NOT_AUTHORIZED
+                    || reasonCode == REASON_CODE_TOPIC_NAME_INVALID
+                    || reasonCode == REASON_CODE_PACKET_ID_IN_USE
+                    || reasonCode == REASON_CODE_QUOTA_EXCEEDED
+                    || reasonCode == REASON_CODE_PAYLOAD_FORMAT_INVALID;
         }
 
         private boolean validateProperties() {

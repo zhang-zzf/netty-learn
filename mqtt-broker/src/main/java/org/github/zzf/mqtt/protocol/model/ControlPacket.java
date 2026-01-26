@@ -41,27 +41,6 @@ public abstract class ControlPacket {
     public static final String MULTI_LEVEL_WILDCARD = "#";
     public static final String SINGLE_LEVEL_WILDCARD = "+";
 
-    // 0 0x00 The message is accepted. Publication of the QoS 1 message proceeds.
-    public static final byte REASON_CODE_SUCCESS = 0x00;
-    // 16 0x10 No matching subscribers - The message is accepted but there are no subscribers.
-    public static final byte REASON_CODE_NO_MATCHING_SUBSCRIBERS = 0x10;
-    // 128 0x80 Unspecified error - The receiver does not accept the publish but either does not want to reveal the reason.
-    public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80;
-    // 131 0x83 Implementation specific error - The PUBLISH is valid but the receiver is not willing to accept it.
-    public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83;
-    // 135 0x87 Not authorized - The PUBLISH is not authorized.
-    public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87;
-    // 144 0x90 Topic Name invalid - The Topic Name is not malformed, but is not accepted by this Client or Server.
-    public static final byte REASON_CODE_TOPIC_NAME_INVALID = (byte) 0x90;
-    // 145 0x91 Packet identifier in use - The Packet Identifier is already in use.
-    public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91;
-    // 151 0x97 Quota exceeded - An implementation or administrative imposed limit has been exceeded.
-    public static final byte REASON_CODE_QUOTA_EXCEEDED = (byte) 0x97;
-    // 153 0x99 Payload format invalid - The payload format does not match the specified Payload Format Indicator.
-    public static final byte REASON_CODE_PAYLOAD_FORMAT_INVALID = (byte) 0x99;
-    // 146 0x92 The Packet Identifier is not known.
-    // This is not an error during recovery, but at other times indicates a mismatch between the Session State on the Client and Server.
-    public static final byte REASON_CODE_PACKET_ID_NOT_FOUND = (byte) 0x92;
     private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
     protected final byte byte0;
     protected final int remainingLength;
@@ -138,40 +117,7 @@ public abstract class ControlPacket {
         }
     }
 
-    public static ControlPacket fromV50(ByteBuf incoming) {
-        ControlPacket controlPacket = buildControlPacketFromV50(incoming);
-        // should read all the bytes out of the packet.
-        if (incoming.isReadable()) {// control packet is illegal.
-            throw new MalformedPacketException();
-        }
-        if (!controlPacket.packetValidate()) {
-            throw new MalformedPacketException();
-        }
-        return controlPacket;
-    }
-
-    private static ControlPacket buildControlPacketFromV50(ByteBuf incoming) {
-        byte _0byte = incoming.getByte(incoming.readerIndex());
-        return switch (type(_0byte)) {
-            case CONNECT -> Connect.incoming(incoming);
-            case CONNACK -> ConnAck.incoming(incoming);
-            case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
-            case PUBACK -> PubAck.V50.incoming(incoming);
-            case PUBREC -> PubRec.V50.incoming(incoming);
-            case PUBREL -> PubRel.V50.incoming(incoming);
-            case PUBCOMP -> PubComp.V50.incoming(incoming);
-            case SUBSCRIBE -> Subscribe.V50.incoming(incoming);
-            case SUBACK -> SubAck.V50.incoming(incoming);
-            case UNSUBSCRIBE -> Unsubscribe.V50.incoming(incoming);
-            case UNSUBACK -> UnsubAck.V50.incoming(incoming);
-            case PINGREQ -> PingReq.incoming(incoming);
-            case PINGRESP -> PingResp.incoming(incoming);
-            case DISCONNECT -> Disconnect.incoming(incoming);
-            default -> throw new IllegalArgumentException();
-        };
-    }
-
-    private static byte type(byte _0byte) {
+    static byte type(byte _0byte) {
         return (byte) (_0byte & 0xF0);
     }
 
@@ -387,19 +333,6 @@ public abstract class ControlPacket {
         return buf;
     }
 
-    public static boolean validateReasonCode(byte reasonCode) {
-        return reasonCode == REASON_CODE_SUCCESS
-                || reasonCode == REASON_CODE_NO_MATCHING_SUBSCRIBERS
-                || reasonCode == REASON_CODE_UNSPECIFIED_ERROR
-                || reasonCode == REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR
-                || reasonCode == REASON_CODE_NOT_AUTHORIZED
-                || reasonCode == REASON_CODE_TOPIC_NAME_INVALID
-                || reasonCode == REASON_CODE_PACKET_ID_IN_USE
-                || reasonCode == REASON_CODE_QUOTA_EXCEEDED
-                || reasonCode == REASON_CODE_PAYLOAD_FORMAT_INVALID;
-
-    }
-
     /**
      * validate the packet after build it
      */
@@ -428,18 +361,6 @@ public abstract class ControlPacket {
         return buf;
     }
 
-    protected ByteBuf fixedHeaderByteBuf() {
-        // use direct buf will optimize netty zero-copy when write to Channel
-        /** {@link Publish#toByteBuf()} */
-        /** {@link AbstractNioByteChannel#filterOutboundMessage(Object)} */
-        int fixedHeaderLength = 1 + variableByteIntegerLength(remainingLength);
-        ByteBuf buf = directBuffer(fixedHeaderLength);
-        writeByte(buf, byte0);
-        // remainingLength field
-        writeVariableByteInteger(buf, remainingLength);
-        return buf;
-    }
-
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
@@ -449,17 +370,69 @@ public abstract class ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    /**
-     * 数据类型枚举
-     */
-    public enum DataRepresentation {
-        BYTE,
-        TWO_BYTE_INTEGER,
-        FOUR_BYTE_INTEGER,
-        VARIABLE_BYTE_INTEGER,
-        UTF_8_ENCODED_STRING,
-        BINARY_DATA,
-        UTF_8_STRING_PAIR
+    public static abstract class ControlPacketV50 {
+
+        // 0 0x00 The message is accepted. Publication of the QoS 1 message proceeds.
+        public static final byte REASON_CODE_SUCCESS = 0x00;
+        // 16 0x10 No matching subscribers - The message is accepted but there are no subscribers.
+        public static final byte REASON_CODE_NO_MATCHING_SUBSCRIBERS = 0x10;
+        // 128 0x80 Unspecified error - The receiver does not accept the publish but either does not want to reveal the reason.
+        public static final byte REASON_CODE_UNSPECIFIED_ERROR = (byte) 0x80;
+        // 131 0x83 Implementation specific error - The PUBLISH is valid but the receiver is not willing to accept it.
+        public static final byte REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR = (byte) 0x83;
+        // 135 0x87 Not authorized - The PUBLISH is not authorized.
+        public static final byte REASON_CODE_NOT_AUTHORIZED = (byte) 0x87;
+        // 144 0x90 Topic Name invalid - The Topic Name is not malformed, but is not accepted by this Client or Server.
+        public static final byte REASON_CODE_TOPIC_NAME_INVALID = (byte) 0x90;
+        // 145 0x91 Packet identifier in use - The Packet Identifier is already in use.
+        public static final byte REASON_CODE_PACKET_ID_IN_USE = (byte) 0x91;
+        // 151 0x97 Quota exceeded - An implementation or administrative imposed limit has been exceeded.
+        public static final byte REASON_CODE_QUOTA_EXCEEDED = (byte) 0x97;
+        // 153 0x99 Payload format invalid - The payload format does not match the specified Payload Format Indicator.
+        public static final byte REASON_CODE_PAYLOAD_FORMAT_INVALID = (byte) 0x99;
+        // 146 0x92 The Packet Identifier is not known.
+        // This is not an error during recovery, but at other times indicates a mismatch between the Session State on the Client and Server.
+        public static final byte REASON_CODE_PACKET_ID_NOT_FOUND = (byte) 0x92;
+
+        public static ControlPacket from(ByteBuf incoming) {
+            ControlPacket controlPacket = buildControlPacketFromV50(incoming);
+            // should read all the bytes out of the packet.
+            if (incoming.isReadable()) {// control packet is illegal.
+                throw new MalformedPacketException();
+            }
+            if (!controlPacket.packetValidate()) {
+                throw new MalformedPacketException();
+            }
+            return controlPacket;
+        }
+
+        private static ControlPacket buildControlPacketFromV50(ByteBuf incoming) {
+            byte _0byte = incoming.getByte(incoming.readerIndex());
+            return switch (type(_0byte)) {
+                case CONNECT -> Connect.incoming(incoming);
+                case CONNACK -> ConnAck.incoming(incoming);
+                case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
+                case PUBACK -> PubAck.V50.incoming(incoming);
+                case PUBREC -> PubRec.V50.incoming(incoming);
+                case PUBREL -> PubRel.V50.incoming(incoming);
+                case PUBCOMP -> PubComp.V50.incoming(incoming);
+                case SUBSCRIBE -> Subscribe.V50.incoming(incoming);
+                case SUBACK -> SubAck.V50.incoming(incoming);
+                case UNSUBSCRIBE -> Unsubscribe.V50.incoming(incoming);
+                case UNSUBACK -> UnsubAck.V50.incoming(incoming);
+                case PINGREQ -> PingReq.incoming(incoming);
+                case PINGRESP -> PingResp.incoming(incoming);
+                case DISCONNECT -> Disconnect.incoming(incoming);
+                default -> throw new IllegalArgumentException();
+            };
+        }
+
+
+        protected ControlPacketV50(byte byte0, int remainingLength) {
+            // not suppose to use
+            throw new UnsupportedOperationException();
+        }
+
     }
 
     public static class Properties {

@@ -10,6 +10,7 @@ import io.netty.handler.codec.ByteToMessageCodec;
 import io.netty.util.ReferenceCountUtil;
 import java.util.List;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50;
 import org.github.zzf.mqtt.protocol.model.Publish;
 
 /**
@@ -61,7 +62,7 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
             }
             // core: zero-copy
             ByteBuf incoming = in.readRetainedSlice(packetLength);
-            out.add(ControlPacket.fromV50(incoming));
+            out.add(ControlPacketV50.from(incoming));
         }
     }
 

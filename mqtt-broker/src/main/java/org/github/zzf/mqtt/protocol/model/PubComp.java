@@ -1,10 +1,11 @@
 package org.github.zzf.mqtt.protocol.model;
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_NOT_FOUND;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
-import org.github.zzf.mqtt.protocol.model.PubRel.V50;
 
 public class PubComp extends ControlPacket {
 

@@ -1,5 +1,6 @@
 package org.github.zzf.mqtt.protocol.model;
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 

@@ -100,7 +100,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             } catch (AuthenticationException e) {
                 int authenticate = e.getAuthenticate();
                 log.info("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
-                ctx.channel().writeAndFlush(new ConnAck(authenticate)).channel().close();
+                ctx.channel().writeAndFlush(ConnAck.authenticateFailed(authenticate)).channel().close();
             } catch (IllegalArgumentException e) {
                 log.error("Client({}) Connect failed: {}", connect.clientIdentifier(), e.getMessage());
                 ctx.channel().close();

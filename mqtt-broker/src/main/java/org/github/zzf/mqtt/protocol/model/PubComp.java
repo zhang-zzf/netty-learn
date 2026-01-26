@@ -4,23 +4,35 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import org.github.zzf.mqtt.protocol.model.PubRel.V50;
 
 public class PubComp extends ControlPacket {
 
-    private final short packetIdentifier;
+    public static final byte BYTE_0 = (byte) 0x70;
+    final short packetIdentifier;
 
-    PubComp(ByteBuf incoming) {
-        super(incoming);
-        this.packetIdentifier = readPacketIdentifier(incoming);
-    }
-
-    public PubComp(short packetIdentifier) {
-        this(packetIdentifier, 0x02);
-    }
-
-    public PubComp(short packetIdentifier, int remainingLength) {
-        super((byte) 0x70, remainingLength);
+    private PubComp(byte byte0, int remainingLength, short packetIdentifier) {
+        super(byte0, remainingLength);
         this.packetIdentifier = packetIdentifier;
+    }
+
+    public static PubComp incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
+        short packetIdentifier = readPacketIdentifier(incoming);
+        return new PubComp(byte0, remainingLength, packetIdentifier);
+    }
+
+    public static PubComp from(short packetIdentifier) {
+        return from(packetIdentifier, 0x02);
+    }
+
+    public static PubComp from(short packetIdentifier, int remainingLength) {
+        PubComp ret = new PubComp(BYTE_0, remainingLength, packetIdentifier);
+        if (!ret.packetValidate()) {
+            throw new MalformedPacketException();
+        }
+        return ret;
     }
 
     @Override
@@ -51,11 +63,22 @@ public class PubComp extends ControlPacket {
         final byte reasonCode;
         final Properties properties;
 
-        V50(ByteBuf incoming) {
-            super(incoming);
+        private V50(byte byte0, int remainingLength,
+                short packetIdentifier, byte reasonCode, Properties properties) {
+            super(byte0, remainingLength, packetIdentifier);
+            this.reasonCode = reasonCode;
+            this.properties = properties;
+        }
+
+        public static V50 from(ByteBuf incoming) {
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            short packetIdentifier = readPacketIdentifier(incoming);
+            byte reasonCode;
+            Properties properties;
             if (incoming.isReadable()) {
-                this.reasonCode = readByte(incoming);
-                this.properties = readProperties(incoming);
+                reasonCode = readByte(incoming);
+                properties = readProperties(incoming);
             }
             else {
                 // The Reason Code and Property Length can be omitted if the Reason Code is 0x00 (Success)
@@ -63,19 +86,21 @@ public class PubComp extends ControlPacket {
                 reasonCode = REASON_CODE_SUCCESS;
                 properties = Properties.EMPTY;
             }
+            return new V50(byte0, remainingLength,
+                    packetIdentifier, reasonCode, properties);
         }
 
-        V50(short packetIdentifier) {
-            this(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
+        public static V50 from(short packetIdentifier) {
+            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
         }
 
-        V50(short packetIdentifier, byte reasonCode, Properties properties) {
-            super(packetIdentifier, calcRemainingLength(reasonCode, properties));
-            this.reasonCode = reasonCode;
-            this.properties = properties;
-            if (!packetValidate()) {
+        public static V50 from(short packetIdentifier, byte reasonCode, Properties properties) {
+            V50 ret = new V50(BYTE_0, calcRemainingLength(reasonCode, properties),
+                    packetIdentifier, reasonCode, properties);
+            if (!ret.packetValidate()) {
                 throw new MalformedPacketException();
             }
+            return ret;
         }
 
         private static int calcRemainingLength(byte reasonCode, Properties properties) {

@@ -16,7 +16,7 @@ class DisconnectTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        Disconnect out = new Disconnect();
+        Disconnect out = Disconnect.from();
         then(out.remainingLength).isEqualTo(0);
         ByteBuf packet = out.toByteBuf();
         Disconnect in = (Disconnect) Disconnect.from(packet);

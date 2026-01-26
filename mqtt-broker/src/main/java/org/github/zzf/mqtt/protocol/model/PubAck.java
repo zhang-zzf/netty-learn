@@ -7,20 +7,24 @@ import io.netty.buffer.ByteBuf;
 
 public class PubAck extends ControlPacket {
 
+    public static final byte BYTE_0 = (byte) 0x40;
     final short packetIdentifier;
 
-    PubAck(ByteBuf incoming) {
-        super(incoming);
-        this.packetIdentifier = readPacketIdentifier(incoming);
-    }
-
-    public PubAck(short packetIdentifier) {
-        this(packetIdentifier, 0x02);
-    }
-
-    public PubAck(short packetIdentifier, int remainingLength) {
-        super((byte) 0x40, remainingLength);
+    private PubAck(byte byte0, int remainingLength,
+            short packetIdentifier) {
+        super(byte0, remainingLength);
         this.packetIdentifier = packetIdentifier;
+    }
+
+    public static PubAck incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
+        short packetIdentifier = readPacketIdentifier(incoming);
+        return new PubAck(byte0, remainingLength, packetIdentifier);
+    }
+
+    public static PubAck from(short packetIdentifier) {
+        return new PubAck(BYTE_0, 0x02, packetIdentifier);
     }
 
     @Override
@@ -52,11 +56,22 @@ public class PubAck extends ControlPacket {
         final byte reasonCode;
         final Properties properties;
 
-        V50(ByteBuf incoming) {
-            super(incoming);
+        private V50(byte byte0, int remainingLength,
+                short packetIdentifier, byte reasonCode, Properties properties) {
+            super(byte0, remainingLength, packetIdentifier);
+            this.reasonCode = reasonCode;
+            this.properties = properties;
+        }
+
+        public static V50 incoming(ByteBuf incoming) {
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            short packetIdentifier = readPacketIdentifier(incoming);
+            byte reasonCode ;
+            Properties properties ;
             if (incoming.isReadable()) {
-                this.reasonCode = readByte(incoming);
-                this.properties = readProperties(incoming);
+                reasonCode = readByte(incoming);
+                properties = readProperties(incoming);
             }
             else {
                 // The Reason Code and Property Length can be omitted if the Reason Code is 0x00 (Success)
@@ -64,19 +79,22 @@ public class PubAck extends ControlPacket {
                 reasonCode = REASON_CODE_SUCCESS;
                 properties = Properties.EMPTY;
             }
+            return new V50(byte0, remainingLength,
+                    packetIdentifier, reasonCode, properties);
         }
 
-        V50(short packetIdentifier, byte reasonCode, Properties properties) {
-            super(packetIdentifier, calcRemainingLength(reasonCode, properties));
-            this.reasonCode = reasonCode;
-            this.properties = properties;
-            if (!packetValidate()) {
+
+        public static V50 from(short packetIdentifier, byte reasonCode, Properties properties) {
+            V50 ret = new V50(BYTE_0, calcRemainingLength(reasonCode, properties),
+                    packetIdentifier, reasonCode, properties);
+            if (!ret.packetValidate()) {
                 throw new MalformedPacketException();
             }
+            return  ret;
         }
 
-        V50(short packetIdentifier) {
-            this(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
+        public static V50 from(short packetIdentifier) {
+            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
         }
 
         private static int calcRemainingLength(byte reasonCode, Properties properties) {

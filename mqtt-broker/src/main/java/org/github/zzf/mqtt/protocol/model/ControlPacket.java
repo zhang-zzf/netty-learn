@@ -40,6 +40,7 @@ public abstract class ControlPacket {
     public static final int INCOMPLETE_PACKET = -1;
     public static final String MULTI_LEVEL_WILDCARD = "#";
     public static final String SINGLE_LEVEL_WILDCARD = "+";
+
     // 0 0x00 The message is accepted. Publication of the QoS 1 message proceeds.
     public static final byte REASON_CODE_SUCCESS = 0x00;
     // 16 0x10 No matching subscribers - The message is accepted but there are no subscribers.
@@ -71,16 +72,6 @@ public abstract class ControlPacket {
     }
 
     /**
-     * build incoming Packet
-     *
-     * @param incoming packet
-     */
-    protected ControlPacket(ByteBuf incoming) {
-        this.byte0 = readByte(incoming);
-        this.remainingLength = readVariableByteInteger(incoming);
-    }
-
-    /**
      * ByteBuf to model
      *
      * @param incoming the data packet which have just only one and whole packet data
@@ -108,20 +99,20 @@ public abstract class ControlPacket {
     private static ControlPacket buildControlPacketFrom(ByteBuf incoming) {
         byte _0byte = incoming.getByte(incoming.readerIndex());
         return switch (type(_0byte)) {
-            case CONNECT -> new Connect(incoming);
-            case CONNACK -> new ConnAck(incoming);
+            case CONNECT -> Connect.incoming(incoming);
+            case CONNACK -> ConnAck.incoming(incoming);
             case PUBLISH ->/* core: zero-copy */ Publish.incoming(incoming);
-            case PUBACK -> new PubAck(incoming);
-            case PUBREC -> new PubRec(incoming);
-            case PUBREL -> new PubRel(incoming);
-            case PUBCOMP -> new PubComp(incoming);
+            case PUBACK -> PubAck.incoming(incoming);
+            case PUBREC -> PubRec.incoming(incoming);
+            case PUBREL -> PubRel.incoming(incoming);
+            case PUBCOMP -> PubComp.incoming(incoming);
             case SUBSCRIBE -> Subscribe.incoming(incoming);
             case SUBACK -> SubAck.incoming(incoming);
-            case UNSUBSCRIBE -> new Unsubscribe(incoming);
-            case UNSUBACK -> new UnsubAck(incoming);
-            case PINGREQ -> new PingReq(incoming);
-            case PINGRESP -> new PingResp(incoming);
-            case DISCONNECT -> new Disconnect(incoming);
+            case UNSUBSCRIBE -> Unsubscribe.incoming(incoming);
+            case UNSUBACK -> UnsubAck.incoming(incoming);
+            case PINGREQ -> PingReq.incoming(incoming);
+            case PINGRESP -> PingResp.incoming(incoming);
+            case DISCONNECT -> Disconnect.incoming(incoming);
             default -> throw new IllegalArgumentException();
         };
     }
@@ -162,20 +153,20 @@ public abstract class ControlPacket {
     private static ControlPacket buildControlPacketFromV50(ByteBuf incoming) {
         byte _0byte = incoming.getByte(incoming.readerIndex());
         return switch (type(_0byte)) {
-            case CONNECT -> new Connect(incoming);
-            case CONNACK -> new ConnAck(incoming);
+            case CONNECT -> Connect.incoming(incoming);
+            case CONNACK -> ConnAck.incoming(incoming);
             case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
-            case PUBACK -> new PubAck.V50(incoming);
-            case PUBREC -> new PubRec.V50(incoming);
-            case PUBREL -> new PubRel.V50(incoming);
-            case PUBCOMP -> new PubComp.V50(incoming);
+            case PUBACK -> PubAck.V50.incoming(incoming);
+            case PUBREC -> PubRec.V50.incoming(incoming);
+            case PUBREL -> PubRel.V50.incoming(incoming);
+            case PUBCOMP -> PubComp.V50.incoming(incoming);
             case SUBSCRIBE -> Subscribe.V50.incoming(incoming);
             case SUBACK -> SubAck.V50.incoming(incoming);
-            case UNSUBSCRIBE -> new Unsubscribe(incoming);
-            case UNSUBACK -> new UnsubAck(incoming);
-            case PINGREQ -> new PingReq(incoming);
-            case PINGRESP -> new PingResp(incoming);
-            case DISCONNECT -> new Disconnect(incoming);
+            case UNSUBSCRIBE -> Unsubscribe.V50.incoming(incoming);
+            case UNSUBACK -> UnsubAck.V50.incoming(incoming);
+            case PINGREQ -> PingReq.incoming(incoming);
+            case PINGRESP -> PingResp.incoming(incoming);
+            case DISCONNECT -> Disconnect.incoming(incoming);
             default -> throw new IllegalArgumentException();
         };
     }

@@ -13,48 +13,57 @@ public class ConnAck extends ControlPacket {
     /**
      * Session Present Flag
      */
-    private final boolean sp;
-    private final int returnCode;
+    final boolean sp;
+    final int returnCode;
 
-    public ConnAck() {
-        this(false, 0x00);
+    public static ConnAck incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
+        boolean sp = readByte(incoming) != 0x00;
+        byte returnCode = readByte(incoming);
+        return new ConnAck(byte0, remainingLength,
+                sp, returnCode);
     }
 
-    public ConnAck(int returnCode) {
-        this(false, returnCode);
+    public static ConnAck authenticateFailed(int returnCode) {
+        if (returnCode == ACCEPTED) {
+            throw new IllegalArgumentException();
+        }
+        return new ConnAck(false, returnCode);
     }
 
-    public ConnAck(boolean sp,
-            int returnCode) {
+    private ConnAck(byte byte0, int remainingLength,
+            boolean sp, byte returnCode) {
+        super(byte0, remainingLength);
+        this.sp = sp;
+        this.returnCode = returnCode;
+    }
+
+    private ConnAck(boolean sp, int returnCode) {
         super((byte) 0x20, 0x02);
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0
-        if (returnCode != 0) {
-            sp = false;
+        if (returnCode != 0 || sp) {
+            throw new IllegalArgumentException();
         }
         this.sp = sp;
         this.returnCode = returnCode;
     }
 
-    ConnAck(ByteBuf incoming) {
-        super(incoming);
-        this.sp = incoming.readByte() != 0x00;
-        this.returnCode = incoming.readByte();
-    }
 
     public static ConnAck accepted() {
-        return new ConnAck();
+        return new ConnAck(false, ACCEPTED);
     }
 
     /**
      * 0x01 Connection Refused, unacceptable protocol version
      */
     public static ConnAck notSupportProtocolLevel() {
-        return new ConnAck(0x01);
+        return new ConnAck(false, 0x01);
     }
 
     public static ConnAck serverUnavailable() {
-        return new ConnAck(0x03);
+        return new ConnAck(false, 0x03);
     }
 
     public static ConnAck acceptedWithStoredSession() {

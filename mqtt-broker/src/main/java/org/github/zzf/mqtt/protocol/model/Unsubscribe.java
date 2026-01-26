@@ -1,70 +1,59 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Collections.unmodifiableList;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 public class Unsubscribe extends ControlPacket {
 
     public static final byte _0_BYTE = (byte) 0xA2;
-    private final short packetIdentifier;
-    private final List<Subscribe.Subscription> subscriptions;
+    final short packetIdentifier;
+    final List<String> topicFilters;
+
+    public static Unsubscribe incoming(ByteBuf incoming) {
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
+        short packetIdentifier = readPacketIdentifier(incoming);
+        List<String> topicFilters = new ArrayList<>(4);
+        while (incoming.isReadable()) {
+            topicFilters.add(readUTF8String(incoming));
+        }
+        return new Unsubscribe(byte0, remainingLength,
+                packetIdentifier,
+                unmodifiableList(topicFilters));
+    }
 
     public List<Subscribe.Subscription> subscriptions() {
-        return this.subscriptions;
-    }
-
-    Unsubscribe(ByteBuf incoming) {
-        super(incoming);
-        this.packetIdentifier = incoming.readShort();
-        this.subscriptions = new ArrayList<>();
-        while (incoming.isReadable()) {
-            String topic = incoming.readCharSequence(incoming.readShort(), UTF_8).toString();
-            this.subscriptions.add(new Subscribe.Subscription(topic, (byte) 0));
-        }
-    }
-
-    public static Unsubscribe from(List<Subscribe.Subscription> subscriptions) {
-        return from((short) 0, subscriptions);
-    }
-
-    public static Unsubscribe from(short packetIdentifier,
-            List<Subscribe.Subscription> subscriptions) {
-        if (subscriptions.isEmpty()) {
-            throw new IllegalArgumentException();
-        }
-        int remainingLength = 2;
-        for (Subscribe.Subscription s : subscriptions) {
-            remainingLength += (2 + s.topicFilter().getBytes(UTF_8).length);
-        }
-        return new Unsubscribe(_0_BYTE, remainingLength, packetIdentifier, subscriptions);
+        return topicFilters.stream()
+                .map(topicFilter -> new Subscription(topicFilter, (byte) 0x0))
+                .toList();
     }
 
     private Unsubscribe(byte _0Byte,
             int remainingLength,
             short packetIdentifier,
-            List<Subscribe.Subscription> subscriptions) {
+            List<String> topicFilters) {
         super(_0Byte, remainingLength);
         this.packetIdentifier = packetIdentifier;
-        this.subscriptions = subscriptions;
-        if (!packetValidate()) {
-            throw new IllegalArgumentException("Invalid packet");
-        }
+        this.topicFilters = topicFilters;
     }
 
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = super.toByteBuf();
-        buf.writeShort(packetIdentifier);
-        for (Subscribe.Subscription s : subscriptions) {
-            byte[] bytes = s.topicFilter().getBytes(UTF_8);
-            buf.writeShort(bytes.length);
-            buf.writeBytes(bytes);
+        writeTwoByteInteger(buf, packetIdentifier);
+        for (String tf : topicFilters) {
+            writeUTF8String(buf, tf);
         }
         return buf;
+    }
+
+    private ByteBuf toPacketByteBuf() {
+        return super.toByteBuf();
     }
 
     public short packetIdentifier() {
@@ -79,7 +68,10 @@ public class Unsubscribe extends ControlPacket {
             return false;
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.
-        return !subscriptions.isEmpty();
+        if (topicFilters == null || topicFilters.isEmpty()) {
+            return false;
+        }
+        return true;
     }
 
     @Override
@@ -87,33 +79,63 @@ public class Unsubscribe extends ControlPacket {
         final StringBuilder sb = new StringBuilder("{");
         sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
         sb.append("\"packetIdentifier\":").append(hexPId(packetIdentifier)).append(',');
-        if (subscriptions != null) {
-            sb.append("\"subscriptions\":");
-            if (!(subscriptions).isEmpty()) {
-                sb.append("[");
-                final int listSize = (subscriptions).size();
-                for (int i = 0; i < listSize; i++) {
-                    final Object listValue = (subscriptions).get(i);
-                    if (listValue instanceof CharSequence) {
-                        sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
-                    }
-                    else {
-                        sb.append(Objects.toString(listValue, ""));
-                    }
-                    if (i < listSize - 1) {
-                        sb.append(",");
-                    }
-                    else {
-                        sb.append("]");
-                    }
-                }
-            }
-            else {
-                sb.append("[]");
-            }
-            sb.append(',');
-        }
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
+
+    public static class V50 extends Unsubscribe {
+        // If there are no properties, this MUST be indicated by including a Property Length of zero
+        final Properties properties;
+
+        V50(byte byte0, int remainingLength,
+                short packetIdentifier, Properties properties,
+                List<String> topicFilters) {
+            super(byte0, remainingLength, packetIdentifier, topicFilters);
+            this.properties = properties;
+        }
+
+        public static V50 incoming(ByteBuf incoming) {
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            short packetIdentifier = readPacketIdentifier(incoming);
+            Properties properties = readProperties(incoming);
+            List<String> topicFilters = new ArrayList<>(4);
+            while (incoming.isReadable()) {
+                topicFilters.add(readUTF8String(incoming));
+            }
+            return new V50(byte0, remainingLength,
+                    packetIdentifier, properties,
+                    unmodifiableList(topicFilters));
+        }
+
+        @Override
+        public ByteBuf toByteBuf() {
+            ByteBuf buf = super.toPacketByteBuf();
+            writeTwoByteInteger(buf, packetIdentifier);
+            writeProperties(buf, properties);
+            for (String tf : topicFilters) {
+                writeUTF8String(buf, tf);
+            }
+            return buf;
+        }
+
+        public Properties properties() {
+            return this.properties;
+        }
+
+        @Override
+        public boolean packetValidate() {
+            return super.packetValidate() && validateProperties();
+        }
+
+        private boolean validateProperties() {
+            for (Property p : this.properties.properties) {
+                if (p.id != USER_PROPERTY) {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
 
 }

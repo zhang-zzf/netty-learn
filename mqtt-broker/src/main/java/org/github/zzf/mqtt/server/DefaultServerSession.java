@@ -120,7 +120,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceivePingReq(PingReq packet) {
-        doWrite(new PingResp());
+        doWrite(PingResp.from());
         log.debug("Session({}) PingReq -> PingResp", cId());
     }
 
@@ -228,7 +228,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
         broker.unsubscribe(this, packet.subscriptions());
         packet.subscriptions().forEach(this.subscriptions::remove);
-        UnsubAck unsubAck = new UnsubAck(packet.packetIdentifier());
+        UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
         log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
         doWrite(unsubAck);
     }

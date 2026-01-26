@@ -367,7 +367,7 @@ public abstract class AbstractSession implements Session {
      * as sender
      */
     private void doSendPubRel(ControlPacketContext cpx) {
-        doWrite(new PubRel(cpx.packetIdentifier())).addListener(f -> {
+        doWrite(PubRel.from(cpx.packetIdentifier())).addListener(f -> {
             if (f.isSuccess()) {
                 log.debug("sender({}/{}) Publish PUB_REC -> [PubRel sent]", cId(), cpx.pId());
             }
@@ -436,7 +436,7 @@ public abstract class AbstractSession implements Session {
      * as receiver
      */
     private ChannelFuture doSendPubComp(short packageIdentifier) {
-        return doWrite(new PubComp(packageIdentifier));
+        return doWrite(PubComp.from(packageIdentifier));
     }
 
     /**
@@ -481,7 +481,7 @@ public abstract class AbstractSession implements Session {
     }
 
     private void doSendPubAck(Publish packet) {
-        doWrite(new PubAck(packet.packetIdentifier())).addListener(f -> {
+        doWrite(PubAck.from(packet.packetIdentifier())).addListener(f -> {
             log.debug("receiver({}/{}) Publish HANDLED -> [PUB_ACK sent]", cId(), packet.pId());
             publishReceivedComplete(packet);
         });
@@ -538,7 +538,7 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     private void doSendPubRec(short packetIdentifier) {
-        doWrite(new PubRec(packetIdentifier))
+        doWrite(PubRec.from(packetIdentifier))
                 .addListener(f -> log.debug("receiver({}/{}) Publish HANDLED -> [PUB_REC sent]", cId(), hexPId(packetIdentifier)));
     }
 

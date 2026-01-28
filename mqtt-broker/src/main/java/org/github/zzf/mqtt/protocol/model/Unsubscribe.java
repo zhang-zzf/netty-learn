@@ -6,6 +6,7 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_P
 import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 public class Unsubscribe extends ControlPacket {
@@ -13,6 +14,15 @@ public class Unsubscribe extends ControlPacket {
     public static final byte _0_BYTE = (byte) 0xA2;
     final short packetIdentifier;
     final List<String> topicFilters;
+
+    private Unsubscribe(byte _0Byte,
+            int remainingLength,
+            short packetIdentifier,
+            List<String> topicFilters) {
+        super(_0Byte, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.topicFilters = topicFilters;
+    }
 
     public static Unsubscribe incoming(ByteBuf incoming) {
         byte byte0 = readByte(incoming);
@@ -31,15 +41,6 @@ public class Unsubscribe extends ControlPacket {
         return topicFilters.stream()
                 .map(topicFilter -> new Subscription(topicFilter, (byte) 0x0))
                 .toList();
-    }
-
-    private Unsubscribe(byte _0Byte,
-            int remainingLength,
-            short packetIdentifier,
-            List<String> topicFilters) {
-        super(_0Byte, remainingLength);
-        this.packetIdentifier = packetIdentifier;
-        this.topicFilters = topicFilters;
     }
 
     @Override
@@ -68,10 +69,7 @@ public class Unsubscribe extends ControlPacket {
             return false;
         }
         //  The payload of a UNSUBSCRIBE packet MUST contain at least one Topic Filter.
-        if (topicFilters == null || topicFilters.isEmpty()) {
-            return false;
-        }
-        return true;
+        return topicFilters != null && !topicFilters.isEmpty();
     }
 
     @Override
@@ -85,6 +83,7 @@ public class Unsubscribe extends ControlPacket {
     public static class V50 extends Unsubscribe {
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
+        final Set<Integer> allowedProperties = Set.of(USER_PROPERTY);
 
         V50(byte byte0, int remainingLength,
                 short packetIdentifier, Properties properties,
@@ -124,17 +123,10 @@ public class Unsubscribe extends ControlPacket {
 
         @Override
         public boolean packetValidate() {
-            return super.packetValidate() && validateProperties();
+            return super.packetValidate()
+                    && properties.validateIdentifier(allowedProperties);
         }
 
-        private boolean validateProperties() {
-            for (Property p : this.properties.properties) {
-                if (p.id != USER_PROPERTY) {
-                    return false;
-                }
-            }
-            return true;
-        }
     }
 
 

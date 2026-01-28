@@ -1,10 +1,19 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NOT_AUTHORIZED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NO_MATCHING_SUBSCRIBERS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_IN_USE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PAYLOAD_FORMAT_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_QUOTA_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_NAME_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Set;
 
 public class PubAck extends ControlPacket {
 
@@ -56,6 +65,7 @@ public class PubAck extends ControlPacket {
 
         final byte reasonCode;
         final Properties properties;
+        final Set<Integer> SUPPORTED_PROPERTY_IDENTIFIERS = Set.of(REASON_STRING, USER_PROPERTY);
 
         private V50(byte byte0, int remainingLength,
                 short packetIdentifier, byte reasonCode, Properties properties) {
@@ -68,8 +78,8 @@ public class PubAck extends ControlPacket {
             byte byte0 = readByte(incoming);
             int remainingLength = readVariableByteInteger(incoming);
             short packetIdentifier = readPacketIdentifier(incoming);
-            byte reasonCode ;
-            Properties properties ;
+            byte reasonCode;
+            Properties properties;
             if (incoming.isReadable()) {
                 reasonCode = readByte(incoming);
                 properties = readProperties(incoming);
@@ -84,14 +94,13 @@ public class PubAck extends ControlPacket {
                     packetIdentifier, reasonCode, properties);
         }
 
-
         public static V50 from(short packetIdentifier, byte reasonCode, Properties properties) {
             V50 ret = new V50(BYTE_0, calcRemainingLength(reasonCode, properties),
                     packetIdentifier, reasonCode, properties);
             if (!ret.packetValidate()) {
                 throw new MalformedPacketException();
             }
-            return  ret;
+            return ret;
         }
 
         public static V50 from(short packetIdentifier) {
@@ -124,7 +133,7 @@ public class PubAck extends ControlPacket {
         protected boolean packetValidate() {
             return super.packetValidate()
                     && validateReasonCode()
-                    && validateProperties();
+                    && properties.validateIdentifier(SUPPORTED_PROPERTY_IDENTIFIERS);
         }
 
         private boolean validateReasonCode() {
@@ -139,20 +148,5 @@ public class PubAck extends ControlPacket {
                     || reasonCode == REASON_CODE_PAYLOAD_FORMAT_INVALID;
         }
 
-        private boolean validateProperties() {
-            if (this.properties == null) {
-                return true;
-            }
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case REASON_STRING:
-                    case USER_PROPERTY:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
-        }
     }
 }

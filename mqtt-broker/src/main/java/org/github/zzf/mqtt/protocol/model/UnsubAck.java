@@ -1,10 +1,17 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NOT_AUTHORIZED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NO_SUBSCRIPTION_EXISTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_IN_USE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_FILTER_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Set;
 
 public class UnsubAck extends ControlPacket {
 
@@ -54,6 +61,7 @@ public class UnsubAck extends ControlPacket {
 
         final Properties properties;
         final byte[] reasonCodes;
+        final Set<Integer> allowedProperties = Set.of(REASON_STRING, USER_PROPERTY);
 
         V50(byte byte0, int remainingLength,
                 short packetIdentifier, Properties properties,
@@ -93,7 +101,7 @@ public class UnsubAck extends ControlPacket {
         @Override
         public boolean packetValidate() {
             return super.packetValidate()
-                    && validateProperties()
+                    && properties.validateIdentifier(allowedProperties)
                     && validateReasonCodes();
         }
 
@@ -120,20 +128,6 @@ public class UnsubAck extends ControlPacket {
                     ;
         }
 
-        private boolean validateProperties() {
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case REASON_STRING:
-                    case USER_PROPERTY:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
-        }
     }
-
-
 }
 

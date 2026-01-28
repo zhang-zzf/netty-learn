@@ -1,25 +1,54 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_ADMINISTRATIVE_ACTION;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_CONNECTION_RATE_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_DISCONNECT_WITH_WILL_MSG;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_KEEP_ALIVE_TIMEOUT;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_MALFORMED_PACKET;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_MAXIMUM_CONNECT_TIME;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_MESSAGE_RATE_TOO_HIGH;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NOT_AUTHORIZED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_TOO_LARGE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PAYLOAD_FORMAT_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PROTOCOL_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_QOS_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_QUOTA_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_RECEIVE_MAXIMUM_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_RETAIN_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SERVER_BUSY;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SERVER_MOVED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SERVER_SHUTTING_DOWN;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SESSION_TAKEN_OVER;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SHARED_SUBSCRIPTIONS_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_ALIAS_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_FILTER_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_NAME_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_USE_ANOTHER_SERVER;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SERVER_REFERENCE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SESSION_EXPIRY_INTERVAL;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Set;
 
 public class Disconnect extends ControlPacket {
 
     public static final byte _0_BYTE = (byte) 0xE0;
 
+    private Disconnect(byte byte0, int remainingLength) {
+        super(byte0, remainingLength);
+    }
+
     static Disconnect incoming(ByteBuf incoming) {
         byte byte0 = readByte(incoming);
         int remainingLength = readVariableByteInteger(incoming);
         return new Disconnect(byte0, remainingLength);
-    }
-
-    private Disconnect(byte byte0, int remainingLength) {
-        super(byte0, remainingLength);
     }
 
     public static Disconnect from() {
@@ -35,6 +64,12 @@ public class Disconnect extends ControlPacket {
 
         final byte reasonCode;
         final Properties properties;
+        final Set<Integer> allowedProperties = Set.of(
+                SESSION_EXPIRY_INTERVAL,
+                REASON_STRING,
+                USER_PROPERTY,
+                SERVER_REFERENCE
+        );
 
         V50(byte byte0, int remainingLength,
                 byte reasonCode, Properties properties) {
@@ -55,7 +90,7 @@ public class Disconnect extends ControlPacket {
         public boolean packetValidate() {
             return super.packetValidate()
                     && validateReasonCode()
-                    && validateProperties();
+                    && properties.validateIdentifier(allowedProperties);
         }
 
         boolean validateReasonCode() {
@@ -83,29 +118,14 @@ public class Disconnect extends ControlPacket {
                     || reasonCode == REASON_CODE_QOS_NOT_SUPPORTED  // 0x9B QoS not supported
                     || reasonCode == REASON_CODE_USE_ANOTHER_SERVER  // 0x9C Use another server
                     || reasonCode == REASON_CODE_SERVER_MOVED  // 0x9D Server moved
-                    || reasonCode == REASON_CODE_SHARED_SUBSCRIPTIONS_NOT_SUPPORTED  // 0x9E Shared Subscriptions not supported
+                    || reasonCode == REASON_CODE_SHARED_SUBSCRIPTIONS_NOT_SUPPORTED
+                    // 0x9E Shared Subscriptions not supported
                     || reasonCode == REASON_CODE_CONNECTION_RATE_EXCEEDED  // 0x9F Connection rate exceeded
                     || reasonCode == REASON_CODE_MAXIMUM_CONNECT_TIME  // 0xA0 Maximum connect time
-                    || reasonCode == REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED  // 0xA1 Subscription Identifiers not supported
-                    || reasonCode == REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED;  // 0xA2 Wildcard Subscriptions not supported
-        }
-
-        private boolean validateProperties() {
-            if (this.properties == null) {
-                return true;
-            }
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case SESSION_EXPIRY_INTERVAL:
-                    case REASON_STRING:
-                    case USER_PROPERTY:
-                    case SERVER_REFERENCE:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
+                    || reasonCode == REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED
+                    // 0xA1 Subscription Identifiers not supported
+                    || reasonCode
+                    == REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED;  // 0xA2 Wildcard Subscriptions not supported
         }
 
         @Override

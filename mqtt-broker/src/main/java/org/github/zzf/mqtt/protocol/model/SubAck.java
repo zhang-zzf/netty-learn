@@ -1,16 +1,36 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_GRANTED_QOS_0;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_GRANTED_QOS_1;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_GRANTED_QOS_2;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_IMPLEMENTATION_SPECIFIC_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_NOT_AUTHORIZED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_IN_USE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_QUOTA_EXCEEDED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SHARED_SUBSCRIPTIONS_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_FILTER_INVALID;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
 import java.util.List;
+import java.util.Set;
 
 public class SubAck extends ControlPacket {
 
     final short packetIdentifier;
     final byte[] returnCodes;
+
+    private SubAck(int remainingLength,
+            short packetIdentifier,
+            byte[] returnCodes) {
+        super(SUBACK, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.returnCodes = returnCodes;
+    }
 
     public static SubAck incoming(ByteBuf incoming) {
         readByte(incoming);
@@ -38,14 +58,6 @@ public class SubAck extends ControlPacket {
         return from((short) 0, subscriptions);
     }
 
-    private SubAck(int remainingLength,
-            short packetIdentifier,
-            byte[] returnCodes) {
-        super(SUBACK, remainingLength);
-        this.packetIdentifier = packetIdentifier;
-        this.returnCodes = returnCodes;
-    }
-
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = super.toByteBuf();
@@ -66,10 +78,15 @@ public class SubAck extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
+    private ByteBuf toPacketByteBuf() {
+        return super.toByteBuf();
+    }
+
     public static class V50 extends SubAck {
 
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
+        final Set<Integer> allowedProperties = Set.of(REASON_STRING, USER_PROPERTY);
 
         V50(int remainingLength,
                 short packetIdentifier, Properties properties,
@@ -105,7 +122,7 @@ public class SubAck extends ControlPacket {
         @Override
         public boolean packetValidate() {
             return super.packetValidate()
-                    && validateProperties()
+                    && properties.validateIdentifier(allowedProperties)
                     && validateReasonCodes();
         }
 
@@ -137,21 +154,5 @@ public class SubAck extends ControlPacket {
                     ;
         }
 
-        private boolean validateProperties() {
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case REASON_STRING:
-                    case USER_PROPERTY:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
-        }
-    }
-
-    private ByteBuf toPacketByteBuf() {
-        return super.toByteBuf();
     }
 }

@@ -15,7 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.Connect;
-import org.github.zzf.mqtt.protocol.model.Connect.AuthenticationException;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
@@ -34,18 +34,15 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
  */
 @Slf4j
 public class DefaultBroker implements Broker {
+    public static final String METRIC_NAME = "broker.node.DefaultBroker";
     /**
      * ClientIdentifier -> Session
      */
     // todo 监控 cleanSession = 0 / 1 数量
     final ConcurrentMap<String, ServerSession> sessionMap = new ConcurrentHashMap<>();
-
     final Authenticator authenticator;
-
     final RoutingTable routingTable;
-
     final TopicBlocker blockedTopic;
-
     final RetainPublishManager retainPublishManager;
 
     public DefaultBroker(Authenticator authenticator,
@@ -56,6 +53,14 @@ public class DefaultBroker implements Broker {
         this.routingTable = routingTable;
         this.blockedTopic = blockedTopic;
         this.retainPublishManager = retainPublishManager;
+    }
+
+    public static short packetIdentifier(ServerSession session, int qos) {
+        return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
+    }
+
+    public static int qoS(int packetQos, int tfQos) {
+        return Math.min(packetQos, tfQos);
     }
 
     @Override
@@ -100,12 +105,14 @@ public class DefaultBroker implements Broker {
                 }
                 int qos = qoS(packet.qos(), subscriber.qos());
                 // use a shadow copy of the origin Publish
-                Publish outgoing = Publish.outgoing(false /* must set retain to false before forward the PublishPacket */,
+                Publish outgoing = Publish.outgoing(
+                        false /* must set retain to false before forward the PublishPacket */,
                         qos, false,
                         topic.topicFilter(), packetIdentifier(session, qos),
                         packet.payload());
                 if (log.isDebugEnabled()) {
-                    log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(), topic.topicFilter(), session.clientIdentifier(), outgoing);
+                    log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(),
+                            topic.topicFilter(), session.clientIdentifier(), outgoing);
                 }
                 session.send(outgoing);
                 times += 1;
@@ -126,14 +133,6 @@ public class DefaultBroker implements Broker {
         return false;
     }
 
-    public static short packetIdentifier(ServerSession session, int qos) {
-        return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
-    }
-
-    public static int qoS(int packetQos, int tfQos) {
-        return Math.min(packetQos, tfQos);
-    }
-
     // todo UT
     // 1. cleanSession = 1 then cleanSession = 1
     // 1. cleanSession = 1 the session should be removed after client disconnect (normally ot not)
@@ -151,7 +150,7 @@ public class DefaultBroker implements Broker {
         }
         // authenticate
         if (authenticator != null) {
-            int authenticate = authenticator.authenticate(connect);
+            byte authenticate = authenticator.authenticate(connect);
             if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
                 throw new AuthenticationException(authenticate);
             }
@@ -229,8 +228,6 @@ public class DefaultBroker implements Broker {
             retainPublishManager.add(packet);
         }
     }
-
-    public static final String METRIC_NAME = "broker.node.DefaultBroker";
 
     @Override
     public int forward(Publish packet) {

@@ -8,11 +8,21 @@ import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public class Subscribe extends ControlPacket {
 
     final short packetIdentifier;
     final List<Subscription> subscriptions;
+
+    private Subscribe(byte _0Byte,
+            int remainingLength,
+            short packetIdentifier,
+            List<Subscription> subscriptions) {
+        super(_0Byte, remainingLength);
+        this.packetIdentifier = packetIdentifier;
+        this.subscriptions = subscriptions;
+    }
 
     public static Subscribe incoming(ByteBuf incoming) {
         byte byte0 = readByte(incoming);
@@ -48,13 +58,32 @@ public class Subscribe extends ControlPacket {
         return ret;
     }
 
-    private Subscribe(byte _0Byte,
-            int remainingLength,
-            short packetIdentifier,
-            List<Subscription> subscriptions) {
-        super(_0Byte, remainingLength);
-        this.packetIdentifier = packetIdentifier;
-        this.subscriptions = subscriptions;
+    static boolean topicFilterValidate(String topicFilter) {
+        if (topicFilter == null) {
+            return false;
+        }
+        int idx;
+        if ((idx = topicFilter.indexOf("#")) != -1) {
+            if (idx != topicFilter.length() - 1) {
+                // sport/tennis/#/ranking is not valid
+                return false;
+            }
+            if (topicFilter.length() > 1 && topicFilter.charAt(idx - 1) != '/') {
+                // example "#" is valid
+                // example “sport/tennis#” is not valid
+                return false;
+            }
+        }
+        if ((idx = topicFilter.indexOf("+")) != -1) {
+            if (topicFilter.length() == 1) {
+                return true;
+            }
+            if (topicFilter.charAt(idx - 1) != '/') {
+                return false;
+            }
+            return idx + 1 >= topicFilter.length() || topicFilter.charAt(idx + 1) == '/';
+        }
+        return true;
     }
 
     @Override
@@ -109,34 +138,38 @@ public class Subscribe extends ControlPacket {
         return true;
     }
 
-    static boolean topicFilterValidate(String topicFilter) {
-        if (topicFilter == null) {
-            return false;
+    @Override
+    public String toString() {
+        final StringBuilder sb = new StringBuilder("{");
+        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
+        sb.append("\"packetIdentifier\":").append(hexPId(packetIdentifier)).append(',');
+        if (subscriptions != null) {
+            sb.append("\"subscriptions\":");
+            if (!(subscriptions).isEmpty()) {
+                sb.append("[");
+                final int listSize = (subscriptions).size();
+                for (int i = 0; i < listSize; i++) {
+                    final Object listValue = (subscriptions).get(i);
+                    if (listValue instanceof CharSequence) {
+                        sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
+                    }
+                    else {
+                        sb.append(Objects.toString(listValue, ""));
+                    }
+                    if (i < listSize - 1) {
+                        sb.append(",");
+                    }
+                    else {
+                        sb.append("]");
+                    }
+                }
+            }
+            else {
+                sb.append("[]");
+            }
+            sb.append(',');
         }
-        int idx;
-        if ((idx = topicFilter.indexOf("#")) != -1) {
-            if (idx != topicFilter.length() - 1) {
-                // sport/tennis/#/ranking is not valid
-                return false;
-            }
-            if (topicFilter.length() > 1 && topicFilter.charAt(idx - 1) != '/') {
-                // example "#" is valid
-                // example “sport/tennis#” is not valid
-                return false;
-            }
-        }
-        if ((idx = topicFilter.indexOf("+")) != -1) {
-            if (topicFilter.length() == 1) {
-                return true;
-            }
-            if (topicFilter.charAt(idx - 1) != '/') {
-                return false;
-            }
-            if (idx + 1 < topicFilter.length() && topicFilter.charAt(idx + 1) != '/') {
-                return false;
-            }
-        }
-        return true;
+        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
     public static class Subscription {
@@ -204,43 +237,10 @@ public class Subscribe extends ControlPacket {
         }
     }
 
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"packet\":\"").append(this.getClass().getSimpleName().toUpperCase()).append('\"').append(',');
-        sb.append("\"packetIdentifier\":").append(hexPId(packetIdentifier)).append(',');
-        if (subscriptions != null) {
-            sb.append("\"subscriptions\":");
-            if (!(subscriptions).isEmpty()) {
-                sb.append("[");
-                final int listSize = (subscriptions).size();
-                for (int i = 0; i < listSize; i++) {
-                    final Object listValue = (subscriptions).get(i);
-                    if (listValue instanceof CharSequence) {
-                        sb.append("\"").append(Objects.toString(listValue, "")).append("\"");
-                    }
-                    else {
-                        sb.append(Objects.toString(listValue, ""));
-                    }
-                    if (i < listSize - 1) {
-                        sb.append(",");
-                    }
-                    else {
-                        sb.append("]");
-                    }
-                }
-            }
-            else {
-                sb.append("[]");
-            }
-            sb.append(',');
-        }
-        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
-    }
-
     public static class V50 extends Subscribe {
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
+        final Set<Integer> allowedProperties = Set.of(SUBSCRIPTION_IDENTIFIER, USER_PROPERTY);
 
         V50(byte byte0, int remainingLength,
                 short packetIdentifier, Properties properties,
@@ -285,7 +285,7 @@ public class Subscribe extends ControlPacket {
         @Override
         public boolean packetValidate() {
             return super.packetValidate()
-                    && validateProperties()
+                    && properties.validateIdentifier(allowedProperties)
                     && validateSubscriptionOption();
         }
 
@@ -307,18 +307,5 @@ public class Subscribe extends ControlPacket {
             return true;
         }
 
-        private boolean validateProperties() {
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case SUBSCRIPTION_IDENTIFIER:
-                    case USER_PROPERTY:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
-        }
     }
-
 }

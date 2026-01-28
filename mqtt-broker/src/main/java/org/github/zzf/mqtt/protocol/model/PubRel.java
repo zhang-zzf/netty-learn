@@ -1,10 +1,12 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.*;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_NOT_FOUND;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import java.util.Set;
 
 public class PubRel extends ControlPacket {
 
@@ -63,6 +65,7 @@ public class PubRel extends ControlPacket {
 
         final byte reasonCode;
         final Properties properties;
+        final Set<Integer> SUPPORTED_PROPERTY_IDENTIFIERS = Set.of(REASON_STRING, USER_PROPERTY);
 
         V50(byte byte0, int remainingLength,
                 short packetIdentifier, byte reasonCode, Properties properties) {
@@ -130,28 +133,12 @@ public class PubRel extends ControlPacket {
         protected boolean packetValidate() {
             return super.packetValidate()
                     && validatePubRelReasonCode(reasonCode)
-                    && validateProperties();
+                    && properties.validateIdentifier(SUPPORTED_PROPERTY_IDENTIFIERS);
         }
 
         boolean validatePubRelReasonCode(byte reasonCode) {
             return reasonCode == REASON_CODE_SUCCESS
                     || reasonCode == REASON_CODE_PACKET_ID_NOT_FOUND;
-        }
-
-        private boolean validateProperties() {
-            if (this.properties == null) {
-                return true;
-            }
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case REASON_STRING:
-                    case USER_PROPERTY:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
         }
 
     }

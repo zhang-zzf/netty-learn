@@ -14,6 +14,7 @@ import io.netty.buffer.ByteBuf;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public class Publish extends ControlPacket {
 
@@ -30,6 +31,7 @@ public class Publish extends ControlPacket {
     public static final String META_P_SOURCE_BROKER = "broker";
     public static final String META_NM_WRAP = "nm_wrap";
     public static final String META_NM_RECEIVE = "nm_receive";
+
     final String topicName;
     final short packetIdentifier;
     final ByteBuf payload;
@@ -270,6 +272,16 @@ public class Publish extends ControlPacket {
 
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
+        final Set<Integer> allowedProperties = Set.of(
+                PAYLOAD_FORMAT_INDICATOR,
+                MESSAGE_EXPIRY_INTERVAL,
+                TOPIC_ALIAS,
+                RESPONSE_TOPIC,
+                CORRELATION_DATA,
+                USER_PROPERTY,
+                SUBSCRIPTION_IDENTIFIER,
+                CONTENT_TYPE
+        );
 
         V50(byte byte0, int remainingLength,
                 String topicName, short packetIdentifier, Properties properties,
@@ -298,7 +310,8 @@ public class Publish extends ControlPacket {
 
         @Override
         protected boolean packetValidate() {
-            return super.packetValidate() && validateProperties();
+            return super.packetValidate()
+                    && properties.validateIdentifier(allowedProperties);
         }
 
         @Override
@@ -308,27 +321,5 @@ public class Publish extends ControlPacket {
             return buf;
         }
 
-        private boolean validateProperties() {
-            if (this.properties == null) {
-                return true;
-            }
-            for (Property p : this.properties.properties) {
-                switch (p.id) {
-                    case PAYLOAD_FORMAT_INDICATOR:
-                    case MESSAGE_EXPIRY_INTERVAL:
-                    case TOPIC_ALIAS:
-                    case RESPONSE_TOPIC:
-                    case CORRELATION_DATA:
-                    case USER_PROPERTY:
-                    case SUBSCRIPTION_IDENTIFIER:
-                    case CONTENT_TYPE:
-                        break;
-                    default:
-                        return false;
-                }
-            }
-            return true;
-        }
     }
-
 }

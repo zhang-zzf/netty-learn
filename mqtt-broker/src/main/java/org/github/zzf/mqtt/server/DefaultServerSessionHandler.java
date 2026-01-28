@@ -11,9 +11,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
-import org.github.zzf.mqtt.protocol.model.Connect.AuthenticationException;
-import org.github.zzf.mqtt.protocol.model.Connect.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
 import org.github.zzf.mqtt.protocol.session.AbstractSession;
@@ -39,13 +39,12 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     final Broker broker;
     final int activeIdleTimeoutSecond;
     protected ServerSession session;
-    ReadTimeoutHandler activeIdleTimeoutHandler;
-
     private final ChannelFutureListener SESSION_ESTABLISHED_CALLBACK = future -> {
         if (future.isSuccess() && session instanceof AbstractSession as) {
             as.onActive();
         }
     };
+    ReadTimeoutHandler activeIdleTimeoutHandler;
 
     @Override
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
@@ -95,11 +94,13 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             try {
                 session = broker.connect(connect, ctx.channel());
             } catch (UnSupportProtocolLevelException e) {
-                log.info("Server not support protocol level, now send ConnAck and close channel to client({})", connect.clientIdentifier());
+                log.info("Server not support protocol level, now send ConnAck and close channel to client({})",
+                        connect.clientIdentifier());
                 ctx.channel().writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
             } catch (AuthenticationException e) {
-                int authenticate = e.getAuthenticate();
-                log.info("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}", connect.clientIdentifier(), authenticate);
+                byte authenticate = e.getAuthenticate();
+                log.info("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}",
+                        connect.clientIdentifier(), authenticate);
                 ctx.channel().writeAndFlush(ConnAck.authenticateFailed(authenticate)).channel().close();
             } catch (IllegalArgumentException e) {
                 log.error("Client({}) Connect failed: {}", connect.clientIdentifier(), e.getMessage());

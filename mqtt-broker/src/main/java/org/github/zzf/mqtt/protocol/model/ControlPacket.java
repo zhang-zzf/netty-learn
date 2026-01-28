@@ -10,6 +10,8 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -41,9 +43,13 @@ public abstract class ControlPacket {
     public static final String MULTI_LEVEL_WILDCARD = "#";
     public static final String SINGLE_LEVEL_WILDCARD = "+";
 
+    public static final int TWO_BYTE_INTEGER_MAX = 0xFFFF;
+    public static final int FOUR_BYTE_INTEGER_MAX = 0xFFFFFFFF;
+
     private static final ByteBufAllocator BYTE_BUF_ALLOCATOR = ByteBufAllocator.DEFAULT;
-    protected final byte byte0;
-    protected final int remainingLength;
+
+    final byte byte0;
+    final int remainingLength;
 
     protected ControlPacket(byte byte0, int remainingLength) {
         this.byte0 = byte0;
@@ -171,7 +177,7 @@ public abstract class ControlPacket {
     }
 
     public static String hexPId(short packetIdentifier) {
-        return "0x" + Integer.toHexString(packetIdentifier & 0xffff);
+        return "0x" + Integer.toHexString(packetIdentifier & TWO_BYTE_INTEGER_MAX);
     }
 
     public static Short hexPIdToShort(String hexPId) {
@@ -253,9 +259,13 @@ public abstract class ControlPacket {
         }
         byte[] bytes = str.getBytes(UTF_8);
         // 明确表示使用 unsigned short 表示
-        buf.writeShort((short) (bytes.length & 0xffff));
+        buf.writeShort((short) (bytes.length & TWO_BYTE_INTEGER_MAX));
         buf.writeBytes(bytes);
         return buf;
+    }
+
+    public static int calcUTF8StringLength(String str) {
+        return 2 + str.getBytes(UTF_8).length;
     }
 
     /**
@@ -308,9 +318,13 @@ public abstract class ControlPacket {
             throw new IllegalArgumentException();
         }
         // 明确表示使用 unsigned short 表示
-        buf.writeShort((short) (data.readableBytes() & 0xffff));
+        buf.writeShort((short) (data.readableBytes() & TWO_BYTE_INTEGER_MAX));
         buf.writeBytes(data);
         return buf;
+    }
+
+    static int calcBinaryDataLength(ByteBuf data) {
+        return 2 + data.readableBytes();
     }
 
     public static boolean validateTopicName(String topicName) {
@@ -331,6 +345,10 @@ public abstract class ControlPacket {
             p.write(buf);
         }
         return buf;
+    }
+
+    public static int calcPropertiesLength(Properties properties) {
+        return 1 + properties.calcPropertyLength();
     }
 
     /**
@@ -423,6 +441,11 @@ public abstract class ControlPacket {
         public static final byte REASON_CODE_SUBSCRIPTION_IDENTIFIERS_NOT_SUPPORTED = (byte) 0xA1; // 161 0xA1 Subscription Identifiers not supported - SUBACK, DISCONNECT
         public static final byte REASON_CODE_WILDCARD_SUBSCRIPTIONS_NOT_SUPPORTED = (byte) 0xA2; // 162 0xA2 Wildcard Subscriptions not supported - SUBACK, DISCONNECT
 
+        protected ControlPacketV50(byte byte0, int remainingLength) {
+            // not suppose to use
+            throw new UnsupportedOperationException();
+        }
+
         public static ControlPacket from(ByteBuf incoming) {
             ControlPacket controlPacket = buildControlPacketFromV50(incoming);
             // should read all the bytes out of the packet.
@@ -451,15 +474,9 @@ public abstract class ControlPacket {
                 case UNSUBACK -> UnsubAck.V50.incoming(incoming);
                 case PINGREQ -> PingReq.incoming(incoming);
                 case PINGRESP -> PingResp.incoming(incoming);
-                case DISCONNECT -> Disconnect.incoming(incoming);
+                case DISCONNECT -> Disconnect.V50.incoming(incoming);
                 default -> throw new IllegalArgumentException();
             };
-        }
-
-
-        protected ControlPacketV50(byte byte0, int remainingLength) {
-            // not suppose to use
-            throw new UnsupportedOperationException();
         }
 
     }
@@ -773,6 +790,69 @@ public abstract class ControlPacket {
             return propertyLength;
         }
 
+        public long sessionExpiryInterval() {
+            for (Property p : properties) {
+                if (p.id == SESSION_EXPIRY_INTERVAL) {
+                    return ((FourByteIntegerProperty) p).value;
+                }
+            }
+            // If the Session Expiry Interval is absent the value 0 is used
+            return 0;
+        }
+
+        public int receiveMaximum() {
+            for (Property p : properties) {
+                if (p.id == RECEIVE_MAXIMUM) {
+                    return ((TwoByteIntegerProperty) p).value;
+                }
+            }
+            return TWO_BYTE_INTEGER_MAX;
+        }
+
+        public long maximumPacketSize() {
+            for (Property p : properties) {
+                if (p.id == MAXIMUM_PACKET_SIZE) {
+                    return ((FourByteIntegerProperty) p).value;
+                }
+            }
+            return FOUR_BYTE_INTEGER_MAX;
+        }
+
+        public int topicAliasMaximum() {
+            for (Property p : properties) {
+                if (p.id == TOPIC_ALIAS_MAXIMUM) {
+                    return ((TwoByteIntegerProperty) p).value;
+                }
+            }
+            return 0;
+        }
+
+        public boolean requestResponseInformation() {
+            for (Property p : properties) {
+                if (p.id == REQUEST_RESPONSE_INFORMATION) {
+                    return ((ByteProperty) p).value == 1;
+                }
+            }
+            return false;
+        }
+
+        public boolean requestProblemInformation() {
+            for (Property p : properties) {
+                if (p.id == REQUEST_PROBLEM_INFORMATION) {
+                    return ((ByteProperty) p).value == 1;
+                }
+            }
+            return true;
+        }
+
+        public boolean validateIdentifier(Set<Integer> allowedIdentifierSet) {
+            for (Property p : this.properties) {
+                if (!allowedIdentifierSet.contains(p.id)) {
+                    return false;
+                }
+            }
+            return true;
+        }
     }
 
     static abstract class Property {
@@ -981,6 +1061,20 @@ public abstract class ControlPacket {
 
         public RetainNotSupportedException(String msg) {
             super(msg);
+        }
+    }
+
+    public static class UnSupportProtocolLevelException extends IllegalArgumentException {
+
+    }
+
+    @Getter
+    public static class AuthenticationException extends IllegalArgumentException {
+
+        final byte authenticate;
+
+        public AuthenticationException(byte authenticate) {
+            this.authenticate = authenticate;
         }
     }
 

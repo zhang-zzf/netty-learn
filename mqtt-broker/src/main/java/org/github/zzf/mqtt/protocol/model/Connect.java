@@ -1,9 +1,24 @@
 package org.github.zzf.mqtt.protocol.model;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_DATA;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_METHOD;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CONTENT_TYPE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CORRELATION_DATA;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MAXIMUM_PACKET_SIZE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MESSAGE_EXPIRY_INTERVAL;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.PAYLOAD_FORMAT_INDICATOR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.RECEIVE_MAXIMUM;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REQUEST_PROBLEM_INFORMATION;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REQUEST_RESPONSE_INFORMATION;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.RESPONSE_TOPIC;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SESSION_EXPIRY_INTERVAL;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.TOPIC_ALIAS_MAXIMUM;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.WILL_DELAY_INTERVAL;
 
 import io.netty.buffer.ByteBuf;
-import lombok.Getter;
+import java.util.Set;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -27,6 +42,20 @@ public class Connect extends ControlPacket {
     final String username;
     final ByteBuf password;
 
+    private Connect(byte _0byte, int remainingLength,
+            String protocolName, byte protocolLevel, byte connectFlags, int keepAlive,
+            String clientIdentifier, String willTopic, ByteBuf willMessage, String username, ByteBuf password) {
+        super(_0byte, remainingLength);
+        this.protocolName = protocolName;
+        this.protocolLevel = protocolLevel;
+        this.connectFlags = connectFlags;
+        this.keepAlive = keepAlive;
+        this.clientIdentifier = clientIdentifier;
+        this.willTopic = willTopic;
+        this.willMessage = willMessage;
+        this.username = username;
+        this.password = password;
+    }
 
     public static Connect from(String clientIdentifier, short keepAlive) {
         return from(PROTOCOL_NAME, PROTOCOL_LEVEL_3_1_1, (byte) 0x02, keepAlive,
@@ -57,7 +86,8 @@ public class Connect extends ControlPacket {
 
     public static Connect from(
             String protocolName, byte protocolLevel,
-            boolean cleanSession, boolean willFlag, int willQos, boolean willRetain, boolean passwordFlag, boolean usernameFlag,
+            boolean cleanSession, boolean willFlag, int willQos, boolean willRetain, boolean passwordFlag,
+            boolean usernameFlag,
             int keepAlive,
             String clientIdentifier, String willTopic, ByteBuf willMessage, String username, ByteBuf password) {
         if (willQos < 0 || willQos > 2) {
@@ -93,24 +123,13 @@ public class Connect extends ControlPacket {
                 + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
                 + (username == null ? 0 : username.getBytes(UTF_8).length + 2)
                 + (password == null ? 0 : password.readableBytes() + 2);
-        return new Connect(CONNECT, remainingLength,
+        Connect ret = new Connect(CONNECT, remainingLength,
                 protocolName, protocolLevel, connectFlags, keepAlive,
                 clientIdentifier, willTopic, willMessage, username, password);
-    }
-
-    private Connect(byte _0byte, int remainingLength,
-            String protocolName, byte protocolLevel, byte connectFlags, int keepAlive,
-            String clientIdentifier, String willTopic, ByteBuf willMessage, String username, ByteBuf password) {
-        super(_0byte, remainingLength);
-        this.protocolName = protocolName;
-        this.protocolLevel = protocolLevel;
-        this.connectFlags = connectFlags;
-        this.keepAlive = keepAlive;
-        this.clientIdentifier = clientIdentifier;
-        this.willTopic = willTopic;
-        this.willMessage = willMessage;
-        this.username = username;
-        this.password = password;
+        if (!ret.packetValidate()) {
+            throw new MalformedPacketException();
+        }
+        return ret;
     }
 
     public static Connect incoming(ByteBuf incoming) {
@@ -139,6 +158,22 @@ public class Connect extends ControlPacket {
         return new Connect(byte0, remainingLength,
                 protocolName, protocolLevel, connectFlags, keepAlive,
                 clientIdentifier, willTopic, willMessage, username, password);
+    }
+
+    static boolean passwordFlag(byte connectFlags) {
+        return (connectFlags & 0x40) != 0;
+    }
+
+    static boolean usernameFlag(byte connectFlags) {
+        return (connectFlags & 0x80) != 0;
+    }
+
+    public static boolean willFlag(byte connectFlags) {
+        return (connectFlags & 0x04) != 0;
+    }
+
+    ByteBuf toPacketByteBuf() {
+        return super.toByteBuf();
     }
 
     @Override
@@ -187,6 +222,9 @@ public class Connect extends ControlPacket {
         if (!PROTOCOL_NAME.equals(protocolName)) {
             return false;
         }
+        if (!validateProtocolLevel()) {
+            return false;
+        }
         // The Server MUST validate that the reserved flag in the CONNECT Control Packet is set to zero and
         // disconnect the Client if it is not zero
         if ((connectFlags & 0x01) != 0) {
@@ -225,6 +263,10 @@ public class Connect extends ControlPacket {
         return super.packetValidate();
     }
 
+    boolean validateProtocolLevel() {
+        return protocolLevel == PROTOCOL_LEVEL_3_1_1;
+    }
+
     public boolean willRetainFlag() {
         return (connectFlags & 0x20) != 0;
     }
@@ -241,10 +283,6 @@ public class Connect extends ControlPacket {
         return willMessage;
     }
 
-    private static boolean passwordFlag(byte connectFlags) {
-        return (connectFlags & 0x40) != 0;
-    }
-
     public boolean passwordFlag() {
         return passwordFlag(connectFlags);
     }
@@ -253,18 +291,9 @@ public class Connect extends ControlPacket {
         return usernameFlag(connectFlags);
     }
 
-    static boolean usernameFlag(byte connectFlags) {
-        return (connectFlags & 0x80) != 0;
-    }
-
     public boolean willFlag() {
         return willFlag(connectFlags);
     }
-
-    public static boolean willFlag(byte connectFlags) {
-        return (connectFlags & 0x04) != 0;
-    }
-
 
     public Integer protocolLevel() {
         return Integer.valueOf(protocolLevel);
@@ -320,18 +349,198 @@ public class Connect extends ControlPacket {
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
     }
 
-    public static class UnSupportProtocolLevelException extends IllegalArgumentException {
 
-    }
+    public static class V50 extends Connect {
+        public static final byte PROTOCOL_LEVEL_5_0 = (byte) 5;
 
-    @Getter
-    public static class AuthenticationException extends IllegalArgumentException {
+        final Properties properties;
+        final Properties willProperties;
+        final Set<Integer> willMessageAllowedProperties = Set.of(
+                WILL_DELAY_INTERVAL,
+                PAYLOAD_FORMAT_INDICATOR,
+                MESSAGE_EXPIRY_INTERVAL,
+                CONTENT_TYPE,
+                RESPONSE_TOPIC,
+                CORRELATION_DATA,
+                USER_PROPERTY
+        );
+        final Set<Integer> allowedProperties = Set.of(
+                SESSION_EXPIRY_INTERVAL,
+                RECEIVE_MAXIMUM,
+                MAXIMUM_PACKET_SIZE,
+                TOPIC_ALIAS_MAXIMUM,
+                REQUEST_RESPONSE_INFORMATION,
+                REQUEST_PROBLEM_INFORMATION,
+                USER_PROPERTY,
+                AUTHENTICATION_METHOD,
+                AUTHENTICATION_DATA
+        );
 
-        private final int authenticate;
-
-        public AuthenticationException(int authenticate) {
-            this.authenticate = authenticate;
+        private V50(byte _0byte, int remainingLength,
+                String protocolName, byte protocolLevel, byte connectFlags, int keepAlive, Properties properties,
+                String clientIdentifier, Properties willProperties, String willTopic, ByteBuf willMessage,
+                String username, ByteBuf password) {
+            super(_0byte, remainingLength,
+                    protocolName, protocolLevel, connectFlags, keepAlive,
+                    clientIdentifier, willTopic, willMessage, username, password);
+            this.properties = properties;
+            this.willProperties = willProperties;
         }
+
+        public static V50 incoming(ByteBuf incoming) {
+            byte byte0 = readByte(incoming);
+            int remainingLength = readVariableByteInteger(incoming);
+            // variable header
+            String protocolName = readUTF8String(incoming);
+            byte protocolLevel = readByte(incoming);
+            byte connectFlags = readByte(incoming);
+            int keepAlive = readTwoByteInteger(incoming);
+            Properties properties = readProperties(incoming);
+            // payload
+            String clientIdentifier = readUTF8String(incoming);
+            Properties willProperties;
+            String willTopic;
+            ByteBuf willMessage;
+            if (willFlag(connectFlags)) {
+                willProperties = readProperties(incoming);
+                willTopic = readUTF8String(incoming);
+                // heapBuffer no memory leak
+                willMessage = readBinaryData(incoming);
+            }
+            else {
+                willProperties = Properties.EMPTY;
+                willTopic = null;
+                willMessage = null;
+            }
+            String username = usernameFlag(connectFlags) ? readUTF8String(incoming) : null;
+            ByteBuf password = passwordFlag(connectFlags) ? readBinaryData(incoming) : null;
+            return new V50(byte0, remainingLength,
+                    protocolName, protocolLevel, connectFlags, keepAlive, properties,
+                    clientIdentifier, willProperties, willTopic, willMessage, username, password);
+        }
+
+        public static V50 from(
+                String protocolName, byte protocolLevel,
+                boolean cleanSession, boolean willFlag, int willQos, boolean willRetain, boolean passwordFlag,
+                boolean usernameFlag,
+                int keepAlive, Properties properties,
+                String clientIdentifier, Properties willProperties, String willTopic, ByteBuf willMessage,
+                String username, ByteBuf password) {
+            if (willQos < 0 || willQos > 2) {
+                throw new IllegalArgumentException("willQoS is illegal");
+            }
+            byte connectFlags = 0;
+            if (cleanSession) {
+                connectFlags |= 0x02;
+            }
+            if (willFlag) {
+                connectFlags |= 0x04;
+                connectFlags |= (byte) (willQos << 3);
+            }
+            if (willRetain) {
+                connectFlags |= 0x20;
+            }
+            if (passwordFlag) {
+                connectFlags |= 0x40;
+            }
+            if (usernameFlag) {
+                connectFlags |= (byte) 0x80;
+            }
+            return from(protocolName, protocolLevel, connectFlags, keepAlive, properties,
+                    clientIdentifier, willProperties, willTopic, willMessage, username, password);
+        }
+
+        public static V50 from(
+                String protocolName, byte protocolLevel, byte connectFlags, int keepAlive, Properties properties,
+                String clientIdentifier, Properties willProperties, String willTopic, ByteBuf willMessage,
+                String username, ByteBuf password) {
+            int remainingLength = VARIABLE_HEADER_LENGTH + calcPropertiesLength(properties)
+                    + (clientIdentifier == null ? 2 : calcUTF8StringLength(clientIdentifier))
+                    + (willProperties == null ? 0 : calcPropertiesLength(willProperties))
+                    + (willTopic == null ? 0 : calcUTF8StringLength(willTopic))
+                    + (willMessage == null ? 0 : calcBinaryDataLength(willMessage))
+                    + (username == null ? 0 : calcUTF8StringLength(username))
+                    + (password == null ? 0 : calcBinaryDataLength(password));
+            V50 ret = new V50(CONNECT, remainingLength,
+                    protocolName, protocolLevel, connectFlags, keepAlive, properties,
+                    clientIdentifier, willProperties, willTopic, willMessage, username, password);
+            if (!ret.packetValidate()) {
+                throw new MalformedPacketException();
+            }
+            return ret;
+        }
+
+        @Override
+        public ByteBuf toByteBuf() {
+            ByteBuf buf = toPacketByteBuf();
+            // Variable Header
+            writeUTF8String(buf, protocolName);
+            writeByte(buf, protocolLevel);
+            writeByte(buf, connectFlags);
+            writeTwoByteInteger(buf, keepAlive);
+            writeProperties(buf, properties);
+            // Payload
+            writeUTF8String(buf, clientIdentifier);
+            if (willFlag()) {
+                writeProperties(buf, willProperties);
+                writeUTF8String(buf, willTopic);
+                writeBinaryData(buf, willMessage);
+            }
+            if (usernameFlag()) {
+                writeUTF8String(buf, username);
+            }
+            if (passwordFlag()) {
+                writeBinaryData(buf, password);
+            }
+            // all direct ByteBuf
+            return buf;
+        }
+
+        @Override
+        public boolean packetValidate() {
+            return super.packetValidate()
+                    && properties.validateIdentifier(allowedProperties)
+                    && willProperties.validateIdentifier(willMessageAllowedProperties);
+        }
+
+        @Override
+        boolean validateProtocolLevel() {
+            return protocolLevel == PROTOCOL_LEVEL_5_0;
+        }
+
+        public Properties properties() {
+            return this.properties;
+        }
+
+        public boolean cleanStart() {
+            return cleanSession();
+        }
+
+        public long sessionExpiryInterval() {
+            return properties.sessionExpiryInterval();
+        }
+
+        public int receiveMaximum() {
+            return properties.receiveMaximum();
+        }
+
+        public long maximumPacketSize() {
+            return properties.maximumPacketSize();
+        }
+
+        public int topAliasMaximum() {
+            return properties.topicAliasMaximum();
+        }
+
+        public boolean requestResponseInformation() {
+            return properties.requestResponseInformation();
+        }
+
+        public boolean requestProblemInformation() {
+            return properties.requestProblemInformation();
+        }
+
     }
+
 
 }

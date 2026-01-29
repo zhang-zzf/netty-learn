@@ -16,6 +16,7 @@ import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
@@ -44,6 +45,7 @@ public class DefaultBroker implements Broker {
     final RoutingTable routingTable;
     final TopicBlocker blockedTopic;
     final RetainPublishManager retainPublishManager;
+    final Set<Integer> supportedProtocolLevel = new HashSet<>(List.of(4));
 
     public DefaultBroker(Authenticator authenticator,
             RoutingTable routingTable,
@@ -146,7 +148,7 @@ public class DefaultBroker implements Broker {
         // with a CONNACK return code 0x01 (unacceptable protocol level) and then
         // disconnect the Client if the Protocol Level is not supported by the Server
         if (!supportProtocolLevel().contains(connect.protocolLevel())) {
-            throw new UnsupportedOperationException();
+            throw new UnSupportProtocolLevelException();
         }
         // authenticate
         if (authenticator != null) {
@@ -202,8 +204,8 @@ public class DefaultBroker implements Broker {
         return new Subscribe.Subscription(sub.topicFilter(), (byte) qos);
     }
 
-    private Set<Integer> supportProtocolLevel() {
-        return new HashSet<>(List.of(4));
+    Set<Integer> supportProtocolLevel() {
+        return supportedProtocolLevel;
     }
 
     private void retain(Publish publish) {

@@ -22,7 +22,7 @@ public class Application {
         log.info("mqtt.server.listened: {}", serverListenedAddress);
         //
         BrokerBootstrap.builder()
-                .authenticator(packet -> 0x00)
+                .authenticator(packet -> (byte) 0x00)
                 .routingTable(new DefaultRoutingTable())
                 .retainPublishManager(new TopicTreeRetain("RetainPublishManager"))
                 .topicBlocker(topicBlocker())

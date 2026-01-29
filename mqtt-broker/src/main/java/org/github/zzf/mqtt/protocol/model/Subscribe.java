@@ -1,6 +1,5 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SUBSCRIPTION_IDENTIFIER;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
@@ -49,7 +48,7 @@ public class Subscribe extends ControlPacket {
         }
         int remainingLength = 2;
         for (Subscription s : subscriptions) {
-            remainingLength += (2 + s.topicFilter().getBytes(UTF_8).length + 1);
+            remainingLength += (calcUTF8StringLength(s.topicFilter) + 1);
         }
         Subscribe ret = new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
         if (!ret.packetValidate()) {

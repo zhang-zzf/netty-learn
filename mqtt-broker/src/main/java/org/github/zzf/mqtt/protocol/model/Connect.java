@@ -1,6 +1,5 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_DATA;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_METHOD;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CONTENT_TYPE;
@@ -118,11 +117,11 @@ public class Connect extends ControlPacket {
             String protocolName, byte protocolLevel, byte connectFlags, int keepAlive,
             String clientIdentifier, String willTopic, ByteBuf willMessage, String username, ByteBuf password) {
         int remainingLength = VARIABLE_HEADER_LENGTH
-                + (clientIdentifier == null ? 2 : clientIdentifier.getBytes(UTF_8).length + 2)
-                + (willTopic == null ? 0 : willTopic.getBytes(UTF_8).length + 2)
-                + (willMessage == null ? 0 : willMessage.readableBytes() + 2)
-                + (username == null ? 0 : username.getBytes(UTF_8).length + 2)
-                + (password == null ? 0 : password.readableBytes() + 2);
+                + (clientIdentifier == null ? 2 : calcUTF8StringLength(clientIdentifier))
+                + (willTopic == null ? 0 : calcUTF8StringLength(willTopic))
+                + (willMessage == null ? 0 : calcBinaryDataLength(willMessage))
+                + (username == null ? 0 : calcUTF8StringLength(username))
+                + (password == null ? 0 : calcBinaryDataLength(password));
         Connect ret = new Connect(CONNECT, remainingLength,
                 protocolName, protocolLevel, connectFlags, keepAlive,
                 clientIdentifier, willTopic, willMessage, username, password);

@@ -71,8 +71,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         ctx.fireChannelRead(cp);
     }
 
-    private void channelRead0(ChannelHandlerContext ctx,
-            ControlPacket cp) {
+    private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
         // After a Network Connection is established by a Client to a Server,
         // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
         if (session == null && !(cp instanceof Connect)) {

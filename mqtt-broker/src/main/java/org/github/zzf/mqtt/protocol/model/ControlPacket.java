@@ -142,7 +142,7 @@ public abstract class ControlPacket {
             }
             multiplier *= 0x80;
             if (multiplier > 0x80 * 0x80 * 0x80) {
-                throw new IllegalArgumentException();
+                throw new MalformedPacketException();
             }
         }
         return rl;
@@ -461,8 +461,8 @@ public abstract class ControlPacket {
         private static ControlPacket buildControlPacketFromV50(ByteBuf incoming) {
             byte _0byte = incoming.getByte(incoming.readerIndex());
             return switch (type(_0byte)) {
-                case CONNECT -> Connect.incoming(incoming);
-                case CONNACK -> ConnAck.incoming(incoming);
+                case CONNECT -> Connect.V50.incoming(incoming);
+                case CONNACK -> ConnAck.V50.incoming(incoming);
                 case PUBLISH ->/* core: zero-copy */ Publish.V50.incoming(incoming);
                 case PUBACK -> PubAck.V50.incoming(incoming);
                 case PUBREC -> PubRec.V50.incoming(incoming);
@@ -1027,6 +1027,10 @@ public abstract class ControlPacket {
 
         public MalformedPacketException(String msg) {
             super(msg);
+        }
+
+        public MalformedPacketException(Throwable cause) {
+            super(cause);
         }
     }
 

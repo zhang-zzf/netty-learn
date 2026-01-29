@@ -1,6 +1,5 @@
 package org.github.zzf.mqtt.protocol.model;
 
-import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CONTENT_TYPE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CORRELATION_DATA;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MESSAGE_EXPIRY_INTERVAL;
@@ -75,10 +74,9 @@ public class Publish extends ControlPacket {
             String topicName, short packetIdentifier,
             ByteBuf payload) {
         byte _0byte = build_0Byte(retain, qos, dup);
-        int topicLength = topicName.getBytes(UTF_8).length + 2;
         int packetIdentifierLength = needAck(qos) ? 2 : 0;
         // remainingLength field
-        int remainingLength = topicLength + packetIdentifierLength + payload.readableBytes();
+        int remainingLength = calcUTF8StringLength(topicName) + packetIdentifierLength + payload.readableBytes();
         Publish ret = new Publish(_0byte, remainingLength,
                 topicName, packetIdentifier,
                 payload);

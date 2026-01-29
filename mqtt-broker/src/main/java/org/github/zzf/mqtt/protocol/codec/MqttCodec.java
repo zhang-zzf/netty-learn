@@ -7,8 +7,10 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.ByteToMessageCodec;
+import io.netty.handler.codec.DecoderException;
 import io.netty.util.ReferenceCountUtil;
 import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50;
 import org.github.zzf.mqtt.protocol.model.Publish;
@@ -17,6 +19,7 @@ import org.github.zzf.mqtt.protocol.model.Publish;
  * @author zhanfeng.zhang@icloud.com
  * @date 2024-11-05
  */
+@Slf4j
 public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
 
     @Override
@@ -50,6 +53,17 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
         // core: zero-copy
         ByteBuf incoming = in.readRetainedSlice(packetLength);
         out.add(ControlPacket.from(incoming));
+    }
+
+    @Override
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        if (cause instanceof DecoderException) {// MqttCodec#decode 中的异常会被包装成 DecodeException
+            log.error("malformed packet", cause);
+            ctx.channel().close();
+        }
+        else {
+            ctx.fireExceptionCaught(cause);
+        }
     }
 
     public static class V50 extends MqttCodec {

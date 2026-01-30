@@ -82,7 +82,7 @@ public class ConnAck extends ControlPacket {
             boolean sp, byte returnCode) {
         // If a server sends a CONNACK packet containing a non-zero return code
         // it MUST set Session Present to 0
-        if (returnCode != 0 || sp) {
+        if (returnCode != 0 && sp) {
             throw new IllegalArgumentException();
         }
         byte connectAcknowledgeFlags = sp ? (byte) 0x01 : 0x00;
@@ -201,6 +201,29 @@ public class ConnAck extends ControlPacket {
             Properties properties = readProperties(incoming);
             return new V50(byte0, remainingLength,
                     connectAcknowledgeFlags, returnCode, properties);
+        }
+
+        public static V50 accepted() {
+            return V50.from(false, ACCEPTED, Properties.EMPTY);
+        }
+
+        public static V50 acceptedWithStoredSession() {
+            return V50.from(true, ACCEPTED, Properties.EMPTY);
+        }
+
+        public static V50 notSupportProtocolLevel() {
+            return V50.from(false, REASON_CODE_UNSUPPORTED_PROTOCOL_VERSION, Properties.EMPTY);
+        }
+
+        public static V50 from(boolean sp, byte returnCode, Properties properties) {
+            int remainingLength = 2 + calcPropertiesLength(properties);
+            byte connectAcknowledgeFlags = sp ? (byte) 0x01 : 0x00;
+            V50 ret = new V50((byte) 0x02, remainingLength,
+                    connectAcknowledgeFlags, returnCode, properties);
+            if (!ret.packetValidate()) {
+                throw new MalformedPacketException();
+            }
+            return ret;
         }
 
         @Override

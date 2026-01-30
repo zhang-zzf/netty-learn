@@ -14,14 +14,16 @@ import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE_BROKER;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
-import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
+import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import lombok.extern.slf4j.Slf4j;
+import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Disconnect;
@@ -45,21 +47,52 @@ import org.github.zzf.mqtt.server.metric.MetricUtil;
 @Slf4j
 public class DefaultServerSession extends AbstractSession implements ServerSession {
 
-    private final Broker broker;
-    private final Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    public static final String METRIC_NAME = DefaultServerSession.class.getName();
+    final long connectReceivedMillis = System.currentTimeMillis();
+    final Broker broker;
+    final Set<Subscribe.Subscription> subscriptions;
     // todo 监控内存占用
-    private final Queue<ControlPacketContext> inQueue = new LinkedList<>();
-    private final Queue<ControlPacketContext> outQueue = new LinkedList<>();
-
-    private final Connect connect;
-    private final boolean isResumed;
-    private boolean disconnect;
+    final Queue<ControlPacketContext> inQueue;
+    final Queue<ControlPacketContext> outQueue;
+    final Connect connect;
+    final ConnAck connAck;
+    boolean disconnect;
 
     public DefaultServerSession(Connect connect,
+            ConnAck connAck,
             Channel channel,
-            DefaultBroker broker,
-            ServerSession previous) {
-        this(connect, channel, broker, true);
+            Broker broker) {
+        this(connect, channel, new Random().nextInt(Short.MAX_VALUE),
+                connAck, broker,
+                ConcurrentHashMap.newKeySet(),
+                new ConcurrentLinkedQueue<>(),
+                new ConcurrentLinkedQueue<>());
+    }
+
+    private DefaultServerSession(Connect connect, Channel channel, int packetIdentifier,
+            ConnAck connAck, Broker broker,
+            Set<Subscribe.Subscription> subscriptions,
+            Queue<ControlPacketContext> inQueue,
+            Queue<ControlPacketContext> outQueue) {
+        super(connect.clientIdentifier(), channel, packetIdentifier);
+        this.broker = broker;
+        this.connect = connect;
+        this.connAck = connAck;
+        this.subscriptions = subscriptions;
+        this.inQueue = inQueue;
+        this.outQueue = outQueue;
+    }
+
+    public static DefaultServerSession from(
+            Connect connect,
+            ConnAck connAck,
+            Channel channel,
+            Broker broker,
+            ServerSession session) {
+        if (!(session instanceof DefaultServerSession dss)) {
+            throw new UnsupportedOperationException();
+        }
+        // resume previous session
         // The Client and Server MUST store the Session after the Client and Server are disconnected
         // 按照 mqtt 协议 Client 会保存和重新发送未确认的消息。若 Client 未按照协议设计可能导致 inQueue 异常
         // todo inQueue 存在 QoS2 消息，若 Client 重连后没有恢复 QoS2 消息的状态，inQueue 中的消息和后续消息接无法清理
@@ -73,34 +106,37 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         // 通用理解为：  QoS1 重新发送消息； QoS2 按状态恢复发送
         // sender 未收到 PUBREC ->  客户端必须重新发送相同的 PUBLISH 数据包（相同的 Packet ID=100） DUP 标志设置为 1
         // sender 收到 PUBREC ->  客户端必须重新发送 PUBREL 数据包（相同的 Packet ID=100）
-        if (previous instanceof DefaultServerSession dss) {
-            packetIdentifier.set(dss.packetIdentifier.get());
-            // subscription
-            subscriptions.addAll(dss.subscriptions());
-            inQueue.addAll(dss.inQueue);
-            outQueue.addAll(dss.outQueue);
-        }
-        else {
-            throw new IllegalArgumentException();
-        }
+        return new DefaultServerSession(
+                connect, channel, dss.nextPacketIdentifier(), connAck,
+                broker, dss.subscriptions, dss.inQueue, dss.outQueue);
     }
 
-    public DefaultServerSession(Connect connect, Channel channel, Broker broker) {
-        this(connect, channel, broker, false);
-    }
-
-    public DefaultServerSession(Connect connect, Channel channel, Broker broker, boolean isResumed) {
-        super(connect.clientIdentifier(), connect.cleanSession(), channel);
-        this.broker = broker;
-        this.connect = connect;
-        this.isResumed = isResumed;
+    /**
+     * Will Message
+     * <pre>
+     *     initiate by Connect if will flag is present. It will be cleaned after
+     *     1. receive Disconnect
+     *     2. lost the Channel to Client, and forward the message to relative Topic.
+     * </pre>
+     */
+    private static Publish extractWillMessage(Connect connect) {
+        int qos = connect.willQos();
+        String topic = connect.willTopic();
+        ByteBuf byteBuf = connect.willMessage();
+        boolean retain = connect.willRetainFlag();
+        return Publish.outgoing(retain, (byte) qos, false,
+                topic, (short) 0,
+                byteBuf);
     }
 
     @Override
     public ChannelFuture send(ControlPacket packet) {
         if (packet instanceof Publish publish) {
+            // todo 测试 1 对 n forward 时 payload 线程安全
+            // retain 不会创建新的对象
             publish.payload().retain();
-            log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}", cId(), publish.pId(), publish.payload().refCnt());
+            log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}", cId(), publish.pId(),
+                    publish.payload().refCnt());
             return super.send(packet);
         }
         else {
@@ -137,6 +173,16 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public Broker broker() {
         return broker;
+    }
+
+    @Override
+    public boolean cleanSession() {
+        return connect.cleanSession();
+    }
+
+    @Override
+    public boolean isResumed() {
+        return connAck.sp();
     }
 
     @Override
@@ -181,8 +227,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
         super.publishSent(packet);
     }
-
-    public static final String METRIC_NAME = DefaultServerSession.class.getName();
 
     private void metricPublish(Publish packet) {
         Map<String, Object> meta = packet.meta();
@@ -247,33 +291,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             log.debug("Session({}) closed before Disconnect, now send Will: {}", cId(), willMessage);
             onPublish(willMessage);
         }
-        if (cleanSession()) {
-           broker.disconnect(this);
+        if (connect.cleanSession()) {
+            broker.disconnect(this);
         }
-    }
-
-    /**
-     * Will Message
-     * <pre>
-     *     initiate by Connect if will flag is present. It will be cleaned after
-     *     1. receive Disconnect
-     *     2. lost the Channel to Client, and forward the message to relative Topic.
-     * </pre>
-     */
-    private static Publish extractWillMessage(Connect connect) {
-        int qos = connect.willQos();
-        String topic = connect.willTopic();
-        ByteBuf byteBuf = connect.willMessage();
-        boolean retain = connect.willRetainFlag();
-        return Publish.outgoing(retain, (byte) qos, false,
-                topic, (short) 0,
-                byteBuf);
-    }
-
-    // todo cleanSession 复制 UT
-    @Override
-    public boolean isResumed() {
-        return isResumed;
     }
 
 }

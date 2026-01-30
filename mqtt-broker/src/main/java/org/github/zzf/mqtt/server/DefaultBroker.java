@@ -8,12 +8,12 @@ import static org.github.zzf.mqtt.protocol.model.Publish.needAck;
 import io.micrometer.core.annotation.Timed;
 import io.netty.channel.Channel;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
+import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
 import org.github.zzf.mqtt.protocol.model.ControlPacket.UnSupportProtocolLevelException;
@@ -45,7 +45,7 @@ public class DefaultBroker implements Broker {
     final RoutingTable routingTable;
     final TopicBlocker blockedTopic;
     final RetainPublishManager retainPublishManager;
-    final Set<Integer> supportedProtocolLevel = new HashSet<>(List.of(4));
+    final Set<Byte> supportedProtocolLevel = Set.of((byte) 4, (byte) 5);
 
     public DefaultBroker(Authenticator authenticator,
             RoutingTable routingTable,
@@ -111,6 +111,7 @@ public class DefaultBroker implements Broker {
                         false /* must set retain to false before forward the PublishPacket */,
                         qos, false,
                         topic.topicFilter(), packetIdentifier(session, qos),
+                        // todo forward to n client test ByteBuf 中的 index 变化
                         packet.payload());
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(),
@@ -143,7 +144,8 @@ public class DefaultBroker implements Broker {
     //
     @Override
     public ServerSession connect(Connect connect, Channel channel) {
-        log.debug("Server receive Connect from client({}) -> {}", connect.clientIdentifier(), connect);
+        String clientId = connect.clientIdentifier();
+        log.debug("Server receive Connect from client({}) -> {}", clientId, connect);
         // The Server MUST respond to the CONNECT Packet
         // with a CONNACK return code 0x01 (unacceptable protocol level) and then
         // disconnect the Client if the Protocol Level is not supported by the Server
@@ -158,35 +160,39 @@ public class DefaultBroker implements Broker {
             }
         }
         //
+        return sessionMap.compute(clientId, (k, v) -> doConnect(connect, channel, v));
+    }
+
+    private DefaultServerSession doConnect(
+            Connect connect,
+            Channel channel,
+            ServerSession previous) {
         String clientId = connect.clientIdentifier();
-        ServerSession previous = sessionMap.get(clientId);
-        if (previous != null) {
-            previous.channel().close();
-            sessionMap.remove(clientId, previous);
-        }
-        DefaultServerSession session;
-        // todo channelClose remove session and subscriptions
         if (connect.cleanSession()) {
-            log.debug("Client({}) need a (cleanSession=1) Session", clientId);
-            session = new DefaultServerSession(connect, channel, this);
-            log.debug("Client({}) connected to Broker with Session: {}", clientId, session);
+            if (previous != null) {
+                previous.channel().close();
+                if (!previous.cleanSession()) {
+                    routingTable.unsubscribe(clientId, previous.subscriptions());
+                }
+            }
+            return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
         }
         else {
-            log.debug("Client({}) need a (cleanSession=0) Session", clientId);
-            // CleanSession MUST NOT be reused in any subsequent Session
-            // if previous.cleanSession is true, then broker should use the new created Session
-            if (previous == null || previous.cleanSession()) {
-                session = new DefaultServerSession(connect, channel, this);
-                log.debug("Client({}) need a (cleanSession=0) Session, new Session created", clientId);
+            if (previous == null) {
+                return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
             }
             else {
-                log.debug("Client({}) need a (cleanSession=0) Session, use exist Session: {}", clientId, previous);
-                session = new DefaultServerSession(connect, channel, this, previous);
+                // todo test close() twice
+                previous.channel().close();
+                if (previous.cleanSession()) {
+                    return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
+                }
+                else {
+                    ConnAck connAck = ConnAck.acceptedWithStoredSession();
+                    return DefaultServerSession.from(connect, connAck, channel, this, previous);
+                }
             }
         }
-        // attach session
-        sessionMap.put(session.clientIdentifier(), session);
-        return session;
     }
 
     @Override
@@ -204,7 +210,7 @@ public class DefaultBroker implements Broker {
         return new Subscribe.Subscription(sub.topicFilter(), (byte) qos);
     }
 
-    Set<Integer> supportProtocolLevel() {
+    Set<Byte> supportProtocolLevel() {
         return supportedProtocolLevel;
     }
 

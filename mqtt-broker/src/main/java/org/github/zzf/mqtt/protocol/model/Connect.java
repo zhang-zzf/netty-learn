@@ -294,8 +294,8 @@ public class Connect extends ControlPacket {
         return willFlag(connectFlags);
     }
 
-    public Integer protocolLevel() {
-        return Integer.valueOf(protocolLevel);
+    public byte protocolLevel() {
+        return protocolLevel;
     }
 
     @Override

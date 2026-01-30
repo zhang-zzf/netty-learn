@@ -16,7 +16,6 @@ import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
 import org.github.zzf.mqtt.protocol.model.ControlPacket.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
-import org.github.zzf.mqtt.protocol.session.AbstractSession;
 import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
@@ -38,12 +37,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
 
     final Broker broker;
     final int activeIdleTimeoutSecond;
-    protected ServerSession session;
-    private final ChannelFutureListener SESSION_ESTABLISHED_CALLBACK = future -> {
-        if (future.isSuccess() && session instanceof AbstractSession as) {
-            as.onActive();
-        }
-    };
+    ServerSession session;
     ReadTimeoutHandler activeIdleTimeoutHandler;
 
     @Override
@@ -64,58 +58,44 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             ctx.channel().close();
             return;
         }
-        channelRead0(ctx, cp);
-        /**
-         fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket
-         */
-        ctx.fireChannelRead(cp);
-    }
-
-    private void channelRead0(ChannelHandlerContext ctx, ControlPacket cp) {
-        // After a Network Connection is established by a Client to a Server,
-        // the first Packet sent from the Client to the Server MUST be a CONNECT Packet
+        /* After a Network Connection is established by a Client to a Server, the first Packet sent from the Client to the Server MUST be a CONNECT Packet */
         if (session == null && !(cp instanceof Connect)) {
             log.error("channelRead the first Packet is not Connect, now close channel");
             ctx.channel().close();
             return;
         }
-        // the first Connect Packet
+        if (session != null && cp instanceof Connect) {
+            /* A Client can only send the CONNECT Packet once over a Network Connection. The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation and disconnect the Client */
+            log.error("Client({}) send Connect packet more than once, now close session.", csci());
+            ctx.channel().close();
+            return;
+        }
+        doHandleControlPacket(ctx, cp);
+        /* fireChannelRead if some plugin need use the ControlPacket just before release the ControlPacket */
+        ctx.fireChannelRead(cp);
+    }
+
+    private void doHandleControlPacket(ChannelHandlerContext ctx, ControlPacket cp) {
         if (cp instanceof Connect connect) {
-            // A Client can only send the CONNECT Packet once over a Network Connection.
-            // The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation
-            // and disconnect the Client
-            if (session != null) {
-                log.error("Client({}) send Connect packet more than once, now close session.", csci());
-                ctx.channel().close();
-                return;
-            }
-            // now accept the 'Connect'
             try {
                 session = broker.connect(connect, ctx.channel());
+                ConnAck connack = session.isResumed() ? ConnAck.acceptedWithStoredSession() : ConnAck.accepted();
+                ctx.write(connack)
+                        .addListener(LOG_ON_FAILURE)
+                        .addListener(FIRE_EXCEPTION_ON_FAILURE)
+                        .addListener((ChannelFutureListener) future -> {
+                            if (future.isSuccess()) {
+                                log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect);
+                                session.onActive();
+                            }
+                        });
+                if (connect.keepAlive() > 0) {
+                    addClientKeepAliveHandler(ctx, connect.keepAlive());
+                }
             } catch (UnSupportProtocolLevelException e) {
-                log.info("Server not support protocol level, now send ConnAck and close channel to client({})",
-                        connect.clientIdentifier());
-                ctx.channel().writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
+                ctx.write(ConnAck.notSupportProtocolLevel()).channel().close();
             } catch (AuthenticationException e) {
-                byte authenticate = e.getAuthenticate();
-                log.info("Server authenticate Connect from client({}) failed, now send ConnAck and close channel -> {}",
-                        connect.clientIdentifier(), authenticate);
-                ctx.channel().writeAndFlush(ConnAck.authenticateFailed(authenticate)).channel().close();
-            } catch (IllegalArgumentException e) {
-                log.error("Client({}) Connect failed: {}", connect.clientIdentifier(), e.getMessage());
-                ctx.channel().close();
-            }
-            // send ConnAck
-            ConnAck connAck = session.isResumed() ? ConnAck.acceptedWithStoredSession() : ConnAck.accepted();
-            ctx.writeAndFlush(connAck)
-                    .addListener(LOG_ON_FAILURE)
-                    .addListener(FIRE_EXCEPTION_ON_FAILURE)
-                    .addListener(f -> log.debug("Client({}) Connect accepted: {}", connect.clientIdentifier(), connect))
-                    .addListener(SESSION_ESTABLISHED_CALLBACK)
-            ;
-            // keep alive
-            if (connect.keepAlive() > 0) {
-                addClientKeepAliveHandler(ctx, connect.keepAlive());
+                ctx.write(ConnAck.authenticateFailed(e.getAuthenticate())).channel().close();
             }
         }
         else {
@@ -124,8 +104,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private void addClientKeepAliveHandler(ChannelHandlerContext ctx,
-            int keepAlive) {
+    private void addClientKeepAliveHandler(ChannelHandlerContext ctx, int keepAlive) {
         // If the Keep Alive value is non-zero and the Server does not receive a Control Packet from the Client
         // within one and a half times the Keep Alive time period, it MUST disconnect the Network Connection to the
         // Client as if the network had failed
@@ -151,8 +130,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx,
-            Throwable cause) {
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
         log.error("Client({" + csci() + "}) exceptionCaught. now close the Channel -> channel: {}", ctx.channel());
         log.error("Client({" + csci() + "}) exceptionCaught. now close the session", cause);
         ctx.channel().close();

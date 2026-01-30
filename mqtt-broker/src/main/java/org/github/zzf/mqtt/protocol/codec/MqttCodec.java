@@ -50,6 +50,8 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
         if (packetLength == INCOMPLETE_PACKET) {// can not decode a packet
             return;
         }
+        // todo test Publish 可以释放
+        // todo test Subscribe / Connect 等包无法释放
         // core: zero-copy
         ByteBuf incoming = in.readRetainedSlice(packetLength);
         out.add(ControlPacket.from(incoming));

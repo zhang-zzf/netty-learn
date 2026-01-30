@@ -1,6 +1,5 @@
 package org.github.zzf.mqtt.protocol.session;
 
-import static com.google.common.base.Preconditions.checkNotNull;
 import static io.netty.channel.ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PUBACK;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PUBCOMP;
@@ -50,28 +49,18 @@ public abstract class AbstractSession implements Session {
         }
     };
 
-    protected final AtomicInteger packetIdentifier = new AtomicInteger(new Random().nextInt(Short.MAX_VALUE));
+    final AtomicInteger packetIdentifier;
+    final String clientIdentifier;
+    final Channel channel;
 
-    private final String clientIdentifier;
-    private final boolean cleanSession;
-
-    private final Channel channel;
-
-    /**
-     * 是否发送 Publish Packet
-     */
-    // private volatile Thread sendingPublishThread;
-    protected AbstractSession(String clientIdentifier,
-            boolean cleanSession,
-            Channel channel) {
-        this.clientIdentifier = checkNotNull(clientIdentifier, "clientIdentifier");
-        this.cleanSession = cleanSession;
-        this.channel = checkNotNull(channel);
+    protected AbstractSession(String clientIdentifier, Channel channel) {
+        this(clientIdentifier, channel, new Random().nextInt(Short.MAX_VALUE));
     }
 
-    @Override
-    public boolean cleanSession() {
-        return cleanSession;
+    protected AbstractSession(String clientIdentifier, Channel channel, int packetIdentifier) {
+        this.clientIdentifier = clientIdentifier;
+        this.channel = channel;
+        this.packetIdentifier = new AtomicInteger(packetIdentifier);
     }
 
     /**
@@ -538,8 +527,9 @@ public abstract class AbstractSession implements Session {
      * as Receiver
      */
     private void doSendPubRec(short packetIdentifier) {
-        doWrite(PubRec.from(packetIdentifier))
-                .addListener(f -> log.debug("receiver({}/{}) Publish HANDLED -> [PUB_REC sent]", cId(), hexPId(packetIdentifier)));
+        doWrite(PubRec.from(packetIdentifier)).addListener(f ->
+                log.debug("receiver({}/{}) Publish HANDLED -> [PUB_REC sent]", cId(), hexPId(packetIdentifier))
+        );
     }
 
     protected ControlPacketContext createNewCpx(Publish packet,
@@ -676,6 +666,7 @@ public abstract class AbstractSession implements Session {
      *     callback after established  CONNECT -> CONNACK
      * </pre>
      */
+    @Override
     public void onActive() {
         // invoke later
         channel.eventLoop().submit(() -> {
@@ -687,7 +678,7 @@ public abstract class AbstractSession implements Session {
 
     @Override
     public void onInactive() {
-       log.debug("Session({}) inactive", cId());
+        log.debug("Session({}) inactive", cId());
     }
 
 }

@@ -15,6 +15,8 @@ public interface ServerSession extends Session {
      */
     Broker broker();
 
+    boolean cleanSession();
+
     /**
      * 检查当前会话是否是从先前会话恢复/复用的
      *
@@ -23,7 +25,5 @@ public interface ServerSession extends Session {
     default boolean isResumed() {
         return false;
     }
-
-    ;
 
 }

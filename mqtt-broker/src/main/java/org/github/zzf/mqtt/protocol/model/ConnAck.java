@@ -95,7 +95,7 @@ public class ConnAck extends ControlPacket {
     }
 
     private static ConnAck from(boolean sp, byte returnCode) {
-        return from((byte) 0x02, 0x02, sp, returnCode);
+        return from((byte) 0x20, 0x02, sp, returnCode);
     }
 
 

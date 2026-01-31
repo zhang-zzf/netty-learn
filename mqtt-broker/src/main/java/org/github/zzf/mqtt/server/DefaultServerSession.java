@@ -2,8 +2,10 @@ package org.github.zzf.mqtt.server;
 
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DISCONNECT;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PINGREQ;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.PUBLISH;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.SUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.UNSUBSCRIBE;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.validateTopicName;
 import static org.github.zzf.mqtt.protocol.model.Publish.META_NM_RECEIVE;
 import static org.github.zzf.mqtt.protocol.model.Publish.META_NM_WRAP;
 import static org.github.zzf.mqtt.protocol.model.Publish.META_P_RECEIVE_MILLIS;
@@ -26,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
+import org.github.zzf.mqtt.protocol.model.ControlPacket.MalformedPacketException;
 import org.github.zzf.mqtt.protocol.model.Disconnect;
 import org.github.zzf.mqtt.protocol.model.PingReq;
 import org.github.zzf.mqtt.protocol.model.PingResp;
@@ -132,11 +135,10 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     @Override
     public ChannelFuture send(ControlPacket packet) {
         if (packet instanceof Publish publish) {
-            // todo 测试 1 对 n forward 时 payload 线程安全
             // retain 不会创建新的对象
             publish.payload().retain();
-            log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}", cId(), publish.pId(),
-                    publish.payload().refCnt());
+            log.debug("sender({}/{}) Publish . -> [RETAIN] payload.refCnt: {}",
+                    cId(), publish.pId(), publish.payload().refCnt());
             return super.send(packet);
         }
         else {
@@ -153,6 +155,15 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             case DISCONNECT -> doReceiveDisconnect((Disconnect) packet);
             default -> super.onPacket(packet);
         }
+    }
+
+    @Override
+    protected void doReceivePublish(Publish packet) {
+        // client to server, validate topic name
+        if (!validateTopicName(packet.topicName())) {
+            throw new MalformedPacketException();
+        }
+        super.doReceivePublish(packet);
     }
 
     private void doReceivePingReq(PingReq packet) {

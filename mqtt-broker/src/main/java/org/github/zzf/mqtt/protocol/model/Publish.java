@@ -172,12 +172,21 @@ public class Publish extends ControlPacket {
         if ((qos() & 0x03) == 0x03) {
             return false;
         }
-        // topicName 校验
-        if (!validateTopicName(topicName)) {
+        // topicName 校验 forward 的 Publish topicName 可以包含 topicFilter
+        if (!validateTopicName()) {
             return false;
         }
         return super.packetValidate();
     }
+
+    public boolean validateTopicName() {
+        if (topicName == null || topicName.isEmpty()) {
+            return false;
+        }
+        return true;
+    }
+
+
 
     public boolean dup() {
         return (byte0 & 0x08) != 0;

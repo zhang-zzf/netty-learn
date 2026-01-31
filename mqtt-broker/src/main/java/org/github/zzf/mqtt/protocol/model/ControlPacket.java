@@ -331,8 +331,11 @@ public abstract class ControlPacket {
         if (topicName == null || topicName.isEmpty()) {
             return false;
         }
-        return !topicName.contains(MULTI_LEVEL_WILDCARD)
-                && !topicName.contains(SINGLE_LEVEL_WILDCARD);
+        if (topicName.contains(MULTI_LEVEL_WILDCARD)
+                || topicName.contains(SINGLE_LEVEL_WILDCARD)) {
+            return false;
+        }
+        return true;
     }
 
     public static Properties readProperties(ByteBuf incoming) {
@@ -627,7 +630,7 @@ public abstract class ControlPacket {
 
         private static UTF8EncodedStringProperty decodeResponseTopic(ByteBuf buf) {
             String val = readUTF8String(buf);
-            if (!validateResponseTopicName(val)) {
+            if (!validateTopicName(val)) {
                 throw new IllegalArgumentException("Invalid response topic format: " + val);
             }
             return new UTF8EncodedStringProperty(RESPONSE_TOPIC, val);
@@ -768,14 +771,6 @@ public abstract class ControlPacket {
 
         private static UTF8StringPairProperty decodeUserProperty(ByteBuf buf) {
             return new UTF8StringPairProperty(USER_PROPERTY, readUTF8String(buf), readUTF8String(buf));
-        }
-
-        private static boolean validateResponseTopicName(String topic) {
-            if (!validateTopicName(topic)) {
-                return false;
-            }
-            // Response Topic MUST NOT contain wildcard characters
-            return !topic.contains("+") && !topic.contains("#");
         }
 
         public boolean isEmpty() {

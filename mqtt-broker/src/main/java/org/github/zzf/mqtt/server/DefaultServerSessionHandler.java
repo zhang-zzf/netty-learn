@@ -80,7 +80,7 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
             try {
                 session = broker.connect(connect, ctx.channel());
                 ConnAck connack = session.isResumed() ? ConnAck.acceptedWithStoredSession() : ConnAck.accepted();
-                ctx.write(connack)
+                ctx.writeAndFlush(connack)
                         .addListener(LOG_ON_FAILURE)
                         .addListener(FIRE_EXCEPTION_ON_FAILURE)
                         .addListener((ChannelFutureListener) future -> {
@@ -93,9 +93,9 @@ public class DefaultServerSessionHandler extends ChannelInboundHandlerAdapter {
                     addClientKeepAliveHandler(ctx, connect.keepAlive());
                 }
             } catch (UnSupportProtocolLevelException e) {
-                ctx.write(ConnAck.notSupportProtocolLevel()).channel().close();
+                ctx.writeAndFlush(ConnAck.notSupportProtocolLevel()).channel().close();
             } catch (AuthenticationException e) {
-                ctx.write(ConnAck.authenticateFailed(e.getAuthenticate())).channel().close();
+                ctx.writeAndFlush(ConnAck.authenticateFailed(e.getAuthenticate())).channel().close();
             }
         }
         else {

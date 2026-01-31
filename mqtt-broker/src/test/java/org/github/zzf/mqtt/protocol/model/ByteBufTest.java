@@ -435,6 +435,28 @@ class ByteBufTest {
     }
 
     /**
+     * CompositeByteBuf 底层的 Component 被释放，导致 CompositeByteBuf 访问抛出异常。
+     */
+    @Test
+    void givenCompositeByteBuf_whenRead_then() {
+        ByteBuf header = Unpooled.buffer(8);
+        header.writeInt(Integer.MAX_VALUE);
+        ByteBuf body = Unpooled.buffer(32);
+        body.writeLong(Long.MAX_VALUE);
+        CompositeByteBuf req = Unpooled.compositeBuffer()
+                .addComponent(true, header)
+                .addComponent(true, body);
+        // 释放底层 Component
+        then(req.readInt()).isEqualTo(Integer.MAX_VALUE);
+        then(req.readLong()).isEqualTo(Long.MAX_VALUE);
+        // 底层的 buf 的 readerIdx / writerIdx 没有变化
+        then(header.readerIndex()).isEqualTo(0);
+        then(header.writerIndex()).isEqualTo(4);
+        then(body.readerIndex()).isEqualTo(0);
+        then(body.writerIndex()).isEqualTo(8);
+    }
+
+    /**
      * unicode 可以表示所有的汉字， but
      * <pre>
      *         基本汉字	        20902字	    4E00-9FA5

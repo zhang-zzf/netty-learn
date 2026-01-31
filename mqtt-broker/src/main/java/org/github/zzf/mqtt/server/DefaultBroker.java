@@ -107,12 +107,13 @@ public class DefaultBroker implements Broker {
                 }
                 int qos = qoS(packet.qos(), subscriber.qos());
                 // use a shadow copy of the origin Publish
+                log.info("forward payload: {}", packet.payload());
                 Publish outgoing = Publish.outgoing(
                         false /* must set retain to false before forward the PublishPacket */,
                         qos, false,
                         topic.topicFilter(), packetIdentifier(session, qos),
-                        // todo forward to n client test ByteBuf 中的 index 变化
-                        packet.payload());
+                        /* packet.payload().slice());  verified: must use slice()*/
+                        packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(),
                             topic.topicFilter(), session.clientIdentifier(), outgoing);

@@ -23,6 +23,7 @@ import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelFutureListener;
 import io.netty.channel.ChannelPromise;
+import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
@@ -150,7 +151,8 @@ public abstract class AbstractSession implements Session {
                 publishSentComplete(packet);
             });
         }
-        else {// offline. consider success.
+        else {// offline. consider success. must release packet
+            ReferenceCountUtil.release(packet.payload());
             publishSentComplete(packet);
         }
         // anyway the result is success (match the QoS rules)
@@ -505,7 +507,8 @@ public abstract class AbstractSession implements Session {
         Publish packet = dupCpx.packet();
         switch (dupCpx.status()) {
             case INIT:
-                log.debug("receiver({}/{}) Publish INIT -> . [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}", cId(), dupCpx.pId(), dupCpx);
+                log.debug("receiver({}/{}) Publish INIT -> . [QoS2 重复消息，inQueue 队列中状态为 INIT]: {}",
+                        cId(), dupCpx.pId(), dupCpx);
                 // handle the Publish Packet
                 onPublish(packet);
                 // now cpx is HANDLED

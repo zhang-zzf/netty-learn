@@ -37,6 +37,7 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SESSIO
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SHARED_SUBSCRIPTION_AVAILABLE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.SUBSCRIPTION_IDENTIFIER_AVAILABLE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.TOPIC_ALIAS_MAXIMUM;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.TOPIC_ALIAS_MAXIMUM_DEFAULT_VALUE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.WILDCARD_SUBSCRIPTION_AVAILABLE;
 
@@ -51,6 +52,7 @@ public class ConnAck extends ControlPacket {
     public static final byte SERVER_UNAVAILABLE = 0x03;
     public static final byte BAD_USER_NAME_OR_PASSWORD = 0x04;
     public static final byte NOT_AUTHORIZED = 0x05;
+    public static final byte BYTE_0 = (byte) 0x20;
 
     final byte connectAcknowledgeFlags;
     final byte returnCode;
@@ -95,7 +97,7 @@ public class ConnAck extends ControlPacket {
     }
 
     private static ConnAck from(boolean sp, byte returnCode) {
-        return from((byte) 0x20, 0x02, sp, returnCode);
+        return from(BYTE_0, 0x02, sp, returnCode);
     }
 
 
@@ -166,26 +168,9 @@ public class ConnAck extends ControlPacket {
     }
 
     public static class V50 extends ConnAck {
+        public static final int ACKNOWLEDGE_FLAGS_LENGTH = 1;
+        public static final int REASON_CODE_LENGTH = 1;
         final Properties properties;
-        final Set<Integer> allowedProperties = Set.of(
-                SESSION_EXPIRY_INTERVAL,
-                RECEIVE_MAXIMUM,
-                MAXIMUM_QoS,
-                RETAIN_AVAILABLE,
-                MAXIMUM_PACKET_SIZE,
-                ASSIGNED_CLIENT_IDENTIFIER,
-                TOPIC_ALIAS_MAXIMUM,
-                REASON_STRING,
-                USER_PROPERTY,
-                WILDCARD_SUBSCRIPTION_AVAILABLE,
-                SUBSCRIPTION_IDENTIFIER_AVAILABLE,
-                SHARED_SUBSCRIPTION_AVAILABLE,
-                SERVER_KEEP_ALIVE,
-                RESPONSE_INFORMATION,
-                SERVER_REFERENCE,
-                AUTHENTICATION_METHOD,
-                AUTHENTICATION_DATA
-        );
 
         private V50(byte byte0, int remainingLength,
                 byte connectAcknowledgeFlags, byte returnCode, Properties properties) {
@@ -211,19 +196,33 @@ public class ConnAck extends ControlPacket {
             return V50.from(true, ACCEPTED, Properties.EMPTY);
         }
 
+        public static V50 authenticateFailed(byte authenticate) {
+            return V50.from(true, NOT_AUTHORIZED, Properties.EMPTY);
+        }
+
         public static V50 notSupportProtocolLevel() {
             return V50.from(false, REASON_CODE_UNSUPPORTED_PROTOCOL_VERSION, Properties.EMPTY);
         }
 
         public static V50 from(boolean sp, byte returnCode, Properties properties) {
-            int remainingLength = 2 + calcPropertiesLength(properties);
+            int remainingLength = ACKNOWLEDGE_FLAGS_LENGTH
+                    + REASON_CODE_LENGTH
+                    + calcPropertiesLength(properties);
             byte connectAcknowledgeFlags = sp ? (byte) 0x01 : 0x00;
-            V50 ret = new V50((byte) 0x02, remainingLength,
+            V50 ret = new V50(BYTE_0, remainingLength,
                     connectAcknowledgeFlags, returnCode, properties);
             if (!ret.packetValidate()) {
                 throw new MalformedPacketException();
             }
             return ret;
+        }
+
+        public int topicAliasMaximum() {
+            return properties.topicAliasMaximum().orElse(TOPIC_ALIAS_MAXIMUM_DEFAULT_VALUE);
+        }
+
+        public Properties properties() {
+            return properties;
         }
 
         @Override
@@ -267,6 +266,27 @@ public class ConnAck extends ControlPacket {
                     || returnCode == REASON_CODE_CONNECTION_RATE_EXCEEDED
                     ;
         }
+
+        final Set<Integer> allowedProperties = Set.of(
+                SESSION_EXPIRY_INTERVAL,
+                RECEIVE_MAXIMUM,
+                MAXIMUM_QoS,
+                RETAIN_AVAILABLE,
+                MAXIMUM_PACKET_SIZE,
+                ASSIGNED_CLIENT_IDENTIFIER,
+                TOPIC_ALIAS_MAXIMUM,
+                REASON_STRING,
+                USER_PROPERTY,
+                WILDCARD_SUBSCRIPTION_AVAILABLE,
+                SUBSCRIPTION_IDENTIFIER_AVAILABLE,
+                SHARED_SUBSCRIPTION_AVAILABLE,
+                SERVER_KEEP_ALIVE,
+                RESPONSE_INFORMATION,
+                SERVER_REFERENCE,
+                AUTHENTICATION_METHOD,
+                AUTHENTICATION_DATA
+        );
+
     }
 
 

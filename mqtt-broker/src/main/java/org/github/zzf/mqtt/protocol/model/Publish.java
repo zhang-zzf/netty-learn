@@ -180,13 +180,8 @@ public class Publish extends ControlPacket {
     }
 
     public boolean validateTopicName() {
-        if (topicName == null || topicName.isEmpty()) {
-            return false;
-        }
-        return true;
+        return topicName != null && !topicName.isEmpty();
     }
-
-
 
     public boolean dup() {
         return (byte0 & 0x08) != 0;
@@ -277,18 +272,28 @@ public class Publish extends ControlPacket {
 
     public static class V50 extends Publish {
 
+        final long timestamp = System.currentTimeMillis();
+
         // If there are no properties, this MUST be indicated by including a Property Length of zero
         final Properties properties;
-        final Set<Integer> allowedProperties = Set.of(
-                PAYLOAD_FORMAT_INDICATOR,
-                MESSAGE_EXPIRY_INTERVAL,
-                TOPIC_ALIAS,
-                RESPONSE_TOPIC,
-                CORRELATION_DATA,
-                USER_PROPERTY,
-                SUBSCRIPTION_IDENTIFIER,
-                CONTENT_TYPE
-        );
+
+        public static V50 outgoing(boolean retain, int qos, boolean dup,
+                String topicName, short packetIdentifier, Properties properties,
+                ByteBuf payload) {
+            byte _0byte = build_0Byte(retain, qos, dup);
+            // remainingLength field
+            int remainingLength = calcUTF8StringLength(topicName)
+                    + (needAck(qos) ? 2 : 0)  // packetIdentifierLength
+                    + calcPropertiesLength(properties)
+                    + payload.readableBytes();
+            V50 ret = new V50(_0byte, remainingLength,
+                    topicName, packetIdentifier, properties,
+                    payload);
+            if (!ret.packetValidate()) {
+                throw new MalformedPacketException();
+            }
+            return ret;
+        }
 
         V50(byte byte0, int remainingLength,
                 String topicName, short packetIdentifier, Properties properties,
@@ -311,6 +316,15 @@ public class Publish extends ControlPacket {
                     payload);
         }
 
+        public static V50 updateTopicName(V50 origin, String topicName) {
+            if (!topicName.isEmpty()) {
+                throw new MalformedPacketException();
+            }
+            return new V50(origin.byte0, origin.remainingLength + ControlPacket.UTF8StringLength(topicName),
+                    topicName, origin.packetIdentifier, origin.properties,
+                    origin.payload);
+        }
+
         public Properties properties() {
             return this.properties;
         }
@@ -328,5 +342,19 @@ public class Publish extends ControlPacket {
             return buf;
         }
 
+        final Set<Integer> allowedProperties = Set.of(
+                PAYLOAD_FORMAT_INDICATOR,
+                MESSAGE_EXPIRY_INTERVAL,
+                TOPIC_ALIAS,
+                RESPONSE_TOPIC,
+                CORRELATION_DATA,
+                USER_PROPERTY,
+                SUBSCRIPTION_IDENTIFIER,
+                CONTENT_TYPE
+        );
+
+        public long timestamp() {
+            return timestamp;
+        }
     }
 }

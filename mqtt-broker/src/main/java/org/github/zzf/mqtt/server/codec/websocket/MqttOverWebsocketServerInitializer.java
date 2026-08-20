@@ -7,9 +7,8 @@ import io.netty.handler.codec.http.HttpServerCodec;
 import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 import io.netty.handler.codec.http.websocketx.extensions.compression.WebSocketServerCompressionHandler;
 import lombok.RequiredArgsConstructor;
-import org.github.zzf.mqtt.protocol.codec.MqttCodec;
 import org.github.zzf.mqtt.protocol.server.Broker;
-import org.github.zzf.mqtt.server.DefaultServerSessionHandler;
+import org.github.zzf.mqtt.server.codec.MqttMultiProtocolLevelInitializer;
 
 @RequiredArgsConstructor
 public class MqttOverWebsocketServerInitializer extends ChannelInitializer<SocketChannel> {
@@ -32,12 +31,7 @@ public class MqttOverWebsocketServerInitializer extends ChannelInitializer<Socke
                 // inbound:     BinaryWebSocketFrame -> ByteBuf
                 // outbound:    ByteBuf -> BinaryWebSocketFrame
                 .addLast(new WebSocketFrameCodec())
-                // mqtt codec
-                .addLast(new MqttCodec())
-                // mqtt SessionHandler
-                .addLast(DefaultServerSessionHandler.HANDLER_NAME, new DefaultServerSessionHandler(broker, activeIdleTimeoutSecond))
-                .addLast(new MqttCodec.Recycler())
-        ;
+                .addLast(new MqttMultiProtocolLevelInitializer(activeIdleTimeoutSecond, broker));
 
     }
 

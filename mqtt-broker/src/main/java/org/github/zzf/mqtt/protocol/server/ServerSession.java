@@ -1,5 +1,7 @@
 package org.github.zzf.mqtt.protocol.server;
 
+import io.netty.channel.ChannelFuture;
+import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.session.Session;
 
 /**
@@ -9,21 +11,10 @@ import org.github.zzf.mqtt.protocol.session.Session;
 public interface ServerSession extends Session {
 
     /**
-     * the broker that session was bound to
+     * send a message to peer
      *
-     * @return Broker
+     * @param packet message
      */
-    Broker broker();
-
-    boolean cleanSession();
-
-    /**
-     * 检查当前会话是否是从先前会话恢复/复用的
-     *
-     * @return true - 会话是复用的；false - 会话是新建的
-     */
-    default boolean isResumed() {
-        return false;
-    }
+    ChannelFuture write(String topicFilter, int qos, Publish packet);
 
 }

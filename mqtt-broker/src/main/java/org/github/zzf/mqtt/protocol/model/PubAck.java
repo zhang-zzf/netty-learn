@@ -113,9 +113,8 @@ public class PubAck extends ControlPacket {
                 // and there are no Properties. In this case the PUBACK has a Remaining Length of 2.
                 return 2;
             }
-            int propertyLength = properties.calcPropertyLength();
             // Packet Identifier + Reason Code + Properties
-            return 2 + 1 + variableByteIntegerLength(propertyLength) + propertyLength;
+            return 2 + 1 + calcPropertiesLength(properties);
         }
 
         @Override

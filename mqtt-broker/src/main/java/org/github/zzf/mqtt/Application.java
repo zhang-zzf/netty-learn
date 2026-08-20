@@ -15,7 +15,7 @@ public class Application {
         //
         int workerThreadNum = Integer.getInteger("mqtt.server.thread.num",
                 Runtime.getRuntime().availableProcessors() * 2);
-        log.info("MQTT_SERVER_WORKER_THREAD_NUM-> {}", workerThreadNum);
+        log.info("MQTT_SERVER_WORKER_THREAD_NUM -> {}", workerThreadNum);
         //
         String serverListenedAddress = System.getProperty("mqtt.server.listened.address",
                 "mqtt://0.0.0.0:1883,mqtts://0.0.0.0:8883,ws://0.0.0.0:80,wss://0.0.0.0:443");

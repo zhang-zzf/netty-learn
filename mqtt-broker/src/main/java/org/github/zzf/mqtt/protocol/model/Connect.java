@@ -30,6 +30,7 @@ public class Connect extends ControlPacket {
      * version 3.1.1
      */
     public static final byte PROTOCOL_LEVEL_3_1_1 = (byte) 4;
+    public static final byte PROTOCOL_LEVEL_5_0 = (byte) 5;
     public static final int VARIABLE_HEADER_LENGTH = 10;
     final String protocolName;
     final byte protocolLevel;
@@ -516,27 +517,7 @@ public class Connect extends ControlPacket {
         }
 
         public long sessionExpiryInterval() {
-            return properties.sessionExpiryInterval();
-        }
-
-        public int receiveMaximum() {
-            return properties.receiveMaximum();
-        }
-
-        public long maximumPacketSize() {
-            return properties.maximumPacketSize();
-        }
-
-        public int topAliasMaximum() {
-            return properties.topicAliasMaximum();
-        }
-
-        public boolean requestResponseInformation() {
-            return properties.requestResponseInformation();
-        }
-
-        public boolean requestProblemInformation() {
-            return properties.requestProblemInformation();
+            return properties.sessionExpiryInterval().orElse(0L);
         }
 
     }

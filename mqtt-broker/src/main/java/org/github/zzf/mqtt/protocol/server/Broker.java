@@ -1,11 +1,10 @@
 package org.github.zzf.mqtt.protocol.server;
 
-import io.netty.channel.Channel;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.CompletionStage;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
-import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**
@@ -14,12 +13,16 @@ import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
  */
 public interface Broker {
 
+    ServerSession session(String clientId);
+
+    byte authenticate(Connect connect);
+
     /**
      * Connect Event
      */
-    ServerSession connect(Connect connect, Channel channel);
+    CompletionStage<Void> connect(ServerSession session);
 
-    void disconnect(ServerSession session);
+    CompletionStage<Void> disconnect(ServerSession session);
 
     /**
      * Publish Event
@@ -31,7 +34,7 @@ public interface Broker {
     /**
      * register a subscription between the session and the topic
      */
-    List<Subscribe.Subscription> subscribe(ServerSession session,
+    List<Subscription> subscribe(ServerSession session,
             Collection<Subscription> subscriptions);
 
     /**

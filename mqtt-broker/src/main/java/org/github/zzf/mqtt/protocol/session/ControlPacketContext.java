@@ -19,7 +19,6 @@ public class ControlPacketContext {
     public enum Type {
         IN,
         OUT,
-        ;
     }
 
     public enum Status {
@@ -29,7 +28,6 @@ public class ControlPacketContext {
         PUB_REL,
         PUB_COMP,
         PUB_ACK,
-        ;
     }
 
     private final Publish packet;
@@ -68,10 +66,7 @@ public class ControlPacketContext {
         if (packet().atLeastOnce() && s == PUB_ACK) {
             return true;
         }
-        if (packet().exactlyOnce() && s == PUB_COMP) {
-            return true;
-        }
-        return false;
+        return packet().exactlyOnce() && s == PUB_COMP;
     }
 
     public boolean outgoingPublishSent() {
@@ -83,11 +78,8 @@ public class ControlPacketContext {
                 && (s == HANDLED || s == PUB_ACK)) {
             return true;
         }
-        if (packet.exactlyOnce()
-                && (s == HANDLED || s == PUB_REC || s == PUB_COMP)) {
-            return true;
-        }
-        return false;
+        return packet.exactlyOnce()
+                && (s == HANDLED || s == PUB_REC || s == PUB_COMP);
     }
 
     @Override

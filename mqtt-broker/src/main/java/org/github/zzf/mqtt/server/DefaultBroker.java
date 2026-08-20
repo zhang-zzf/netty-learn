@@ -2,21 +2,16 @@ package org.github.zzf.mqtt.server;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
-import static org.github.zzf.mqtt.protocol.model.Publish.NO_PACKET_IDENTIFIER;
-import static org.github.zzf.mqtt.protocol.model.Publish.needAck;
 
 import io.micrometer.core.annotation.Timed;
-import io.netty.channel.Channel;
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import lombok.extern.slf4j.Slf4j;
-import org.github.zzf.mqtt.protocol.model.ConnAck;
 import org.github.zzf.mqtt.protocol.model.Connect;
-import org.github.zzf.mqtt.protocol.model.ControlPacket.AuthenticationException;
-import org.github.zzf.mqtt.protocol.model.ControlPacket.UnSupportProtocolLevelException;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
@@ -45,7 +40,6 @@ public class DefaultBroker implements Broker {
     final RoutingTable routingTable;
     final TopicBlocker blockedTopic;
     final RetainPublishManager retainPublishManager;
-    final Set<Byte> supportedProtocolLevel = Set.of((byte) 4, (byte) 5);
 
     public DefaultBroker(Authenticator authenticator,
             RoutingTable routingTable,
@@ -55,14 +49,6 @@ public class DefaultBroker implements Broker {
         this.routingTable = routingTable;
         this.blockedTopic = blockedTopic;
         this.retainPublishManager = retainPublishManager;
-    }
-
-    public static short packetIdentifier(ServerSession session, int qos) {
-        return needAck(qos) ? session.nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
-    }
-
-    public static int qoS(int packetQos, int tfQos) {
-        return Math.min(packetQos, tfQos);
     }
 
     @Override
@@ -83,7 +69,7 @@ public class DefaultBroker implements Broker {
             // async
             retainPublishManager.match(tfs).thenAccept(publishPackets -> {
                 // 移交给 session 绑定的线程，延迟发送
-                session.channel().eventLoop().submit(() -> publishPackets.forEach(session::send));
+                session.channel().eventLoop().submit(() -> publishPackets.forEach(session::write));
             });
         }
         return permitted;
@@ -101,28 +87,24 @@ public class DefaultBroker implements Broker {
         for (Topic topic : routingTable.match(packet.topicName())) {
             for (Subscriber subscriber : topic.subscribers()) {
                 ServerSession session = sessionMap.get(subscriber.clientId());
-                if (session == null) {
-                    // todo metric
+                if (session == null) {// todo metric
                     continue;
                 }
+                // qos to use for the Publish packet
                 int qos = qoS(packet.qos(), subscriber.qos());
-                // use a shadow copy of the origin Publish
-                log.info("forward payload: {}", packet.payload());
-                Publish outgoing = Publish.outgoing(
-                        false /* must set retain to false before forward the PublishPacket */,
-                        qos, false,
-                        topic.topicFilter(), packetIdentifier(session, qos),
-                        /* packet.payload().slice());  verified: must use slice()*/
-                        packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
+                session.write(topic.topicFilter(), qos, packet);
                 if (log.isDebugEnabled()) {
-                    log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}", packet.pId(),
-                            topic.topicFilter(), session.clientIdentifier(), outgoing);
+                    log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}",
+                            packet.pId(), topic.topicFilter(), session.clientIdentifier(), packet);
                 }
-                session.send(outgoing);
                 times += 1;
             }
         }
         return times;
+    }
+
+    private int qoS(int packetQos, int tfQos) {
+        return Math.min(packetQos, tfQos);
     }
 
     private boolean block(Publish packet) {
@@ -137,6 +119,16 @@ public class DefaultBroker implements Broker {
         return false;
     }
 
+    @Override
+    public ServerSession session(String clientId) {
+        return sessionMap.get(clientId);
+    }
+
+    @Override
+    public byte authenticate(Connect connect) {
+        return authenticator.authenticate(connect);
+    }
+
     // todo UT
     // 1. cleanSession = 1 then cleanSession = 1
     // 1. cleanSession = 1 the session should be removed after client disconnect (normally ot not)
@@ -144,63 +136,21 @@ public class DefaultBroker implements Broker {
     // 1. cleanSession = 0 then cleanSession = 1
     //
     @Override
-    public ServerSession connect(Connect connect, Channel channel) {
-        String clientId = connect.clientIdentifier();
-        log.debug("Server receive Connect from client({}) -> {}", clientId, connect);
-        // The Server MUST respond to the CONNECT Packet
-        // with a CONNACK return code 0x01 (unacceptable protocol level) and then
-        // disconnect the Client if the Protocol Level is not supported by the Server
-        if (!supportProtocolLevel().contains(connect.protocolLevel())) {
-            throw new UnSupportProtocolLevelException();
-        }
-        // authenticate
-        if (authenticator != null) {
-            byte authenticate = authenticator.authenticate(connect);
-            if (authenticate != Authenticator.AUTHENTICATE_SUCCESS) {
-                throw new AuthenticationException(authenticate);
-            }
-        }
-        //
-        return sessionMap.compute(clientId, (k, v) -> doConnect(connect, channel, v));
-    }
-
-    private DefaultServerSession doConnect(
-            Connect connect,
-            Channel channel,
-            ServerSession previous) {
-        String clientId = connect.clientIdentifier();
-        if (connect.cleanSession()) {
-            if (previous != null) {
-                previous.channel().close();
-                if (!previous.cleanSession()) {
-                    routingTable.unsubscribe(clientId, previous.subscriptions());
-                }
-            }
-            return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
-        }
-        else {
-            if (previous == null) {
-                return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
-            }
-            else {
-                // todo test close() twice
-                previous.channel().close();
-                if (previous.cleanSession()) {
-                    return new DefaultServerSession(connect, ConnAck.accepted(), channel, this);
-                }
-                else {
-                    ConnAck connAck = ConnAck.acceptedWithStoredSession();
-                    return DefaultServerSession.from(connect, connAck, channel, this, previous);
-                }
-            }
-        }
+    public CompletionStage<Void> connect(ServerSession session) {
+        String clientIdentifier = session.clientIdentifier();
+        sessionMap.put(clientIdentifier, session);
+        CompletableFuture<Void> ret = routingTable.subscribe(clientIdentifier, session.subscriptions());
+        log.debug("Session({}_{}) connected", clientIdentifier, session.channel().id());
+        return ret;
     }
 
     @Override
-    public void disconnect(ServerSession session) {
-        // unsubscribe
-        routingTable.unsubscribe(session.clientIdentifier(), session.subscriptions());
+    public CompletionStage<Void> disconnect(ServerSession session) {
         sessionMap.remove(session.clientIdentifier(), session);
+        // unsubscribe
+        CompletableFuture<Void> ret = routingTable.unsubscribe(session.clientIdentifier(), session.subscriptions());
+        log.debug("Session({}_{}) disconnected", session.clientIdentifier(), session.channel().id());
+        return ret;
     }
 
     protected Subscribe.Subscription decideSubscriptionQos(
@@ -209,10 +159,6 @@ public class DefaultBroker implements Broker {
         // todo decide qos
         int qos = sub.qos();
         return new Subscribe.Subscription(sub.topicFilter(), (byte) qos);
-    }
-
-    Set<Byte> supportProtocolLevel() {
-        return supportedProtocolLevel;
     }
 
     private void retain(Publish publish) {
@@ -289,5 +235,16 @@ public class DefaultBroker implements Broker {
                 .append(this.getClass().getSimpleName()).append("@").append(Integer.toHexString(hashCode()))
                 .append('\"').append(',');
         return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+    }
+
+    public static class V50 extends DefaultBroker {
+
+        public V50(Authenticator authenticator,
+                RoutingTable routingTable,
+                TopicBlocker blockedTopic,
+                RetainPublishManager retainPublishManager) {
+            super(authenticator, routingTable, blockedTopic, retainPublishManager);
+        }
+
     }
 }

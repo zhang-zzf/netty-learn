@@ -121,11 +121,8 @@ public class TopicTree<T> implements AutoCloseable {
     }
 
     private boolean dollarMatch(Node<T> t) {
-        if (t.topic.startsWith(MULTI_LEVEL_WILDCARD)
-                || t.topic.startsWith(SINGLE_LEVEL_WILDCARD)) {
-            return false;
-        }
-        return true;
+        return !t.topic.startsWith(MULTI_LEVEL_WILDCARD)
+                && !t.topic.startsWith(SINGLE_LEVEL_WILDCARD);
     }
 
     public Optional<T> data(String topicFilter) {

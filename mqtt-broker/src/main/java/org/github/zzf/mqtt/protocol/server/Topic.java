@@ -12,6 +12,9 @@ public interface Topic {
     List<Subscriber> subscribers();
 
     interface Subscriber {
+
+        String topicFilter();
+
         String clientId();
 
         int qos();

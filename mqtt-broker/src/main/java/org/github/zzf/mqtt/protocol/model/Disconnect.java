@@ -62,6 +62,8 @@ public class Disconnect extends ControlPacket {
 
     public static class V50 extends Disconnect {
 
+        public static final byte SESSION_TAKEN_OVER = (byte) 0x8E;
+        public static final int REASON_CODE_LENGTH = 1;
         final byte reasonCode;
         final Properties properties;
         final Set<Integer> allowedProperties = Set.of(
@@ -84,6 +86,15 @@ public class Disconnect extends ControlPacket {
             byte reasonCode = readByte(incoming);
             Properties properties = readProperties(incoming);
             return new V50(byte0, remainingLength, reasonCode, properties);
+        }
+
+        public static V50 sessionTakenOver() {
+            return from(SESSION_TAKEN_OVER, Properties.EMPTY);
+        }
+
+        public static V50 from(byte reasonCode, Properties p) {
+            int remainingLength = REASON_CODE_LENGTH + calcPropertiesLength(p);
+            return new V50(_0_BYTE, remainingLength, reasonCode, p);
         }
 
         @Override

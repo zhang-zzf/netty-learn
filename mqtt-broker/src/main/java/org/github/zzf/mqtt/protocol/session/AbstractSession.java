@@ -27,6 +27,8 @@ import io.netty.util.ReferenceCountUtil;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.Random;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
 import java.util.concurrent.atomic.AtomicInteger;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
@@ -50,16 +52,16 @@ public abstract class AbstractSession implements Session {
         }
     };
 
-    final AtomicInteger packetIdentifier;
-    final String clientIdentifier;
+    protected final AtomicInteger packetIdentifier;
     final Channel channel;
 
-    protected AbstractSession(String clientIdentifier, Channel channel) {
-        this(clientIdentifier, channel, new Random().nextInt(Short.MAX_VALUE));
+    final CompletableFuture<Void> closeFuture = new CompletableFuture<>();
+
+    protected AbstractSession(Channel channel) {
+        this(channel, new Random().nextInt(Short.MAX_VALUE));
     }
 
-    protected AbstractSession(String clientIdentifier, Channel channel, int packetIdentifier) {
-        this.clientIdentifier = clientIdentifier;
+    protected AbstractSession(Channel channel, int packetIdentifier) {
         this.channel = channel;
         this.packetIdentifier = new AtomicInteger(packetIdentifier);
     }
@@ -74,7 +76,7 @@ public abstract class AbstractSession implements Session {
      * </pre>
      */
     @Override
-    public ChannelFuture send(ControlPacket packet) {
+    public ChannelFuture write(ControlPacket packet) {
         log.debug("sender({}): . -> {}", cId(), packet);
         if (packet == null) {
             throw new IllegalArgumentException();
@@ -89,6 +91,13 @@ public abstract class AbstractSession implements Session {
             doInEventLoop(() -> doSendControlPacketExceptPublish(packet, promise));
         }
         return promise;
+    }
+
+    @Override
+    public void close() {
+        if (channel.isActive()) {
+            channel.close();
+        }
     }
 
     private void doSendControlPacketExceptPublish(ControlPacket packet, ChannelPromise promise) {
@@ -108,7 +117,7 @@ public abstract class AbstractSession implements Session {
         });
     }
 
-    private void doInEventLoop(Runnable task) {
+    protected void doInEventLoop(Runnable task) {
         // channel.eventLoop() exists even after channel was closed
         // make sure use the same thread that the session wad bound to
         if (channel.eventLoop().inEventLoop()) {
@@ -300,7 +309,7 @@ public abstract class AbstractSession implements Session {
     }
 
     @Override
-    public void onPacket(ControlPacket packet) {
+    public void sessionRead(ControlPacket packet) {
         switch (packet.type()) {
             case PUBLISH -> doReceivePublish((Publish) packet);
             case PUBACK -> doReceivePubAck((PubAck) packet);
@@ -574,15 +583,10 @@ public abstract class AbstractSession implements Session {
             packetIdentifier.set(Short.MIN_VALUE);
             id = packetIdentifier.getAndIncrement();
         }
-        if (id == 0) {// non-zero 16-bit Packet Identifie
+        if (id == 0) {// non-zero 16-bit Packet Identifier
             id = packetIdentifier.getAndIncrement();
         }
         return (short) id;
-    }
-
-    @Override
-    public String clientIdentifier() {
-        return this.clientIdentifier;
     }
 
     // todo UT cleanSession = 0 断开重连
@@ -636,6 +640,7 @@ public abstract class AbstractSession implements Session {
     @Override
     public String toString() {
         final StringBuilder sb = new StringBuilder("{");
+        final String clientIdentifier = clientIdentifier();
         if (clientIdentifier != null) {
             sb.append("\"clientIdentifier\":\"").append(clientIdentifier).append('\"').append(',');
         }
@@ -651,12 +656,12 @@ public abstract class AbstractSession implements Session {
             return false;
         }
         AbstractSession that = (AbstractSession) o;
-        return clientIdentifier.equals(that.clientIdentifier);
+        return clientIdentifier().equals(that.clientIdentifier());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(clientIdentifier);
+        return Objects.hash(clientIdentifier());
     }
 
     protected abstract Queue<ControlPacketContext> inQueue();
@@ -670,7 +675,7 @@ public abstract class AbstractSession implements Session {
      * </pre>
      */
     @Override
-    public void onActive() {
+    public void sessionActive() {
         // invoke later
         channel.eventLoop().submit(() -> {
             tryCleanOutQueue();
@@ -680,8 +685,24 @@ public abstract class AbstractSession implements Session {
     }
 
     @Override
-    public void onInactive() {
+    public void sessionInactive() {
         log.debug("Session({}) inactive", cId());
+        // 等待 Channel 关闭后执行
+        channel.close().addListener(f -> doCleanSession().whenComplete((unused, e) -> {
+            // watch out: channel.eventLoop().inEventLoop() may be false
+            if (e != null) {
+                log.error("Session({}) sessionInactiveCallback error", cId(), e);
+            }
+            closeFuture.complete(null);
+        }));
     }
 
+    protected CompletionStage<Void> doCleanSession() {
+        return CompletableFuture.completedFuture(null);
+    }
+
+    @Override
+    public CompletionStage<Void> closeFuture() {
+        return closeFuture;
+    }
 }

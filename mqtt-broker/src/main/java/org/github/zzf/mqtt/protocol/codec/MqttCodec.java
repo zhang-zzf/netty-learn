@@ -79,8 +79,12 @@ public class MqttCodec extends ByteToMessageCodec<ControlPacket> {
                 return;
             }
             // core: zero-copy
-            ByteBuf incoming = in.readRetainedSlice(packetLength);
-            out.add(ControlPacketV50.from(incoming));
+            ByteBuf incoming = in.readSlice(packetLength);
+            ControlPacket cp = ControlPacketV50.from(incoming);
+            if (cp instanceof Publish packet) {
+                ReferenceCountUtil.retain(packet.payload());
+            }
+            out.add(cp);
         }
     }
 

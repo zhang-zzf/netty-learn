@@ -10,6 +10,7 @@ import io.netty.buffer.CompositeByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
@@ -265,7 +266,11 @@ public abstract class ControlPacket {
     }
 
     public static int calcUTF8StringLength(String str) {
-        return 2 + str.getBytes(UTF_8).length;
+        return 2 + UTF8StringLength(str);
+    }
+
+    public static int UTF8StringLength(String str) {
+        return str.getBytes(UTF_8).length;
     }
 
     /**
@@ -331,11 +336,8 @@ public abstract class ControlPacket {
         if (topicName == null || topicName.isEmpty()) {
             return false;
         }
-        if (topicName.contains(MULTI_LEVEL_WILDCARD)
-                || topicName.contains(SINGLE_LEVEL_WILDCARD)) {
-            return false;
-        }
-        return true;
+        return !topicName.contains(MULTI_LEVEL_WILDCARD)
+                && !topicName.contains(SINGLE_LEVEL_WILDCARD);
     }
 
     public static Properties readProperties(ByteBuf incoming) {
@@ -351,7 +353,8 @@ public abstract class ControlPacket {
     }
 
     public static int calcPropertiesLength(Properties properties) {
-        return 1 + properties.calcPropertyLength();
+        int propertyLength = properties.calcPropertyLength();
+        return variableByteIntegerLength(propertyLength) + propertyLength;
     }
 
     /**
@@ -785,42 +788,131 @@ public abstract class ControlPacket {
             return propertyLength;
         }
 
-        public long sessionExpiryInterval() {
+        /**
+         * If present, the Four Byte value is the lifetime of the Application Message in seconds
+         */
+        public Optional<Long> messageExpiryInterval() {
             for (Property p : properties) {
-                if (p.id == SESSION_EXPIRY_INTERVAL) {
-                    return ((FourByteIntegerProperty) p).value;
+                if (p.id == MESSAGE_EXPIRY_INTERVAL) {
+                    return Optional.of(((FourByteIntegerProperty) p).value);
                 }
             }
             // If the Session Expiry Interval is absent the value 0 is used
-            return 0;
+            return Optional.empty();
         }
 
-        public int receiveMaximum() {
+        public Optional<Long> sessionExpiryInterval() {
+            for (Property p : properties) {
+                if (p.id == SESSION_EXPIRY_INTERVAL) {
+                    return Optional.of(((FourByteIntegerProperty) p).value);
+                }
+            }
+            // If the Session Expiry Interval is absent the value 0 is used
+            return Optional.empty();
+        }
+
+        public Optional<Integer> receiveMaximum() {
             for (Property p : properties) {
                 if (p.id == RECEIVE_MAXIMUM) {
-                    return ((TwoByteIntegerProperty) p).value;
+                    return Optional.of(((TwoByteIntegerProperty) p).value);
                 }
             }
-            return TWO_BYTE_INTEGER_MAX;
+            return Optional.empty();
         }
 
-        public long maximumPacketSize() {
+        public Optional<Long> maximumPacketSize() {
             for (Property p : properties) {
                 if (p.id == MAXIMUM_PACKET_SIZE) {
-                    return ((FourByteIntegerProperty) p).value;
+                    return Optional.of(((FourByteIntegerProperty) p).value);
                 }
             }
-            return FOUR_BYTE_INTEGER_MAX;
+            return Optional.empty();
         }
 
-        public int topicAliasMaximum() {
+        public static final int TOPIC_ALIAS_MAXIMUM_DEFAULT_VALUE = 0;
+
+        public Optional<Integer> topicAliasMaximum() {
             for (Property p : properties) {
                 if (p.id == TOPIC_ALIAS_MAXIMUM) {
-                    return ((TwoByteIntegerProperty) p).value;
+                    return Optional.of(((TwoByteIntegerProperty) p).value);
                 }
             }
-            return 0;
+            return Optional.empty();
         }
+
+        public Optional<Integer> topicAlias() {
+            for (Property p : properties) {
+                if (p.id == TOPIC_ALIAS) {
+                    return Optional.of(((TwoByteIntegerProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+
+        public Optional<Byte> wildcardSubscriptionAvailable() {
+            for (Property p : properties) {
+                if (p.id == WILDCARD_SUBSCRIPTION_AVAILABLE) {
+                    return Optional.of(((ByteProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<Byte> subscriptionIdentifierAvailable() {
+            for (Property p : properties) {
+                if (p.id == SUBSCRIPTION_IDENTIFIER_AVAILABLE) {
+                    return Optional.of(((ByteProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<Byte> sharedSubscriptionAvailable() {
+            for (Property p : properties) {
+                if (p.id == SHARED_SUBSCRIPTION_AVAILABLE) {
+                    return Optional.of(((ByteProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<Integer> serverKeepAlive() {
+            for (Property p : properties) {
+                if (p.id == SERVER_KEEP_ALIVE) {
+                    return Optional.of(((TwoByteIntegerProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<Byte> maximumQos() {
+            for (Property p : properties) {
+                if (p.id == MAXIMUM_QoS) {
+                    return Optional.of(((ByteProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<Byte> retainAvailable() {
+            for (Property p : properties) {
+                if (p.id == RETAIN_AVAILABLE) {
+                    return Optional.of(((ByteProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public Optional<String> assignedClientIdentifier() {
+            for (Property p : properties) {
+                if (p.id == ASSIGNED_CLIENT_IDENTIFIER) {
+                    return Optional.of(((UTF8EncodedStringProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
 
         public boolean requestResponseInformation() {
             for (Property p : properties) {
@@ -848,6 +940,12 @@ public abstract class ControlPacket {
             }
             return true;
         }
+
+        public void messageExpiryInterval(Long aLong) {
+            properties.removeIf(p -> p.id == MESSAGE_EXPIRY_INTERVAL);
+            properties.add(new FourByteIntegerProperty(MESSAGE_EXPIRY_INTERVAL, aLong));
+        }
+
     }
 
     static abstract class Property {
@@ -935,7 +1033,7 @@ public abstract class ControlPacket {
 
         @Override
         int bytesLength() {
-            return 1 + 2 + value.getBytes(UTF_8).length;
+            return 1 + 2 + UTF8StringLength(value);
         }
 
         @Override
@@ -1000,7 +1098,7 @@ public abstract class ControlPacket {
 
         @Override
         int bytesLength() {
-            return 1 + 2 + key.getBytes(UTF_8).length + 2 + value.getBytes(UTF_8).length;
+            return 1 + 2 + UTF8StringLength(key) + 2 + UTF8StringLength(value);
         }
 
         @Override

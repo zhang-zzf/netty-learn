@@ -3,6 +3,7 @@ package org.github.zzf.mqtt.protocol.session;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelFuture;
 import java.util.Set;
+import java.util.concurrent.CompletionStage;
 import org.github.zzf.mqtt.protocol.model.ControlPacket;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
@@ -24,14 +25,16 @@ public interface Session {
      *
      * @param message message
      */
-    ChannelFuture send(ControlPacket message);
+    ChannelFuture write(ControlPacket message);
+
+    void close();
 
     /**
-     * receive a message from peer
+     * Invoked when the current Session has received a message from peer
      *
      * @param message message
      */
-    void onPacket(ControlPacket message);
+    void sessionRead(ControlPacket message);
 
     /**
      * the channel that the session bind to
@@ -55,17 +58,11 @@ public interface Session {
     short nextPacketIdentifier();
 
     /**
-     * whether the session is cleanSession
-     *
-     * @return true if session is CleanSession otherwise false
-     */
-    boolean cleanSession();
-
-    /**
      * called when the session.channel() is inactive
      */
-    void onInactive();
+    void sessionInactive();
 
-    void onActive();
+    void sessionActive();
 
+    CompletionStage<Void> closeFuture();
 }

@@ -258,7 +258,7 @@ public class Subscribe extends ControlPacket {
                 String topic = readUTF8String(incoming);
                 byte options = readByte(incoming);
                 // todo TopicFilter rule check
-                subscriptions.add(new Subscription(topic, options));
+                subscriptions.add(new Subscription.V50(topic, options));
             }
             return new V50(byte0, remainingLength,
                     packetIdentifier, properties,

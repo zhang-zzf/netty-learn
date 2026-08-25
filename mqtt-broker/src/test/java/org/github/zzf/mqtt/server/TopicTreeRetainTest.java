@@ -19,7 +19,7 @@ class TopicTreeRetainTest {
     @ParameterizedTest(name = "{0} match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenMatch(String topicName, String topicFilter) {
-        try (TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest")) {
+        try (DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest")) {
             Publish publish = Publish.outgoing(1, topicName, Unpooled.copiedBuffer("test payload", java.nio.charset.StandardCharsets.UTF_8));
             retainManager.add(publish).join();
             List<Publish> result = retainManager.match(topicFilter);
@@ -36,7 +36,7 @@ class TopicTreeRetainTest {
     @ParameterizedTest(name = "{0} will not match {1}")
     @CsvFileSource(resources = {"/broker/topic_name_topic_filter_not_match.csv"})
     void given_whenTopicNameMatchTopicFilter_thenNotMatch(String topicName, String topicFilter) {
-        try (TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest")) {
+        try (DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest")) {
             Publish publish = Publish.outgoing(1, topicName, Unpooled.copiedBuffer("test payload", java.nio.charset.StandardCharsets.UTF_8));
             retainManager.add(publish).join();
             List<Publish> result = retainManager.match(topicFilter);
@@ -48,14 +48,14 @@ class TopicTreeRetainTest {
 
     @Test
     void givenEmpty_whenTopic_then() {
-        try (TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest")) {
+        try (DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest")) {
             then(retainManager.match("topic/abc")).isEmpty();
         }
     }
 
     @Test
     void givenMultipleRetainedMessages_whenMatch_thenAllMatched() {
-        TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest");
+        DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest");
         String tn1 = "sport/tennis/player1";
         String tn2 = "sport/tennis/player1/ranking";
         String tn3 = "sport/tennis/player2";
@@ -80,7 +80,7 @@ class TopicTreeRetainTest {
 
     @Test
     void givenEmptyVarargs_whenAddMatchDel_thenNoException() {
-        TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest");
+        DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest");
         // 测试空参数
         then(retainManager.add()).isCompleted();
         then(retainManager.match()).isCompleted();
@@ -89,7 +89,7 @@ class TopicTreeRetainTest {
 
     @Test
     void givenSameTopic_whenAddMultipleTimes_thenLatestRetained() {
-        TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest");
+        DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest");
         String topicName = "test/topic";
 
         Publish publish1 = Publish.outgoing(1, topicName, Unpooled.copiedBuffer("first payload", java.nio.charset.StandardCharsets.UTF_8));
@@ -116,7 +116,7 @@ class TopicTreeRetainTest {
 
     @Test
     void givenMultipleTopic_whenMatchMultiWild_thenSuccess() {
-        try (TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest")) {
+        try (DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest")) {
             String tn0 = "sport";
             String tn10 = "sport/player1";
             String tn1 = "sport/player1/rank";
@@ -140,7 +140,7 @@ class TopicTreeRetainTest {
 
     @Test
     void givenMultipleTopic_whenMatchSingleWild_thenSuccess() {
-        try (TopicTreeRetain retainManager = new TopicTreeRetain("TopicTreeRetainTest")) {
+        try (DefaultRetainPublishManager retainManager = new DefaultRetainPublishManager("TopicTreeRetainTest")) {
             String tn0 = "sport";
             String tn10 = "sport/player1";
             String tn1 = "sport/player1/rank";

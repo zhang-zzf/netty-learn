@@ -1,27 +1,15 @@
 package org.github.zzf.mqtt.protocol.server;
 
-import java.util.List;
+import java.util.Set;
 
 public interface Topic {
 
     String topicFilter();
 
     /**
-     * all the subscribers that subscribe the topic
+     * all the subscribers (clientId) that subscribe the topic
      */
-    List<Subscriber> subscribers();
+    Set<String> subscribers();
 
-    interface Subscriber {
-
-        String topicFilter();
-
-        String clientId();
-
-        int qos();
-    }
-
-    // void subscribe(ServerSession session, int qos);
-    //
-    // void unsubscribe(ServerSession session, int qos);
 
 }

@@ -10,11 +10,6 @@ import org.github.zzf.mqtt.protocol.session.Session;
  */
 public interface ServerSession extends Session {
 
-    /**
-     * send a message to peer
-     *
-     * @param packet message
-     */
-    ChannelFuture write(String topicFilter, int qos, Publish packet);
+    ChannelFuture forward(String clientId, String topicFilter, Publish packet);
 
 }

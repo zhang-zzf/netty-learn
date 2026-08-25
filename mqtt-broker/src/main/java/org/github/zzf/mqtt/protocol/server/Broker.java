@@ -2,9 +2,12 @@ package org.github.zzf.mqtt.protocol.server;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
+import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 
 /**
@@ -29,25 +32,20 @@ public interface Broker {
      *
      * @param packet ControlPacket
      */
-    int forward(Publish packet);
+    int forward(String clientId, Publish packet);
 
     /**
      * register a subscription between the session and the topic
      */
-    List<Subscription> subscribe(ServerSession session,
-            Collection<Subscription> subscriptions);
+    CompletionStage<List<Integer>> subscribe(ServerSession session, Subscribe subscribe);
 
     /**
      * deregister a subscription between the session and the topic
      */
-    void unsubscribe(ServerSession session,
+    CompletionStage<Void> unsubscribe(ServerSession session,
             Collection<Subscription> subscriptions);
 
     void close();
 
-    // todo
-    // default boolean closed() {
-    //     return false;
-    // }
-
+    CompletableFuture<Map<String, List<Publish>>> retainedPublish(String... topicFilters);
 }

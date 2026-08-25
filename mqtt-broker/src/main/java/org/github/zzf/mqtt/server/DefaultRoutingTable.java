@@ -2,12 +2,12 @@ package org.github.zzf.mqtt.server;
 
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
-import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
@@ -22,7 +22,7 @@ import org.github.zzf.mqtt.protocol.server.Topic;
 public class DefaultRoutingTable implements RoutingTable {
 
     // todo metric 监控订阅的数量和统计信息
-    final TopicTree<Topic> tree = new TopicTree<>("RoutingTable");
+    final TopicTree tree = new TopicTree("RoutingTable");
 
     @Override
     public CompletableFuture<Void> subscribe(String clientId,
@@ -45,8 +45,7 @@ public class DefaultRoutingTable implements RoutingTable {
                 }
                 return t;
             });
-            // 强制覆盖 qos
-            topic.subscribers.put(clientId, subscription.qos());
+            topic.subscribers.add(clientId);
         };
         return tree.add(subscription.topicFilter(), dataOp);
     }
@@ -99,40 +98,22 @@ public class DefaultRoutingTable implements RoutingTable {
     private static class TopicImpl implements Topic {
 
         final String tf;
-        final ConcurrentMap<String, Integer> subscribers
-                = new ConcurrentHashMap<>(Integer.getInteger("TopicImpl.subscribers.default.size", 4));
+        final Set<String> subscribers
+                = ConcurrentHashMap.newKeySet((Integer.getInteger("TopicImpl.subscribers.default.size", 4)));
 
         @Override
         public String topicFilter() {
             return tf;
         }
 
+        /**
+         * 返回订阅者只读视图，共享底层并发集合。
+         * 迭代为弱一致性，遍历期间内部发生增删，可能看不到最新变更，不会抛出CME。
+         * <p>禁止缓存返回Set；禁止外部做check‑then‑act复合操作。
+         */
         @Override
-        public List<Subscriber> subscribers() {
-            // 使用 Topic 的视图。在迭代时，若发生修改，结果不可知
-            // return unmodifiableCollection(subscribers.values()).iterator();
-            return subscribers.entrySet().stream()
-                    .map(this::toSubscriber)
-                    .toList();
-        }
-
-        private Subscriber toSubscriber(Entry<String, Integer> subscribeInfo) {
-            return new Subscriber() {
-                @Override
-                public String topicFilter() {
-                    return tf;
-                }
-
-                @Override
-                public String clientId() {
-                    return subscribeInfo.getKey();
-                }
-
-                @Override
-                public int qos() {
-                    return subscribeInfo.getValue();
-                }
-            };
+        public Set<String> subscribers() {
+            return Collections.unmodifiableSet(subscribers);
         }
 
     }

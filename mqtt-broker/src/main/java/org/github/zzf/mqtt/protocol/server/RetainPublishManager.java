@@ -1,6 +1,7 @@
 package org.github.zzf.mqtt.protocol.server;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import org.github.zzf.mqtt.protocol.model.Publish;
 
@@ -10,7 +11,7 @@ import org.github.zzf.mqtt.protocol.model.Publish;
  */
 public interface RetainPublishManager extends AutoCloseable {
 
-    CompletableFuture<List<Publish>> match(String... topicFilter);
+    CompletableFuture<Map<String, List<Publish>>> match(String... topicFilter);
 
     CompletableFuture<Void> add(Publish... packets);
 

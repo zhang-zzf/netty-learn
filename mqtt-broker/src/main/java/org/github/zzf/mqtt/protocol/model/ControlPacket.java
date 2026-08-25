@@ -43,6 +43,7 @@ public abstract class ControlPacket {
     public static final int INCOMPLETE_PACKET = -1;
     public static final String MULTI_LEVEL_WILDCARD = "#";
     public static final String SINGLE_LEVEL_WILDCARD = "+";
+    public static final String DOLLAR = "$";
 
     public static final int TWO_BYTE_INTEGER_MAX = 0xFFFF;
     public static final int FOUR_BYTE_INTEGER_MAX = 0xFFFFFFFF;
@@ -946,6 +947,19 @@ public abstract class ControlPacket {
             properties.add(new FourByteIntegerProperty(MESSAGE_EXPIRY_INTERVAL, aLong));
         }
 
+        public Optional<Integer> subscriptionIdentifier() {
+            for (Property p : properties) {
+                if (p.id == SUBSCRIPTION_IDENTIFIER) {
+                    return Optional.of(((VariableByteIntegerProperty) p).value);
+                }
+            }
+            return Optional.empty();
+        }
+
+        public void subscriptionIdentifier(Integer integer) {
+            properties.removeIf(p -> p.id == SUBSCRIPTION_IDENTIFIER);
+            properties.add(new VariableByteIntegerProperty(SUBSCRIPTION_IDENTIFIER, integer));
+        }
     }
 
     static abstract class Property {

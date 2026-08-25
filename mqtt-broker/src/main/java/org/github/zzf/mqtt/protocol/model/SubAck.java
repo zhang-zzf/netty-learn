@@ -21,6 +21,7 @@ import java.util.Set;
 
 public class SubAck extends ControlPacket {
 
+    public static final int REMAINING_LENGTH_FIELD_LENGTH = 2;
     final short packetIdentifier;
     final byte[] returnCodes;
 
@@ -40,22 +41,17 @@ public class SubAck extends ControlPacket {
         return new SubAck(remainingLength, packetIdentifier, returnCodes);
     }
 
-    public static SubAck from(short packetIdentifier,
-            List<Subscribe.Subscription> subscriptions) {
-        int rl = 2 + subscriptions.size();
-        byte[] returnCodes = new byte[subscriptions.size()];
-        for (int i = 0; i < subscriptions.size(); i++) {
-            returnCodes[i] = subscriptions.get(i).options;
+    public static SubAck from(short packetIdentifier, List<Integer> reasonCodes) {
+        int size = reasonCodes.size();
+        byte[] returnCodes = new byte[size];
+        for (int i = 0; i < size; i++) {
+            returnCodes[i] = (byte) (reasonCodes.get(i) & 0xFF);
         }
-        SubAck ret = new SubAck(rl, packetIdentifier, returnCodes);
+        SubAck ret = new SubAck(REMAINING_LENGTH_FIELD_LENGTH + size, packetIdentifier, returnCodes);
         if (!ret.packetValidate()) {
             throw new MalformedPacketException();
         }
         return ret;
-    }
-
-    public static SubAck from(List<Subscribe.Subscription> subscriptions) {
-        return from((short) 0, subscriptions);
     }
 
     @Override
@@ -104,6 +100,25 @@ public class SubAck extends ControlPacket {
             return new V50(remainingLength,
                     packetIdentifier, properties,
                     reasonCodes);
+        }
+
+        public static SubAck.V50 from(
+                short packetIdentifier,
+                List<Integer> reasonCodes,
+                Properties properties) {
+            int size = reasonCodes.size();
+            byte[] returnCodes = new byte[size];
+            for (int i = 0; i < size; i++) {
+                returnCodes[i] = (byte) (reasonCodes.get(i) & 0xFF);
+            }
+            int remainingLength = REMAINING_LENGTH_FIELD_LENGTH
+                    + calcPropertiesLength(properties)
+                    + size ;
+            SubAck.V50 ret = new SubAck.V50(remainingLength, packetIdentifier, properties, returnCodes);
+            if (!ret.packetValidate()) {
+                throw new MalformedPacketException();
+            }
+            return ret;
         }
 
         @Override

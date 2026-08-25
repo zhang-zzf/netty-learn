@@ -5,7 +5,7 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 import org.github.zzf.mqtt.server.BrokerBootstrap;
 import org.github.zzf.mqtt.server.DefaultRoutingTable;
 import org.github.zzf.mqtt.server.DefaultTopicBlocker;
-import org.github.zzf.mqtt.server.TopicTreeRetain;
+import org.github.zzf.mqtt.server.DefaultRetainPublishManager;
 import org.github.zzf.mqtt.server.metric.MicroMeterMetrics;
 
 @Slf4j
@@ -24,7 +24,7 @@ public class Application {
         BrokerBootstrap.builder()
                 .authenticator(packet -> (byte) 0x00)
                 .routingTable(new DefaultRoutingTable())
-                .retainPublishManager(new TopicTreeRetain("RetainPublishManager"))
+                .retainPublishManager(new DefaultRetainPublishManager("RetainPublishManager"))
                 .topicBlocker(topicBlocker())
                 .workerThreadNum(workerThreadNum)
                 .serverListenedAddress(serverListenedAddress)

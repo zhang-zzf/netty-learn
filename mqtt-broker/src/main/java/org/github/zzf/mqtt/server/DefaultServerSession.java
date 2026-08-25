@@ -17,6 +17,9 @@ import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE;
 import static org.github.zzf.mqtt.protocol.model.Publish.META_P_SOURCE_BROKER;
 import static org.github.zzf.mqtt.protocol.model.Publish.NO_PACKET_IDENTIFIER;
 import static org.github.zzf.mqtt.protocol.model.Publish.needAck;
+import static org.github.zzf.mqtt.protocol.model.Subscribe.Subscription.V50.RETAIN_HANDLING_NOT_SEND;
+import static org.github.zzf.mqtt.protocol.model.Subscribe.Subscription.V50.RETAIN_HANDLING_SEND_IF_NEW;
+import static org.github.zzf.mqtt.protocol.model.Subscribe.Subscription.V50.RETAIN_HANDLING_SEND_RETAIN;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
@@ -26,7 +29,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Queue;
 import java.util.Set;
@@ -45,6 +48,7 @@ import org.github.zzf.mqtt.protocol.model.PingResp;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.SubAck;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
+import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
 import org.github.zzf.mqtt.protocol.model.UnsubAck;
 import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 import org.github.zzf.mqtt.protocol.server.Authenticator;
@@ -65,7 +69,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     static final Set<Byte> SUPPORTED_PROTOCOL_LEVEL = Set.of(PROTOCOL_LEVEL_3_1_1);
 
     final Broker broker;
-    Set<Subscribe.Subscription> subscriptions = new HashSet<>();
+    Map<String, Subscription> subscriptions = new HashMap<>();
     // todo 监控内存占用
     Queue<ControlPacketContext> inQueue = new LinkedList<>();
     Queue<ControlPacketContext> outQueue = new LinkedList<>();
@@ -106,6 +110,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     @Override
     public ChannelFuture write(ControlPacket packet) {
+        // todo
         if (resumeSession.get() != null) {
             // this session has been resumed
             return resumeSession.get().write(packet);
@@ -133,7 +138,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     protected void doReceiveConnect(Connect packet) {
         String clientId = packet.clientIdentifier();
-        log.debug("Session({}) >> Connect {}", clientId, packet);
+        log.debug("Session({}) << Connect {}", clientId, packet);
         if (this.connect != null) {
             /* A Client can only send the CONNECT Packet once over a Network Connection.
             The Server MUST process a second CONNECT Packet sent from a Client as a protocol violation and disconnect the Client
@@ -193,13 +198,13 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private Void notCleanSessionToCleanSessionFailed(Throwable t, String clientId) {
-        log.error("Session({}) >> Close Session : disconnect previous session failed", clientId, t);
+        log.error("Session({}) >> CloseSession : disconnect previous session failed", clientId, t);
         this.close();
         return null;
     }
 
     private Void resumeSessionFailed(Throwable t, String clientId) {
-        log.error("Session({}) >> Close Session : resume session failed", clientId, t);
+        log.error("Session({}) >> CloseSession : resume session failed", clientId, t);
         this.close();
         return null;
     }
@@ -287,53 +292,43 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     private void doReceivePingReq(PingReq packet) {
-        doWrite(PingResp.from());
+        write(PingResp.from());
         log.debug("Session({}) PingReq -> PingResp", cId());
     }
 
     @Override
-    public Set<Subscribe.Subscription> subscriptions() {
-        return subscriptions;
+    public Set<Subscription> subscriptions() {
+        return new HashSet<>(subscriptions.values());
     }
 
     @Override
     protected void onPublish(Publish packet) {
-        broker.forward(packet);
+        broker.forward(clientIdentifier(), packet);
     }
 
-    @Override
-    public ChannelFuture write(String topicFilter, int qos, Publish packet) {
+    private ChannelFuture write(boolean retain,
+            Subscription subscription,
+            Publish packet) {
+        int qos = Math.min(packet.qos(), subscription.qos());
         short packetIdentifier = needAck(qos) ? nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
         // use a shadow copy of the origin Publish
         Publish outgoing = Publish.outgoing(
-                false /* must set retain to false before forward the Publish Packet */,
-                qos, false,
-                topicFilter, packetIdentifier,
+                retain, qos, false,
+                packet.topicName(), packetIdentifier,
                 /* packet.payload().slice());  verified: must use slice()*/
                 packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
         return write(outgoing);
     }
 
     @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("{");
-        sb.append("\"session\":\"").append(this.getClass().getSimpleName()).append('\"').append(',');
-        sb.append("\"super\":").append(super.toString()).append(',');
-        sb.append("\"subscriptions\":");
-        if (!(subscriptions).isEmpty()) {
-            sb.append("[");
-            for (Object collectionValue : subscriptions) {
-                sb.append("\"").append(Objects.toString(collectionValue, "")).append("\",");
-            }
-            sb.replace(sb.length() - 1, sb.length(), "]");
+    public ChannelFuture forward(String clientId, String topicFilter, Publish packet) {
+        Subscription subscription = subscriptions.get(topicFilter);
+        if (subscription == null) {
+            log.error("Session({}) >> forward: Subscription({}) not found", cId(), topicFilter);
+            return channel().newSucceededFuture();
         }
-        else {
-            sb.append("[]");
-        }
-        sb.append(',');
-        sb.append("\"inQueue\":").append(inQueue.size()).append(",");
-        sb.append("\"outQueue\":").append(outQueue.size()).append(",");
-        return sb.replace(sb.length() - 1, sb.length(), "}").toString();
+        /* must set retain to false before forward the Publish Packet */
+        return write(false, subscription, packet);
     }
 
     @Override
@@ -388,26 +383,80 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
     }
 
     protected void doReceiveSubscribe(Subscribe packet) {
-        log.debug("Session({}) doReceiveSubscribe req: {}", cId(), packet);
-        // register the Subscribe packet
-        List<Subscribe.Subscription> permitted = broker.subscribe(this, packet.subscriptions());
-        this.subscriptions.addAll(permitted);
-        SubAck subAck = SubAck.from(packet.packetIdentifier(), permitted);
-        log.debug("Session({}) doReceiveSubscribe resp: {}", cId(), subAck);
-        doWrite(subAck);
+        log.debug("Session({}) << Subscribe: {}", cId(), packet);
+        // 2 things: add to this.subscriptions and retain message
+        broker.subscribe(this, packet)
+                // triggerRetainMessage will exec after send SubAck
+                .thenCompose(v -> doWriteSubAck(packet, v))
+                // triggerRetainMessage must used after doWriteSubAck
+                // async send retain Publish
+                .thenApply(this::triggerRetainMessage)
+        ;
+    }
+
+    private List<Subscription> triggerRetainMessage(List<Subscription> granted) {
+        String[] tfs = granted.stream().map(Subscription::topicFilter).toArray(String[]::new);
+        broker.retainedPublish(tfs).thenAccept(publishPackets -> {
+            if (retainedMessageIsEmpty(publishPackets)) {
+                return;
+            }
+            doInEventLoop(() -> writeRetainPublish(publishPackets));
+        });
+        return granted;
+    }
+
+    boolean retainedMessageIsEmpty(Map<String, List<Publish>> publishPackets) {
+        if (publishPackets.isEmpty()) {
+            return true;
+        }
+        for (List<Publish> list : publishPackets.values()) {
+            if (!list.isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void writeRetainPublish(Map<String, List<Publish>> publishPackets) {
+        for (Entry<String, List<Publish>> e : publishPackets.entrySet()) {
+            Subscription subscription = subscriptions.get(e.getKey());
+            if (subscription == null) {
+                return;
+            }
+            for (Publish publish : e.getValue()) {
+                log.debug("Session({}) >> SendRetainPublish: {} - {}", cId(), e.getKey(), publish);
+                write(true, subscription, publish);
+            }
+        }
+    }
+
+    private CompletionStage<List<Subscription>> doWriteSubAck(Subscribe packet,
+            List<Integer> reasonCodes) {
+        CompletableFuture<List<Subscription>> stage = new CompletableFuture<>();
+        SubAck subAck = SubAck.from(packet.packetIdentifier(), reasonCodes);
+        //
+        List<Subscription> granted = packet.grantSubscription(reasonCodes);
+        doInEventLoop(() -> {
+            for (Subscription s : granted) {
+                subscriptions.put(s.topicFilter(), s);
+            }
+            log.debug("Session({}) >> SubAck: {}", cId(), subAck);
+            write(subAck).addListener(f -> stage.complete(granted));
+        });
+        return stage;
     }
 
     protected void doReceiveUnsubscribe(Unsubscribe packet) {
-        log.info("Session({}) doReceiveUnsubscribe req: {}", cId(), packet);
+        log.info("Session({}) << Unsubscribe: {}", cId(), packet);
         broker.unsubscribe(this, packet.subscriptions());
         packet.subscriptions().forEach(this.subscriptions::remove);
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
-        log.info("Session({}) doReceiveUnsubscribe resp: {}", cId(), unsubAck);
+        log.info("Session({}) >> UnsubAck: {}", cId(), unsubAck);
         doWrite(unsubAck);
     }
 
     private void doReceiveDisconnect(Disconnect packet) {
-        log.debug("Session({}) doReceiveDisconnect.", clientIdentifier());
+        log.debug("Session({}) << Disconnect", clientIdentifier());
         this.disconnect = true;
         channel().close();
     }
@@ -434,7 +483,8 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                         future.complete(null);
                     }
                 });
-            } else {
+            }
+            else {
                 future.complete(null);
             }
         });
@@ -503,6 +553,78 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
             return SUPPORTED_PROTOCOL_LEVEL.contains(packet.protocolLevel());
         }
 
+        @Override
+        protected void doReceiveSubscribe(Subscribe packet) {
+            log.debug("Session({}) << Subscribe: {}", cId(), packet);
+            // register the Subscribe packet
+            // 2 things: add to this.subscriptions and retain message
+            // Retain Handling option
+            Map<String, Boolean> retainHandling = retainHandlingOption(packet);
+            broker.subscribe(this, packet)
+                    .thenCompose(v -> doWriteSubAck(packet, v))
+                    // async send retain Publish
+                    .thenApply(grantedSub -> triggerRetainMessage(grantedSub, retainHandling))
+            ;
+        }
+
+        private List<Subscription> triggerRetainMessage(
+                List<Subscription> granted,
+                Map<String, Boolean> retainHandling) {
+            String[] tfs = granted.stream()
+                    .map(Subscription::topicFilter)
+                    .filter(tf -> retainHandling.getOrDefault(tf, false))
+                    .toArray(String[]::new);
+            broker.retainedPublish(tfs).thenAccept(publishPackets -> {
+                if (retainedMessageIsEmpty(publishPackets)) {
+                    return;
+                }
+                doInEventLoop(() -> writeRetainPublish(publishPackets));
+            });
+            return granted;
+        }
+
+        private void writeRetainPublish(Map<String, List<Publish>> publishPackets) {
+            for (Entry<String, List<Publish>> e : publishPackets.entrySet()) {
+                Subscription.V50 subscription = (Subscription.V50) subscriptions.get(e.getKey());
+                if (subscription == null) {
+                    return;
+                }
+                for (Publish publish : e.getValue()) {
+                    log.debug("Session({}) >> SendRetainPublish: {} - {}", cId(), e.getKey(), publish);
+                    write(true, subscription, publish);
+                }
+            }
+        }
+
+        private Map<String, Boolean> retainHandlingOption(Subscribe packet) {
+            Map<String, Boolean> retainHandling = new HashMap<>();
+            List<Subscription> subscriptionList = packet.subscriptions();
+            for (Subscription s : subscriptionList) {
+                Subscription.V50 sub = (Subscription.V50) s;
+                final String tf = sub.topicFilter();
+                switch (sub.retainHandling()) {
+                    case RETAIN_HANDLING_SEND_RETAIN -> retainHandling.put(tf, true);
+                    case RETAIN_HANDLING_SEND_IF_NEW -> retainHandling.put(tf, !subscriptions.containsKey(tf));
+                    case RETAIN_HANDLING_NOT_SEND -> retainHandling.put(tf, false);
+                }
+            }
+            return retainHandling;
+        }
+
+        private CompletionStage<List<Subscription>> doWriteSubAck(Subscribe packet,
+                List<Integer> reasonCodes) {
+            CompletableFuture<List<Subscription>> stage = new CompletableFuture<>();
+            SubAck.V50 subAck = SubAck.V50.from(packet.packetIdentifier(), reasonCodes, Properties.EMPTY);
+            List<Subscription> granted = packet.grantSubscription(reasonCodes);
+            doInEventLoop(() -> {
+                for (Subscription s : granted) {
+                    this.subscriptions.put(s.topicFilter(), s);
+                }
+                log.debug("Session({}) >> SubAck: {}", cId(), subAck);
+                write(subAck).addListener(f -> stage.complete(granted));
+            });
+            return stage;
+        }
 
         @Override
         protected void doReceivePublish(Publish packet) {
@@ -540,35 +662,60 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         }
 
         @Override
-        public ChannelFuture write(String topicFilter, int qos, Publish packet) {
-            short packetIdentifier = needAck(qos) ? nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
-            Properties properties = (packet instanceof Publish.V50 publishV50) ?
-                    publishV50.properties() : Properties.EMPTY;
-            // 3.3.2.3.3 Message Expiry Interval
-            Optional<Long> messageLifetimeLeft = messageLifetimeLeft(packet);
-            if (messageLifetimeLeft.isPresent()) {
-                if (messageLifetimeLeft.get() < 0L) {
-                    return channel().newSucceededFuture();
-                }
-                properties.messageExpiryInterval(messageLifetimeLeft.get());
+        public ChannelFuture forward(String clientId, String topicFilter, Publish packet) {
+            Subscription.V50 subscription = (Subscription.V50) subscriptions.get(topicFilter);
+            if (subscription == null) {
+                log.error("Session({}) >> forward: Subscription({}) not found", cId(), topicFilter);
+                return this.channel().newSucceededFuture();
             }
-            // use a shadow copy of the origin Publish
-            Publish.V50 outgoing = Publish.V50.outgoing(
-                    false /* must set retain to false before forward the PublishPacket */,
-                    qos, false,
-                    topicFilter, packetIdentifier, properties,
-                    /* packet.payload().slice());  verified: must use slice()*/
-                    packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
-            return this.write(outgoing);
+            // No Local Option
+            if (subscription.noLocal() && clientId.equals(clientIdentifier())) {
+                log.debug("Session({}) >> forward: NoLocalOption", cId());
+                return this.channel().newSucceededFuture();
+            }
+            // Retain As Published option
+            boolean retainFlag = subscription.retainAsPublished() ? packet.retainFlag() : false;
+            return write(retainFlag, subscription, packet);
         }
 
-        private Optional<Long> messageLifetimeLeft(Publish packet) {
+        private ChannelFuture write(boolean retain,
+                Subscription.V50 subscription,
+                Publish packet) {
+            int qos = Math.min(packet.qos(), subscription.qos());
+            short packetIdentifier = needAck(qos) ? nextPacketIdentifier() : NO_PACKET_IDENTIFIER;
+            Properties properties;
             if (packet instanceof Publish.V50 publishV50) {
-                Optional<Long> messageExpiryInterval = publishV50.properties().messageExpiryInterval();
-                if (messageExpiryInterval.isPresent()) {
-                    long expire = System.currentTimeMillis() - publishV50.timestamp();
-                    return Optional.of(messageExpiryInterval.get() - expire / 1000);
+                properties = publishV50.properties();
+                // 3.3.2.3.3 Message Expiry Interval
+                Optional<Long> messageLifetimeLeft = messageLifetimeLeft(publishV50);
+                if (messageLifetimeLeft.isPresent()) {
+                    if (messageLifetimeLeft.get() < 0L) {
+                        return channel().newSucceededFuture();
+                    }
+                    properties.messageExpiryInterval(messageLifetimeLeft.get());
                 }
+            }
+            else {
+                properties = Properties.EMPTY;
+            }
+            // add Subscription Identifier to Properties
+            subscription.identifier().ifPresent(properties::subscriptionIdentifier);
+            // use a shadow copy of the origin Publish
+            Publish.V50 outgoing = Publish.V50.outgoing(
+                    retain, qos, false,
+                    packet.topicName(), packetIdentifier, properties,
+                    /* packet.payload().slice());  verified: must use slice()*/
+                    packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
+            return write(outgoing);
+        }
+
+
+
+        private Optional<Long> messageLifetimeLeft(Publish.V50 packet) {
+            Optional<Long> messageExpiryInterval = packet.properties().messageExpiryInterval();
+            if (messageExpiryInterval.isPresent()) {
+                long expire = System.currentTimeMillis() - packet.timestamp();
+                return Optional.of(messageExpiryInterval.get() - expire / 1000);
             }
             return Optional.empty();
         }

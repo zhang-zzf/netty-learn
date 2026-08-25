@@ -1,11 +1,11 @@
 package org.github.zzf.mqtt.server;
 
-import static java.util.Collections.emptyList;
-import static java.util.stream.Collectors.toList;
+import static java.util.Collections.emptyMap;
 
 import io.micrometer.core.annotation.Timed;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
@@ -21,7 +21,6 @@ import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
 import org.github.zzf.mqtt.protocol.server.RoutingTable;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
 import org.github.zzf.mqtt.protocol.server.Topic;
-import org.github.zzf.mqtt.protocol.server.Topic.Subscriber;
 import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 
 /**
@@ -52,50 +51,36 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public List<Subscribe.Subscription> subscribe(
+    public CompletionStage<List<Integer>> subscribe(
             ServerSession session,
-            Collection<Subscription> subscriptions) {
-        if (subscriptions == null) {
-            return emptyList();
-        }
-        List<Subscription> permitted = subscriptions.stream()
-                .map(sub -> decideSubscriptionQos(session, sub))
-                .collect(toList());
-        // sync
-        routingTable.subscribe(session.clientIdentifier(), permitted).join();
-        if (retainPublishManager != null) {
-            //
-            String[] tfs = permitted.stream().map(Subscription::topicFilter).toArray(String[]::new);
-            // async
-            retainPublishManager.match(tfs).thenAccept(publishPackets -> {
-                // 移交给 session 绑定的线程，延迟发送
-                session.channel().eventLoop().submit(() -> publishPackets.forEach(session::write));
-            });
-        }
-        return permitted;
+            Subscribe subscribe) {
+        // broker decide
+        List<Integer> reasonCodes = decideSubscriptionQos(session, subscribe.subscriptions());
+        //
+        List<Subscription> granted = subscribe.grantSubscription(reasonCodes);
+        return routingTable.subscribe(session.clientIdentifier(), granted)
+                .thenApply((unused) -> reasonCodes);
     }
 
     @Override
-    public void unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
-        // sync
-        routingTable.unsubscribe(session.clientIdentifier(), subscriptions).join();
+    public CompletableFuture<Void> unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
+        return routingTable.unsubscribe(session.clientIdentifier(), subscriptions);
     }
 
     @Timed(value = METRIC_NAME, histogram = true)
-    private int doForward(Publish packet) {
+    private int doForward(String clientId, Publish packet) {
         int times = 0;
         for (Topic topic : routingTable.match(packet.topicName())) {
-            for (Subscriber subscriber : topic.subscribers()) {
-                ServerSession session = sessionMap.get(subscriber.clientId());
+            String topicFilter = topic.topicFilter();
+            for (String subscriber : topic.subscribers()) {
+                ServerSession session = sessionMap.get(subscriber);
                 if (session == null) {// todo metric
                     continue;
                 }
-                // qos to use for the Publish packet
-                int qos = qoS(packet.qos(), subscriber.qos());
-                session.write(topic.topicFilter(), qos, packet);
+                session.forward(clientId, topicFilter, packet);
                 if (log.isDebugEnabled()) {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}",
-                            packet.pId(), topic.topicFilter(), session.clientIdentifier(), packet);
+                            packet.pId(), topicFilter, session.clientIdentifier(), packet);
                 }
                 times += 1;
             }
@@ -103,9 +88,6 @@ public class DefaultBroker implements Broker {
         return times;
     }
 
-    private int qoS(int packetQos, int tfQos) {
-        return Math.min(packetQos, tfQos);
-    }
 
     private boolean block(Publish packet) {
         if (blockedTopic == null) {
@@ -153,12 +135,13 @@ public class DefaultBroker implements Broker {
         return ret;
     }
 
-    protected Subscribe.Subscription decideSubscriptionQos(
+    protected List<Integer> decideSubscriptionQos(
             ServerSession session,
-            Subscribe.Subscription sub) {
-        // todo decide qos
-        int qos = sub.qos();
-        return new Subscribe.Subscription(sub.topicFilter(), (byte) qos);
+            List<Subscription> sub) {
+        return sub.stream()
+                // change according to the situation
+                .map(Subscription::qos)// default to request
+                .toList();
     }
 
     private void retain(Publish publish) {
@@ -185,7 +168,7 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public int forward(Publish packet) {
+    public int forward(String clientId, Publish packet) {
         // check Blocked TopicFilter
         if (block(packet)) {
             return 0;
@@ -195,7 +178,7 @@ public class DefaultBroker implements Broker {
             retain(packet);
         }
         // Broker forward Publish to relative topic after receive a PublishPacket
-        return doForward(packet);
+        return doForward(clientId, packet);
     }
 
     private boolean zeroBytesPayload(Publish publish) {
@@ -226,6 +209,14 @@ public class DefaultBroker implements Broker {
                 log.error("Close RetainPublishManager failed: {}", e.getMessage(), e);
             }
         }
+    }
+
+    @Override
+    public CompletableFuture<Map<String, List<Publish>>> retainedPublish(String... topicFilters) {
+        if (retainPublishManager != null) {
+            return retainPublishManager.match(topicFilters);
+        }
+        return CompletableFuture.completedFuture(emptyMap());
     }
 
     @Override

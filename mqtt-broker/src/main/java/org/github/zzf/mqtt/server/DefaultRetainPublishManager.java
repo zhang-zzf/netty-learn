@@ -1,12 +1,16 @@
 package org.github.zzf.mqtt.server;
 
 
-import static java.util.Collections.emptyList;
-import static java.util.concurrent.CompletableFuture.supplyAsync;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.DOLLAR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.MULTI_LEVEL_WILDCARD;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.SINGLE_LEVEL_WILDCARD;
 
+import io.netty.util.ReferenceCountUtil;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import org.github.zzf.mqtt.protocol.model.Publish;
@@ -15,40 +19,34 @@ import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
 /**
  * 设计思路： 1. 写操作单线程串行更改 1. 多线程无锁读
  */
-public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublishManager {
+public class DefaultRetainPublishManager extends SlashTree<Publish> implements RetainPublishManager {
 
-    public TopicTreeRetain(String threadName) {
+    public DefaultRetainPublishManager(String threadName) {
         super(threadName);
     }
 
     @Override
-    public List<Publish> match(String tf) {
+    public List<Publish> match(String topicFilter) {
         List<Publish> ret = new ArrayList<>();
-        dfsMatch(tf.split(LEVEL_SEPARATOR), 0, root, ret, false);
-        return postHandle(ret, tf);
+        dfsMatch(topicFilter.split(LEVEL_SEPARATOR), 0, root, ret, false);
+        return postHandle(ret, topicFilter);
     }
 
     private List<Publish> postHandle(List<Publish> ret,
             String tf) {
         if (tf.startsWith(MULTI_LEVEL_WILDCARD) || tf.startsWith(SINGLE_LEVEL_WILDCARD)) {
-            return ret.stream().filter(d -> !d.topicName().startsWith($)).toList();
+            return ret.stream().filter(d -> !d.topicName().startsWith(DOLLAR)).toList();
         }
         return ret;
     }
 
     @Override
-    public CompletableFuture<List<Publish>> match(String... topicFilters) {
-        if (topicFilters.length == 0) {
-            return CompletableFuture.completedFuture(emptyList());
+    public CompletableFuture<Map<String, List<Publish>>> match(String... topicFilters) {
+        Map<String, List<Publish>> ret = new HashMap<>();
+        for (String tf : topicFilters) {
+            ret.put(tf, match(tf));
         }
-        return supplyAsync(() -> {
-            List<Publish> ret = new ArrayList<>();
-            for (String tf : topicFilters) {
-                dfsMatch(tf.split(LEVEL_SEPARATOR), 0, root, ret, false);
-                ret = postHandle(ret, tf);
-            }
-            return ret;
-        }, executor);
+        return CompletableFuture.completedFuture(ret);
     }
 
     private void dfsMatch(String[] topicLevels,
@@ -112,7 +110,14 @@ public class TopicTreeRetain extends TopicTree<Publish> implements RetainPublish
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(packets)
-                .map(d -> del(d.topicName(), (AtomicReference<Publish> data) -> data.set(null)))
+                .map(d -> del(d.topicName(), (AtomicReference<Publish> data) -> {
+                    // watch out: memory leak
+                    Publish publish = data.get();
+                    if (publish != null) {
+                        ReferenceCountUtil.release(publish.payload());
+                    }
+                    data.set(null);
+                }))
                 .toArray(CompletableFuture[]::new)
         );
     }

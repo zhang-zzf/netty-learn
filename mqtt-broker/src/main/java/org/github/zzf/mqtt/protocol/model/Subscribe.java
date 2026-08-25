@@ -7,10 +7,12 @@ import io.netty.buffer.ByteBuf;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 
 public class Subscribe extends ControlPacket {
 
+    public static final byte BYTE_0 = (byte) 0x82;
     final short packetIdentifier;
     final List<Subscription> subscriptions;
 
@@ -50,7 +52,7 @@ public class Subscribe extends ControlPacket {
         for (Subscription s : subscriptions) {
             remainingLength += (calcUTF8StringLength(s.topicFilter) + 1);
         }
-        Subscribe ret = new Subscribe((byte) 0x82, remainingLength, packetIdentifier, subscriptions);
+        Subscribe ret = new Subscribe(BYTE_0, remainingLength, packetIdentifier, subscriptions);
         if (!ret.packetValidate()) {
             throw new MalformedPacketException("Invalid packet");
         }
@@ -112,7 +114,7 @@ public class Subscribe extends ControlPacket {
     public boolean packetValidate() {
         // Bits 3,2,1 and 0 of the fixed header of the SUBSCRIBE Control Packet are reserved and MUST be set to
         // 0,0,1 and 0 respectively. The Server MUST treat any other value as malformed and close the Network Connection
-        if (this.byte0 != (byte) 0x82) {
+        if (this.byte0 != BYTE_0) {
             return false;
         }
         //  The payload of a SUBSCRIBE packet MUST contain at least one Topic Filter / QoS pair.
@@ -135,6 +137,17 @@ public class Subscribe extends ControlPacket {
             }
         }
         return true;
+    }
+
+    public List<Subscription> grantSubscription(List<Integer> grantedQos) {
+        List<Subscription> ret = new ArrayList<>(subscriptions.size());
+        for (int i = 0; i < subscriptions.size(); i++) {
+            Integer qos = grantedQos.get(i);
+            if (qos < 0x80) {
+                ret.add(subscriptions.get(i).newWithQos(qos));
+            }
+        }
+        return ret;
     }
 
     @Override
@@ -216,10 +229,34 @@ public class Subscribe extends ControlPacket {
             return sb.replace(sb.length() - 1, sb.length(), "}").toString();
         }
 
+        public Subscription newWithQos(int qos) {
+            return new Subscription(topicFilter, (byte) (qos & 0x03));
+        }
+
         public static class V50 extends Subscription {
 
-            public V50(String topicFilter, byte options) {
+            /** Send retained messages at the time of the subscribe */
+            public static final int RETAIN_HANDLING_SEND_RETAIN = 0;
+            /** Send retained messages at subscribe only if the subscription does not currently exist */
+            public static final int RETAIN_HANDLING_SEND_IF_NEW = 1;
+            /** Do not send retained messages at the time of the subscribe */
+            public static final int RETAIN_HANDLING_NOT_SEND = 2;
+
+            final Integer identifier;// maybe null
+
+            public V50(String topicFilter, byte options, Integer identifier) {
                 super(topicFilter, options);
+                this.identifier = identifier;
+            }
+
+            @Override
+            public Subscription.V50 newWithQos(int qos) {
+                byte options = (byte) (this.options & 0xFC | (qos & 0x03));
+                return new Subscription.V50(topicFilter, options, identifier);
+            }
+
+            public Optional<Integer> identifier() {
+                return Optional.ofNullable(identifier);
             }
 
             public boolean noLocal() {
@@ -253,12 +290,13 @@ public class Subscribe extends ControlPacket {
             int remainingLength = readVariableByteInteger(incoming);
             short packetIdentifier = readPacketIdentifier(incoming);
             Properties properties = readProperties(incoming);
+            Optional<Integer> subId = properties.subscriptionIdentifier();
             List<Subscription> subscriptions = new ArrayList<>();
             while (incoming.isReadable()) {
                 String topic = readUTF8String(incoming);
                 byte options = readByte(incoming);
                 // todo TopicFilter rule check
-                subscriptions.add(new Subscription.V50(topic, options));
+                subscriptions.add(new Subscription.V50(topic, options, subId.orElse(null)));
             }
             return new V50(byte0, remainingLength,
                     packetIdentifier, properties,

@@ -19,11 +19,11 @@ class SubAckTest {
      */
     @Test
     void givenRightPacket_whenOutAndIn_thenSuccess() {
-        List<Subscribe.Subscription> subscriptionList = new ArrayList<Subscribe.Subscription>() {{
-            add(new Subscribe.Subscription("tbt/shanghai", (byte) 2));
-            add(new Subscribe.Subscription("mqtt/shanghai", (byte) 0));
+        List<Integer> reasonCodes = new ArrayList<>() {{
+            add(0);
+            add(2);
         }};
-        SubAck out = SubAck.from(Short.MAX_VALUE, subscriptionList);
+        SubAck out = SubAck.from(Short.MAX_VALUE, reasonCodes);
         ByteBuf packet = out.toByteBuf();
         SubAck in = (SubAck) SubAck.from(packet);
         then(in.packetIdentifier()).isEqualTo(Short.MAX_VALUE);

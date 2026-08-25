@@ -137,9 +137,7 @@ class RoutingTableImplTest {
 
         Topic topic = routingTable.topic(topicFilter).get();
         then(topic.subscribers()).hasSize(2);
-        List<String> clientIds = topic.subscribers().stream()
-            .map(Topic.Subscriber::clientId)
-            .toList();
+        List<String> clientIds = topic.subscribers().stream().toList();
         then(clientIds).contains(clientId1, clientId2);
 
         // 清理
@@ -165,14 +163,10 @@ class RoutingTableImplTest {
         then(routingTable.topic(topicFilter2)).isNotEmpty();
 
         Topic topic1 = routingTable.topic(topicFilter1).get();
-        then(topic1.subscribers()).hasSize(1);
-        then(topic1.subscribers().get(0).clientId()).isEqualTo(clientId);
-        then(topic1.subscribers().get(0).qos()).isEqualTo(1);
+        then(topic1.subscribers()).hasSize(1).contains(clientId);
 
         Topic topic2 = routingTable.topic(topicFilter2).get();
-        then(topic2.subscribers()).hasSize(1);
-        then(topic2.subscribers().get(0).clientId()).isEqualTo(clientId);
-        then(topic2.subscribers().get(0).qos()).isEqualTo(2);
+        then(topic2.subscribers()).hasSize(1).contains(clientId);
 
         // 清理
         routingTable.unsubscribe(clientId, Arrays.asList(subscription1, subscription2)).join();
@@ -210,14 +204,7 @@ class RoutingTableImplTest {
         routingTable.subscribe(clientId, Arrays.asList(subscription1)).join();
         Topic topic = routingTable.topic(topicFilter).get();
         then(topic.subscribers()).hasSize(1);
-        then(topic.subscribers().get(0).qos()).isEqualTo(0);
-
-        // 再次订阅，QoS 2，应该覆盖之前的QoS
-        routingTable.subscribe(clientId, Arrays.asList(subscription2)).join();
-        topic = routingTable.topic(topicFilter).get();
-        then(topic.subscribers()).hasSize(1); // 仍然只有一个订阅者
-        then(topic.subscribers().get(0).qos()).isEqualTo(2); // QoS应该被更新
-
+        
         // 清理
         routingTable.unsubscribe(clientId, Arrays.asList(subscription2)).join();
         then(routingTable.topic(topicFilter)).isEmpty();

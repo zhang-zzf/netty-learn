@@ -3,6 +3,7 @@ package org.github.zzf.mqtt.server;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicReference;
 import lombok.RequiredArgsConstructor;
@@ -15,12 +16,12 @@ import org.github.zzf.mqtt.protocol.server.TopicBlocker;
  */
 public class DefaultTopicBlocker implements TopicBlocker, AutoCloseable {
 
-    final TopicTree<String> tree = new TopicTree<>("TopicBlocker");
+    final TopicTree tree = new TopicTree("TopicBlocker");
 
     @Override
     public Topic match(String topicName) {
-        List<String> match = tree.match(topicName);
-        return match.isEmpty() ? null : new TopicImpl(match.get(0));
+        List<Topic> match = tree.match(topicName);
+        return match.isEmpty() ? null : match.get(0);
     }
 
     @Override
@@ -29,7 +30,7 @@ public class DefaultTopicBlocker implements TopicBlocker, AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(tfs)
-                .map(d -> tree.add(d, (AtomicReference<String> data) -> data.set(d)))
+                .map(d -> tree.add(d, (AtomicReference<Topic> data) -> data.set(new TopicImpl(d))))
                 .toArray(CompletableFuture[]::new)
         );
     }
@@ -40,7 +41,7 @@ public class DefaultTopicBlocker implements TopicBlocker, AutoCloseable {
             return CompletableFuture.completedFuture(null);
         }
         return CompletableFuture.allOf(Arrays.stream(tfs)
-                .map(d -> tree.del(d, (AtomicReference<String> data) -> data.set(null)))
+                .map(d -> tree.del(d, (AtomicReference<Topic> data) -> data.set(null)))
                 .toArray(CompletableFuture[]::new)
         );
     }
@@ -61,8 +62,8 @@ public class DefaultTopicBlocker implements TopicBlocker, AutoCloseable {
         }
 
         @Override
-        public List<Subscriber> subscribers() {
-            return Collections.emptyList();
+        public Set<String> subscribers() {
+            return Collections.emptySet();
         }
 
     }

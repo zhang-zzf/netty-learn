@@ -1,6 +1,5 @@
 package org.github.zzf.mqtt.protocol.server;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -8,7 +7,7 @@ import java.util.concurrent.CompletionStage;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
-import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
+import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 
 /**
  * @author zhanfeng.zhang@icloud.com
@@ -37,13 +36,14 @@ public interface Broker {
     /**
      * register a subscription between the session and the topic
      */
-    CompletionStage<List<Integer>> subscribe(ServerSession session, Subscribe subscribe);
+    CompletionStage<List<Integer>> subscribe(ServerSession session,
+            Subscribe subscribe);
 
     /**
      * deregister a subscription between the session and the topic
      */
-    CompletionStage<Void> unsubscribe(ServerSession session,
-            Collection<Subscription> subscriptions);
+    CompletionStage<List<Integer>> unsubscribe(ServerSession session,
+            Unsubscribe unsubscribe);
 
     void close();
 

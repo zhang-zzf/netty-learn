@@ -11,26 +11,28 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
 import io.netty.buffer.ByteBuf;
+import java.util.List;
 import java.util.Set;
 
 public class UnsubAck extends ControlPacket {
 
+    public static final byte BYTE_0 = (byte) 0xB0;
     final short packetIdentifier;
 
-    UnsubAck(short packetIdentifier) {
-        super((byte) 0xB0, 0x02);
+    UnsubAck(byte byte0, int remainingLength, short packetIdentifier) {
+        super(byte0, remainingLength);
         this.packetIdentifier = packetIdentifier;
     }
 
     public static UnsubAck incoming(ByteBuf incoming) {
-        readByte(incoming);
-        readVariableByteInteger(incoming);
+        byte byte0 = readByte(incoming);
+        int remainingLength = readVariableByteInteger(incoming);
         short packetIdentifier = readPacketIdentifier(incoming);
-        return new UnsubAck(packetIdentifier);
+        return new UnsubAck(byte0, remainingLength, packetIdentifier);
     }
 
     public static UnsubAck from(short packetIdentifier) {
-        return new UnsubAck(packetIdentifier);
+        return new UnsubAck(BYTE_0, 0x02, packetIdentifier);
     }
 
     @Override
@@ -66,7 +68,7 @@ public class UnsubAck extends ControlPacket {
         V50(byte byte0, int remainingLength,
                 short packetIdentifier, Properties properties,
                 byte[] reasonCodes) {
-            super(packetIdentifier);
+            super(byte0, remainingLength, packetIdentifier);
             this.properties = properties;
             this.reasonCodes = reasonCodes;
         }
@@ -83,6 +85,20 @@ public class UnsubAck extends ControlPacket {
             return new V50(byte0, remainingLength,
                     packetIdentifier, properties,
                     reasonCodes);
+        }
+
+        public static UnsubAck.V50 from(
+                short packetIdentifier,
+                Properties properties,
+                List<Integer> reasonCodes) {
+            int size = reasonCodes.size();
+            byte[] returnCodes = new byte[size];
+            for (int i = 0; i < size; i++) {
+                returnCodes[i] = (byte) (reasonCodes.get(i) & 0xFF);
+            }
+            // Packet Identifier + Properties + Reason Code
+            int remainingLength = 2 + calcPropertiesLength(properties) + returnCodes.length;
+            return new UnsubAck.V50(BYTE_0, remainingLength, packetIdentifier, properties, returnCodes);
         }
 
         @Override

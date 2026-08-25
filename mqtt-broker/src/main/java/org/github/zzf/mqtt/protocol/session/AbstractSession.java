@@ -567,7 +567,7 @@ public abstract class AbstractSession implements Session {
      */
     protected abstract void onPublish(Publish packet);
 
-    protected ChannelFuture doWrite(ControlPacket packet) {
+    private ChannelFuture doWrite(ControlPacket packet) {
         return channel.writeAndFlush(packet)
                 // todo 测试 异常如何处理？，所有 Listener 都会被执行？
                 // 当前实现是直接关闭 channel

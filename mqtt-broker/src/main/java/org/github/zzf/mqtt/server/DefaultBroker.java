@@ -3,7 +3,6 @@ package org.github.zzf.mqtt.server;
 import static java.util.Collections.emptyMap;
 
 import io.micrometer.core.annotation.Timed;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -15,6 +14,7 @@ import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
 import org.github.zzf.mqtt.protocol.model.Subscribe;
 import org.github.zzf.mqtt.protocol.model.Subscribe.Subscription;
+import org.github.zzf.mqtt.protocol.model.Unsubscribe;
 import org.github.zzf.mqtt.protocol.server.Authenticator;
 import org.github.zzf.mqtt.protocol.server.Broker;
 import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
@@ -63,8 +63,18 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public CompletableFuture<Void> unsubscribe(ServerSession session, Collection<Subscription> subscriptions) {
-        return routingTable.unsubscribe(session.clientIdentifier(), subscriptions);
+    public CompletableFuture<List<Integer>> unsubscribe(
+            ServerSession session,
+            Unsubscribe packet) {
+        List<Integer> reasonCodes = decideUnsubscribeReasonCodes(session, packet);
+        return routingTable.unsubscribe(session.clientIdentifier(), packet.subscriptions())
+                .thenApply((unused) -> reasonCodes);
+    }
+
+    private List<Integer> decideUnsubscribeReasonCodes(ServerSession session, Unsubscribe packet) {
+        return packet.subscriptions().stream()
+                .map(s -> 0x00)
+                .toList();
     }
 
     @Timed(value = METRIC_NAME, histogram = true)

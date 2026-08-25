@@ -6,6 +6,7 @@ import static org.github.zzf.mqtt.protocol.model.Connect.PROTOCOL_LEVEL_5_0;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.CONNECT;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DISCONNECT;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.PINGREQ;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.EMPTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.SUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.UNSUBSCRIBE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.validateTopicName;
@@ -448,11 +449,22 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
 
     protected void doReceiveUnsubscribe(Unsubscribe packet) {
         log.info("Session({}) << Unsubscribe: {}", cId(), packet);
-        broker.unsubscribe(this, packet.subscriptions());
-        packet.subscriptions().forEach(this.subscriptions::remove);
+        broker.unsubscribe(this, packet)
+                .thenCompose(unused -> doWriteUnsubAck(packet));
+    }
+
+    private CompletionStage<Void> doWriteUnsubAck(Unsubscribe packet) {
+        CompletableFuture<Void> stage = new CompletableFuture<>();
         UnsubAck unsubAck = UnsubAck.from(packet.packetIdentifier());
-        log.info("Session({}) >> UnsubAck: {}", cId(), unsubAck);
-        doWrite(unsubAck);
+        //
+        doInEventLoop(() -> {
+            for (Subscription s : packet.subscriptions()) {
+                subscriptions.remove(s.topicFilter());
+            }
+            log.debug("Session({}) >> UnsubAck: {}", cId(), unsubAck);
+            write(unsubAck).addListener(f -> stage.complete(null));
+        });
+        return stage;
     }
 
     private void doReceiveDisconnect(Disconnect packet) {
@@ -625,6 +637,31 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 }
                 log.debug("Session({}) >> SubAck: {}", cId(), subAck);
                 write(subAck).addListener(f -> stage.complete(granted));
+            });
+            return stage;
+        }
+
+        @Override
+        protected void doReceiveUnsubscribe(Unsubscribe packet) {
+            log.debug("Session({}) << Unsubscribe: {}", cId(), packet);
+            Unsubscribe.V50 unsub = (Unsubscribe.V50) packet;
+            broker.unsubscribe(this, packet)
+                    .thenCompose(v -> doWriteUnsubAck(unsub, v));
+        }
+
+        private CompletionStage<List<Integer>> doWriteUnsubAck(
+                Unsubscribe.V50 packet,
+                List<Integer> reasonCodes) {
+            CompletableFuture<List<Integer>> stage = new CompletableFuture<>();
+            UnsubAck.V50 unsubAck = UnsubAck.V50.from(
+                    packet.packetIdentifier(), EMPTY, reasonCodes);
+            //
+            doInEventLoop(() -> {
+                for (Subscription s : packet.subscriptions()) {
+                    subscriptions.remove(s.topicFilter());
+                }
+                log.debug("Session({}) >> UnsubAck: {}", cId(), unsubAck);
+                write(unsubAck).addListener(f -> stage.complete(reasonCodes));
             });
             return stage;
         }

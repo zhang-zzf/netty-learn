@@ -270,6 +270,13 @@ public class Publish extends ControlPacket {
         meta = origin.meta;
     }
 
+    public Publish copy() {
+        return Publish.outgoing(retainFlag(), qos(), dup(),
+                topicName(), packetIdentifier,
+                payload().copy()
+        );
+    }
+
     public static class V50 extends Publish {
 
         final long timestamp = System.currentTimeMillis();
@@ -314,6 +321,14 @@ public class Publish extends ControlPacket {
             return new V50(byte0, remainingLength,
                     topicName, packetIdentifier, properties,
                     payload);
+        }
+
+        @Override
+        public Publish.V50 copy() {
+            return outgoing(retainFlag(), qos(), dup(),
+                    topicName, packetIdentifier, properties,
+                    payload().copy()
+            );
         }
 
         public static V50 updateTopicName(V50 origin, String topicName) {

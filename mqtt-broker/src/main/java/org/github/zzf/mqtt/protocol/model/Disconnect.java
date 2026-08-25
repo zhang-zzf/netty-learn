@@ -89,7 +89,7 @@ public class Disconnect extends ControlPacket {
         }
 
         public static V50 sessionTakenOver() {
-            return from(SESSION_TAKEN_OVER, Properties.EMPTY);
+            return from(SESSION_TAKEN_OVER, Properties.empty());
         }
 
         public static V50 from(byte reasonCode, Properties p) {

@@ -25,6 +25,7 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.ASSIGNED_CLIENT_IDENTIFIER;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_DATA;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_METHOD;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.EMPTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MAXIMUM_PACKET_SIZE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MAXIMUM_QoS;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
@@ -189,19 +190,19 @@ public class ConnAck extends ControlPacket {
         }
 
         public static V50 accepted() {
-            return V50.from(false, ACCEPTED, Properties.EMPTY);
+            return V50.from(false, ACCEPTED, EMPTY);
         }
 
         public static V50 acceptedWithStoredSession() {
-            return V50.from(true, ACCEPTED, Properties.EMPTY);
+            return V50.from(true, ACCEPTED, EMPTY);
         }
 
         public static V50 authenticateFailed(byte authenticate) {
-            return V50.from(true, NOT_AUTHORIZED, Properties.EMPTY);
+            return V50.from(true, NOT_AUTHORIZED, Properties.empty());
         }
 
         public static V50 notSupportProtocolLevel() {
-            return V50.from(false, REASON_CODE_UNSUPPORTED_PROTOCOL_VERSION, Properties.EMPTY);
+            return V50.from(false, REASON_CODE_UNSUPPORTED_PROTOCOL_VERSION, Properties.empty());
         }
 
         public static V50 from(boolean sp, byte returnCode, Properties properties) {

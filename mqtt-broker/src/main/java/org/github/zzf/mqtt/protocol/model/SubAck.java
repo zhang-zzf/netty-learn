@@ -47,7 +47,8 @@ public class SubAck extends ControlPacket {
         for (int i = 0; i < size; i++) {
             returnCodes[i] = (byte) (reasonCodes.get(i) & 0xFF);
         }
-        SubAck ret = new SubAck(REMAINING_LENGTH_FIELD_LENGTH + size, packetIdentifier, returnCodes);
+        int remainingLength = REMAINING_LENGTH_FIELD_LENGTH + size;
+        SubAck ret = new SubAck(remainingLength, packetIdentifier, returnCodes);
         if (!ret.packetValidate()) {
             throw new MalformedPacketException();
         }

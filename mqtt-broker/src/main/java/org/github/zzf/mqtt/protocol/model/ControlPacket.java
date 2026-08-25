@@ -541,13 +541,15 @@ public abstract class ControlPacket {
 
         // 用户属性
         public static final int USER_PROPERTY = 0x26;
-        public static final Properties EMPTY = new Properties();
+
+        /** watch out: unmodifiable */
+        public static final Properties EMPTY = new Properties(emptyList());
+        
+        public static Properties empty() {
+            return new Properties(new ArrayList<>());
+        }
 
         final List<Property> properties;
-
-        Properties() {
-            this(emptyList());
-        }
 
         Properties(List<Property> properties) {
             if (properties == null) {

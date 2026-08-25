@@ -579,6 +579,9 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                     return;
                 }
                 doInEventLoop(() -> writeRetainPublish(publishPackets));
+            }).exceptionally(t -> {
+                log.debug("Session({}) >> SendRetainPublish failed}", cId(), t);
+                return null;
             });
             return granted;
         }
@@ -614,7 +617,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
         private CompletionStage<List<Subscription>> doWriteSubAck(Subscribe packet,
                 List<Integer> reasonCodes) {
             CompletableFuture<List<Subscription>> stage = new CompletableFuture<>();
-            SubAck.V50 subAck = SubAck.V50.from(packet.packetIdentifier(), reasonCodes, Properties.EMPTY);
+            SubAck.V50 subAck = SubAck.V50.from(packet.packetIdentifier(), reasonCodes, Properties.empty());
             List<Subscription> granted = packet.grantSubscription(reasonCodes);
             doInEventLoop(() -> {
                 for (Subscription s : granted) {
@@ -696,7 +699,7 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                 }
             }
             else {
-                properties = Properties.EMPTY;
+                properties = Properties.empty();
             }
             // add Subscription Identifier to Properties
             subscription.identifier().ifPresent(properties::subscriptionIdentifier);
@@ -708,7 +711,6 @@ public class DefaultServerSession extends AbstractSession implements ServerSessi
                     packet.payload());  /** {@link Publish#toByteBuf()} compositeBuffer take over the ownership of the payload's ByteBuf, so the payload's ByteBuf will not change it's readerIdx / writerIdx */
             return write(outgoing);
         }
-
 
 
         private Optional<Long> messageLifetimeLeft(Publish.V50 packet) {

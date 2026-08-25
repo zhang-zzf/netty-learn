@@ -2,6 +2,7 @@ package org.github.zzf.mqtt.protocol.model;
 
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_PACKET_ID_NOT_FOUND;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.EMPTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
@@ -74,7 +75,7 @@ public class PubRel extends ControlPacket {
             this.properties = properties;
         }
 
-        public static V50 from(ByteBuf incoming) {
+        public static V50 incoming(ByteBuf incoming) {
             byte byte0 = readByte(incoming);
             int remainingLength = readVariableByteInteger(incoming);
             short packetIdentifier = readPacketIdentifier(incoming);
@@ -82,20 +83,28 @@ public class PubRel extends ControlPacket {
             Properties properties;
             if (incoming.isReadable()) {
                 reasonCode = readByte(incoming);
-                properties = readProperties(incoming);
+                // properties = readProperties(incoming);
+                //
+                // 兼容某些垃圾客户端输出类似 600352d200
+                if (incoming.isReadable()) {
+                    properties = readProperties(incoming);
+                }
+                else {
+                    properties = EMPTY;
+                }
             }
             else {
                 // The Reason Code and Property Length can be omitted if the Reason Code is 0x00 (Success)
                 // and there are no Properties. In this case the PUBACK has a Remaining Length of 2.
                 reasonCode = REASON_CODE_SUCCESS;
-                properties = Properties.EMPTY;
+                properties = EMPTY;
             }
             return new V50(byte0, remainingLength,
                     packetIdentifier, reasonCode, properties);
         }
 
         public static V50 from(short packetIdentifier) {
-            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
+            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.empty());
         }
 
         public static V50 from(short packetIdentifier, byte reasonCode, Properties properties) {

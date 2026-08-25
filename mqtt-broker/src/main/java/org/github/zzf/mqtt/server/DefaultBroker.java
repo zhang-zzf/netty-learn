@@ -158,12 +158,8 @@ public class DefaultBroker implements Broker {
             retainPublishManager.del(publish);
         }
         else {
-            // use a copy of the origin
-            Publish packet = Publish.outgoing(publish.retainFlag(), (byte) publish.qos(), publish.dup(),
-                    publish.topicName(), (short) 0,
-                    publish.payload().copy());
-            // save the retained message
-            retainPublishManager.add(packet);
+            // save the retained message, use a copy of the origin
+            retainPublishManager.add(publish.copy());
         }
     }
 

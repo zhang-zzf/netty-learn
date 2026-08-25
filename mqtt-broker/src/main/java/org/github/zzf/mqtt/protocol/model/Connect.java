@@ -4,6 +4,7 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHEN
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.AUTHENTICATION_METHOD;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CONTENT_TYPE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.CORRELATION_DATA;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.EMPTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MAXIMUM_PACKET_SIZE;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.MESSAGE_EXPIRY_INTERVAL;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.PAYLOAD_FORMAT_INDICATOR;
@@ -408,7 +409,7 @@ public class Connect extends ControlPacket {
                 willMessage = readBinaryData(incoming);
             }
             else {
-                willProperties = Properties.EMPTY;
+                willProperties = EMPTY;
                 willTopic = null;
                 willMessage = null;
             }

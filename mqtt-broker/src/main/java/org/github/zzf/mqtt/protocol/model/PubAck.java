@@ -9,6 +9,7 @@ import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_SUCCESS;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_TOPIC_NAME_INVALID;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.ControlPacketV50.REASON_CODE_UNSPECIFIED_ERROR;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.EMPTY;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.REASON_STRING;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.Properties.USER_PROPERTY;
 
@@ -82,13 +83,21 @@ public class PubAck extends ControlPacket {
             Properties properties;
             if (incoming.isReadable()) {
                 reasonCode = readByte(incoming);
-                properties = readProperties(incoming);
+                // properties = readProperties(incoming);
+                //
+                // 兼容某些垃圾客户端输出类似 400352d200 PubAck
+                if (incoming.isReadable()) {
+                    properties = readProperties(incoming);
+                }
+                else {
+                    properties = EMPTY;
+                }
             }
             else {
                 // The Reason Code and Property Length can be omitted if the Reason Code is 0x00 (Success)
                 // and there are no Properties. In this case the PUBACK has a Remaining Length of 2.
                 reasonCode = REASON_CODE_SUCCESS;
-                properties = Properties.EMPTY;
+                properties = EMPTY;
             }
             return new V50(byte0, remainingLength,
                     packetIdentifier, reasonCode, properties);
@@ -104,7 +113,7 @@ public class PubAck extends ControlPacket {
         }
 
         public static V50 from(short packetIdentifier) {
-            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.EMPTY);
+            return from(packetIdentifier, REASON_CODE_SUCCESS, Properties.empty());
         }
 
         private static int calcRemainingLength(byte reasonCode, Properties properties) {

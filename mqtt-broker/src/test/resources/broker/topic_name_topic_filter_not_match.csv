@@ -8,6 +8,7 @@ $SYS/monitor,$SYS/+/monitor
 sport/tennis/player1/ranking/set1/score,+/+/+/+/+/+/+/#
 sport/tennis/player1/ranking/set1/score,+/+/+/+/+/+/+/+/#
 
+sport/tennis/,sport/+
 sport/tennis/player1,sport/tennis/player2
 sport/tennis/player1,sport/tennis
 sport/tennis/player1,sport/tennis/+/ranking

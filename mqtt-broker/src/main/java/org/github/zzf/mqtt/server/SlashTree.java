@@ -2,6 +2,7 @@ package org.github.zzf.mqtt.server;
 
 
 import static java.util.concurrent.CompletableFuture.runAsync;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.splitSlashSeparateStr;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,8 +38,6 @@ public abstract class SlashTree<T> implements AutoCloseable {
         );
     }
 
-    static final String LEVEL_SEPARATOR = "/";
-
     // tree root
     protected final Node<T> root = new Node<>("*");
 
@@ -56,7 +55,7 @@ public abstract class SlashTree<T> implements AutoCloseable {
 
     public Optional<T> data(String path) {
         Node<T> cur = root;
-        for (String l : path.split(LEVEL_SEPARATOR)) {
+        for (String l : splitSlashSeparateStr(path)) {
             cur = cur.childNodes.get(l);
             if (cur == null) {
                 break;
@@ -67,7 +66,7 @@ public abstract class SlashTree<T> implements AutoCloseable {
 
     private void doAdd(String path,
             Consumer<AtomicReference<T>> dataOp) {
-        String[] levels = path.split(LEVEL_SEPARATOR);
+        String[] levels = splitSlashSeparateStr(path);
         Node<T> n = root;
         for (int i = 0; i < levels.length; i++) {
             String level = levels[i];
@@ -82,7 +81,7 @@ public abstract class SlashTree<T> implements AutoCloseable {
 
     private void doDel(String path,
             Consumer<AtomicReference<T>> dataOp) {
-        String[] levels = path.split(LEVEL_SEPARATOR);
+        String[] levels = splitSlashSeparateStr(path);
         dfsDel(levels, 0, root, dataOp);
     }
 
@@ -91,8 +90,10 @@ public abstract class SlashTree<T> implements AutoCloseable {
             Node<T> node,
             Consumer<AtomicReference<T>> dataOp) {
         if (levelIdx >= levels.length) {
-            node.path = null;
             dataOp.accept(node.data);
+            if (node.data.get() == null) {// node has no data
+                node.path = null;
+            }
             return;
         }
         String level = levels[levelIdx];

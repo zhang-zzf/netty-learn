@@ -127,6 +127,14 @@ public class Unsubscribe extends ControlPacket {
                     && properties.validateIdentifier(allowedProperties);
         }
 
+        @Override
+        public List<Subscribe.Subscription> subscriptions() {
+            return topicFilters.stream()
+                    .map(topicFilter -> new Subscription.V50(topicFilter, (byte) 0x0, null))
+                    .map(d -> (Subscription) d)
+                    .toList();
+        }
+
     }
 
 

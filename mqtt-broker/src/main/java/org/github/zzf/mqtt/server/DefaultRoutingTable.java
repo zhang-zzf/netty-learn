@@ -95,7 +95,7 @@ public class DefaultRoutingTable implements RoutingTable {
      * 线程安全
      */
     @RequiredArgsConstructor
-    private static class TopicImpl implements Topic {
+    static class TopicImpl implements Topic {
 
         final String tf;
         final Set<String> subscribers
@@ -107,8 +107,7 @@ public class DefaultRoutingTable implements RoutingTable {
         }
 
         /**
-         * 返回订阅者只读视图，共享底层并发集合。
-         * 迭代为弱一致性，遍历期间内部发生增删，可能看不到最新变更，不会抛出CME。
+         * 返回订阅者只读视图，共享底层并发集合。 迭代为弱一致性，遍历期间内部发生增删，可能看不到最新变更，不会抛出CME。
          * <p>禁止直接返回Set；禁止外部做check‑then‑act复合操作。
          */
         @Override

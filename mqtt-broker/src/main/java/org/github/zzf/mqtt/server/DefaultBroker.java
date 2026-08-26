@@ -3,12 +3,15 @@ package org.github.zzf.mqtt.server;
 import static java.util.Collections.emptyMap;
 
 import io.micrometer.core.annotation.Timed;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadLocalRandom;
 import lombok.extern.slf4j.Slf4j;
 import org.github.zzf.mqtt.protocol.model.Connect;
 import org.github.zzf.mqtt.protocol.model.Publish;
@@ -21,6 +24,7 @@ import org.github.zzf.mqtt.protocol.server.RetainPublishManager;
 import org.github.zzf.mqtt.protocol.server.RoutingTable;
 import org.github.zzf.mqtt.protocol.server.ServerSession;
 import org.github.zzf.mqtt.protocol.server.Topic;
+import org.github.zzf.mqtt.protocol.server.Topic.Shared;
 import org.github.zzf.mqtt.protocol.server.TopicBlocker;
 
 /**
@@ -71,14 +75,14 @@ public class DefaultBroker implements Broker {
                 .thenApply((unused) -> reasonCodes);
     }
 
-    private List<Integer> decideUnsubscribeReasonCodes(ServerSession session, Unsubscribe packet) {
+    List<Integer> decideUnsubscribeReasonCodes(ServerSession session, Unsubscribe packet) {
         return packet.subscriptions().stream()
                 .map(s -> 0x00)
                 .toList();
     }
 
     @Timed(value = METRIC_NAME, histogram = true)
-    private void doForward(String clientId, Publish packet) {
+    void doForward(String clientId, Publish packet) {
         for (Topic topic : routingTable.match(packet.topicName())) {
             String topicFilter = topic.topicFilter();
             for (String subscriber : topic.subscribers()) {
@@ -232,12 +236,86 @@ public class DefaultBroker implements Broker {
 
     public static class V50 extends DefaultBroker {
 
+        final RoutingTable sharedRoutingTable;
+
         public V50(Authenticator authenticator,
                 RoutingTable routingTable,
+                RoutingTable sharedRoutingTable,
                 TopicBlocker blockedTopic,
                 RetainPublishManager retainPublishManager) {
             super(authenticator, routingTable, blockedTopic, retainPublishManager);
+            this.sharedRoutingTable = sharedRoutingTable;
         }
 
+        @Override
+        public CompletionStage<List<Integer>> subscribe(
+                ServerSession session,
+                Subscribe subscribe) {
+            // broker decide
+            List<Integer> reasonCodes = decideSubscriptionQos(session, subscribe.subscriptions());
+            //
+            List<Subscription> subscriptions = new ArrayList<>();
+            List<Subscription> sharedSubscriptions = new ArrayList<>();
+            for (Subscription sub : subscribe.grantSubscription(reasonCodes)) {
+                if (sub instanceof Subscription.V50 v50 && v50.isShared()) {
+                    sharedSubscriptions.add(v50);
+                }
+                else {
+                    subscriptions.add(sub);
+                }
+            }
+            String clientId = session.clientIdentifier();
+            return routingTable.subscribe(clientId, subscriptions)
+                    .thenCompose(unused -> sharedRoutingTable.subscribe(clientId, sharedSubscriptions))
+                    .thenApply((unused) -> reasonCodes);
+        }
+
+        @Override
+        public CompletableFuture<List<Integer>> unsubscribe(
+                ServerSession session,
+                Unsubscribe packet) {
+            List<Integer> reasonCodes = decideUnsubscribeReasonCodes(session, packet);
+            List<Subscription> subscriptions = new ArrayList<>();
+            List<Subscription> sharedSubscriptions = new ArrayList<>();
+            for (Subscription sub : packet.subscriptions()) {
+                if (sub instanceof Subscription.V50 v50 && v50.isShared()) {
+                    sharedSubscriptions.add(v50);
+                }
+                else {
+                    subscriptions.add(sub);
+                }
+            }
+            String clientId = session.clientIdentifier();
+            return routingTable.unsubscribe(clientId, subscriptions)
+                    .thenCompose(unused -> sharedRoutingTable.unsubscribe(clientId, sharedSubscriptions))
+                    .thenApply((unused) -> reasonCodes);
+        }
+
+        @Timed(value = METRIC_NAME, histogram = true)
+        void doForward(String clientId, Publish packet) {
+            super.doForward(clientId, packet);
+            // Shared Subscriptions
+            for (Topic topic : sharedRoutingTable.match(packet.topicName())) {
+                Topic.SharedTopic sharedTopic = (Topic.SharedTopic) topic;
+                for (Shared group : sharedTopic.groups()) {// 订阅组
+                    Set<String> subscribers = group.subscribers();
+                    // online Session
+                    List<ServerSession> onlineSession = subscribers.stream()
+                            .sorted()// clientId sort
+                            .map(sessionMap::get)
+                            .filter(s -> s != null && s.channel().isActive())
+                            .toList();
+                    int random = ThreadLocalRandom.current().nextInt(onlineSession.size());
+                    ServerSession session = onlineSession.get(random);
+                    String tf = group.topicFilter();// use origin topicFilter
+                    session.forward(clientId, tf, packet);
+                    if (log.isDebugEnabled()) {
+                        log.debug("Publish({}) forward -> shared.tf: {}, client: {}, packet: {}",
+                                packet.pId(), tf, session.clientIdentifier(), packet);
+                    }
+                }
+            }
+        }
     }
+
 }

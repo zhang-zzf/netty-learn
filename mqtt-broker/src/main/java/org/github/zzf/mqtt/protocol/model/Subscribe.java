@@ -59,34 +59,6 @@ public class Subscribe extends ControlPacket {
         return ret;
     }
 
-    static boolean topicFilterValidate(String topicFilter) {
-        if (topicFilter == null) {
-            return false;
-        }
-        int idx;
-        if ((idx = topicFilter.indexOf("#")) != -1) {
-            if (idx != topicFilter.length() - 1) {
-                // sport/tennis/#/ranking is not valid
-                return false;
-            }
-            if (topicFilter.length() > 1 && topicFilter.charAt(idx - 1) != '/') {
-                // example "#" is valid
-                // example “sport/tennis#” is not valid
-                return false;
-            }
-        }
-        if ((idx = topicFilter.indexOf("+")) != -1) {
-            if (topicFilter.length() == 1) {
-                return true;
-            }
-            if (topicFilter.charAt(idx - 1) != '/') {
-                return false;
-            }
-            return idx + 1 >= topicFilter.length() || topicFilter.charAt(idx + 1) == '/';
-        }
-        return true;
-    }
-
     @Override
     public ByteBuf toByteBuf() {
         ByteBuf buf = super.toByteBuf();
@@ -122,17 +94,7 @@ public class Subscribe extends ControlPacket {
             return false;
         }
         for (Subscription sub : subscriptions) {
-            int qos = sub.qos();
-            // The Server MUST treat a SUBSCRIBE packet as malformed and close the
-            // Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2
-            if ((qos & 0xFC) != 0) {
-                return false;
-            }
-            // todo TopicFilter check
-            if (!topicFilterValidate(sub.topicFilter)) {
-                return false;
-            }
-            if (qos != 0 && qos != 1 && qos != 2) {
+            if (!sub.validate()) {
                 return false;
             }
         }
@@ -233,14 +195,61 @@ public class Subscribe extends ControlPacket {
             return new Subscription(topicFilter, (byte) (qos & 0x03));
         }
 
+        boolean validate() {
+            return validateTopicFilter() && validateOptions();
+        }
+
+        boolean validateTopicFilter() {
+            if (topicFilter == null || topicFilter.isEmpty()) {
+                return false;
+            }
+            String[] levels = splitSlashSeparateStr(topicFilter);
+            for (int i = 0; i < levels.length; i++) {
+                String level = levels[i];
+                if (level.contains("+")) {
+                    if (!"+".equals(level)) {// + 必须整层只有 +，不能混杂其他字符
+                        return false;
+                    }
+                }
+                if (level.contains("#")) {
+                    if (!"#".equals(level)) {// # 必须整层只有 #
+                        return false;
+                    }
+                    if (i != levels.length - 1) {// # 必须是最后一层
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        boolean validateOptions() {
+            // The Server MUST treat a SUBSCRIBE packet as malformed and close the
+            // Network Connection if any of Reserved bits in the payload are non-zero, or QoS is not 0,1 or 2
+            if (qos() == 0x11) {
+                return false;
+            }
+            if ((options & 0xFC) != 0) {
+                return false;
+            }
+            return true;
+        }
+
         public static class V50 extends Subscription {
 
-            /** Send retained messages at the time of the subscribe */
+            /**
+             * Send retained messages at the time of the subscribe
+             */
             public static final int RETAIN_HANDLING_SEND_RETAIN = 0;
-            /** Send retained messages at subscribe only if the subscription does not currently exist */
+            /**
+             * Send retained messages at subscribe only if the subscription does not currently exist
+             */
             public static final int RETAIN_HANDLING_SEND_IF_NEW = 1;
-            /** Do not send retained messages at the time of the subscribe */
+            /**
+             * Do not send retained messages at the time of the subscribe
+             */
             public static final int RETAIN_HANDLING_NOT_SEND = 2;
+            public static final String $_SHARE = "$share/";
 
             final Integer identifier;// maybe null
 
@@ -253,6 +262,77 @@ public class Subscribe extends ControlPacket {
             public Subscription.V50 newWithQos(int qos) {
                 byte options = (byte) (this.options & 0xFC | (qos & 0x03));
                 return new Subscription.V50(topicFilter, options, identifier);
+            }
+
+            @Override
+            boolean validateTopicFilter() {
+                return super.validateTopicFilter()
+                        && validateSharedSubscriptionTopicFilter();
+            }
+
+            private boolean validateSharedSubscriptionTopicFilter() {
+                if (isShared()) {
+                    String[] levels = splitSlashSeparateStr(topicFilter);
+                    // "$share"/"group"/"filter"
+                    if (levels.length < 3) {
+                        return false;
+                    }
+                    if (!validateSharedGroupName(levels[1])) {
+                        return false;
+                    }
+                    if (levels[2].isEmpty()) {
+                        return false;
+                    }
+                    return true;
+                }
+                return true;
+            }
+
+            private boolean validateSharedGroupName(String group) {
+                if (group == null || group.isEmpty()) {
+                    return false;
+                }
+                if (group.contains(SINGLE_LEVEL_WILDCARD) || group.contains(MULTI_LEVEL_WILDCARD)) {
+                    return false;
+                }
+                return true;
+            }
+
+            @Override
+            boolean validateOptions() {
+                if (qos() == 0x11) {
+                    return false;
+                }
+                if (retainHandling() == 0x11) {
+                    return false;
+                }
+                if ((options & 0xC0) != 0) {
+                    return false;
+                }
+                return true;
+            }
+
+            public boolean isShared() {
+                return topicFilter.startsWith($_SHARE);
+            }
+
+            public String sharedGroup() {
+                if (isShared()) {
+                    return splitSlashSeparateStr(topicFilter)[1];
+                }
+                throw new IllegalArgumentException();
+            }
+
+            public String sharedFilter() {
+                if (isShared()) {
+                    int index = topicFilter.indexOf('/', 7);
+                    return topicFilter.substring(index + 1);
+                }
+                throw new IllegalArgumentException();
+            }
+
+            public static String fullTopicFilter(String group, String filter) {
+                return $_SHARE + group + LEVEL_SEPARATOR + filter;
             }
 
             public Optional<Integer> identifier() {
@@ -270,6 +350,7 @@ public class Subscribe extends ControlPacket {
             public int retainHandling() {
                 return (this.options & 0x30) >> 4;
             }
+
         }
     }
 
@@ -295,7 +376,6 @@ public class Subscribe extends ControlPacket {
             while (incoming.isReadable()) {
                 String topic = readUTF8String(incoming);
                 byte options = readByte(incoming);
-                // todo TopicFilter rule check
                 subscriptions.add(new Subscription.V50(topic, options, subId.orElse(null)));
             }
             return new V50(byte0, remainingLength,
@@ -322,26 +402,7 @@ public class Subscribe extends ControlPacket {
         @Override
         public boolean packetValidate() {
             return super.packetValidate()
-                    && properties.validateIdentifier(allowedProperties)
-                    && validateSubscriptionOption();
-        }
-
-        private boolean validateSubscriptionOption() {
-            for (Subscription s : subscriptions) {
-                if (s instanceof Subscription.V50 v50) {
-                    if (v50.retainHandling() == 3) {// It is a Protocol Error to send a Retain Handling value of 3
-                        return false;
-                    }
-                    // Bits 6 and 7 of the Subscription Options byte are reserved for future us
-                    if ((s.options & 0xC0) != 0) {
-                        return false;
-                    }
-                }
-                else {
-                    return false;
-                }
-            }
-            return true;
+                    && properties.validateIdentifier(allowedProperties);
         }
 
     }

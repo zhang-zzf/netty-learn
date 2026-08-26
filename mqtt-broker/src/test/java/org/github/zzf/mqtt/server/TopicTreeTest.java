@@ -1,6 +1,7 @@
 package org.github.zzf.mqtt.server;
 
-import java.util.List;
+import static org.assertj.core.api.BDDAssertions.then;
+
 import java.util.Objects;
 import java.util.Set;
 import org.github.zzf.mqtt.protocol.server.Topic;
@@ -8,11 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvFileSource;
 
-import static org.assertj.core.api.BDDAssertions.then;
-
 class TopicTreeTest {
-
-
 
     /**
      * topicName / topicFilter 匹配测试
@@ -55,7 +52,7 @@ class TopicTreeTest {
         try (TopicTree tree = new TopicTree("TopicTreeTest")) {
             TopicImpl topic = new TopicImpl(topicFilter);
             tree.add(topicFilter, ref -> ref.set(topic)).join();
-            then(tree.data(topicFilter)).isNotNull().get().isEqualTo(topicFilter);
+            then(tree.data(topicFilter)).isNotNull().get().isEqualTo(topic);
         }
     }
 
@@ -71,7 +68,7 @@ class TopicTreeTest {
         try (TopicTree tree = new TopicTree("TopicTreeTest")) {
             TopicImpl topic = new TopicImpl(topicFilter);
             tree.add(topicFilter, ref -> ref.set(topic)).join();
-            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topicFilter);
+            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topic);
             then(tree.data("topic/abc")).isEmpty();
             then(tree.data("topic/abc/")).isEmpty();
             then(tree.data("topic/abc/+")).isEmpty();
@@ -84,7 +81,7 @@ class TopicTreeTest {
         try (TopicTree tree = new TopicTree("TopicTreeTest")) {
             TopicImpl topic = new TopicImpl(topicFilter);
             tree.add(topicFilter, ref -> ref.set(topic)).join();
-            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topicFilter);
+            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topic);
             tree.del(topicFilter, ref -> ref.set(null)).join();
             then(tree.data(topicFilter)).isEmpty();
         }
@@ -95,8 +92,9 @@ class TopicTreeTest {
         String topicFilter = "topic/abc/#";
         try (TopicTree tree = new TopicTree("TopicTreeTest")) {
             tree.add("topic", ref -> ref.set(new TopicImpl("topic"))).join();
-            tree.add(topicFilter, ref -> ref.set(new TopicImpl(topicFilter))).join();
-            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topicFilter);
+            TopicImpl topic = new TopicImpl(topicFilter);
+            tree.add(topicFilter, ref -> ref.set(topic)).join();
+            then(tree.data(topicFilter)).isNotEmpty().get().isEqualTo(topic);
             tree.del("topic/abc", ref -> ref.set(null)).join();
             tree.del("topic", ref -> ref.set(null)).join();
             then(tree.data(topicFilter)).isNotEmpty();

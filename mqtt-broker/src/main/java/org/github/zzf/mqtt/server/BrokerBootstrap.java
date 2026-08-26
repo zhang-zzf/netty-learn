@@ -42,6 +42,7 @@ public class BrokerBootstrap {
 
     Authenticator authenticator;
     RoutingTable routingTable;
+    RoutingTable sharedRoutingTable;
     TopicBlocker topicBlocker;
     RetainPublishManager retainPublishManager;
     int workerThreadNum;
@@ -52,7 +53,8 @@ public class BrokerBootstrap {
     @SneakyThrows
     public BrokerBootstrap start() {
         // mqtt / mqtts / ws / wss use the same Broker
-        Broker broker = new DefaultBroker(authenticator, routingTable, topicBlocker, retainPublishManager);
+        Broker broker = new DefaultBroker.V50(authenticator, routingTable,
+                sharedRoutingTable, topicBlocker, retainPublishManager);
         /* ["mqtt://host:port", "mqtts://host:port", "ws://host:port", "wss://host:port"] */
         String[] addressList = serverListenedAddress.split(",");
         for (String address : addressList) {

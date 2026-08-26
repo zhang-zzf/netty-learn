@@ -11,4 +11,18 @@ public interface Topic {
      */
     Set<String> subscribers();
 
+    interface SharedTopic extends Topic {
+        Set<Shared> groups();
+    }
+
+    interface Shared {
+
+        // the full topicFilter in Subscribe
+        String topicFilter();
+
+        String group();
+
+        Set<String> subscribers();
+    }
+
 }

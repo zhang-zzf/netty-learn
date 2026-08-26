@@ -4,6 +4,7 @@ package org.github.zzf.mqtt.server;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.DOLLAR;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.MULTI_LEVEL_WILDCARD;
 import static org.github.zzf.mqtt.protocol.model.ControlPacket.SINGLE_LEVEL_WILDCARD;
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.splitSlashSeparateStr;
 
 import io.netty.util.ReferenceCountUtil;
 import java.util.ArrayList;
@@ -28,7 +29,7 @@ public class DefaultRetainPublishManager extends SlashTree<Publish> implements R
     @Override
     public List<Publish> match(String topicFilter) {
         List<Publish> ret = new ArrayList<>();
-        dfsMatch(topicFilter.split(LEVEL_SEPARATOR), 0, root, ret, false);
+        dfsMatch(splitSlashSeparateStr(topicFilter), 0, root, ret, false);
         return postHandle(ret, topicFilter);
     }
 

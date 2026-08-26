@@ -25,7 +25,6 @@ sport/,sport/
 sport/tennis/player1,sport/tennis/+
 sport/tennis/player2,sport/tennis/+
 sport/tennis,sport/+
-sport/tennis/,sport/+
 sport/tennis/player1/ranking,sport/tennis/+/ranking
 sport/tennis/player1,sport/+/player1
 +/tennis/player1,+/tennis/+

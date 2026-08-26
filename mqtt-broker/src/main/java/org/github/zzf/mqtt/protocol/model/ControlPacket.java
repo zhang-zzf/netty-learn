@@ -1191,4 +1191,14 @@ public abstract class ControlPacket {
         }
     }
 
+    public static final String LEVEL_SEPARATOR = "/";
+
+    public static String[] splitSlashSeparateStr(String str) {
+        if (str == null || str.isEmpty()) {
+            throw new IllegalArgumentException();
+        }
+        // watch out: must use -1
+        return str.split(LEVEL_SEPARATOR, -1);
+    }
+
 }

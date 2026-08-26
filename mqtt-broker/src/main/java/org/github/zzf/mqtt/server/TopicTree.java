@@ -1,6 +1,8 @@
 package org.github.zzf.mqtt.server;
 
 
+import static org.github.zzf.mqtt.protocol.model.ControlPacket.splitSlashSeparateStr;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,7 +31,7 @@ public class TopicTree extends SlashTree<Topic> implements AutoCloseable {
     @Override
     public List<Topic> match(String topicName) {
         List<Node<Topic>> ret = new ArrayList<>(2);
-        dfsMatch(topicName.split(LEVEL_SEPARATOR), 0, root, ret);
+        dfsMatch(splitSlashSeparateStr(topicName), 0, root, ret);
         Stream<Node<Topic>> stream;
         // The Server MUST NOT match Topic Filters starting with a wildcard character (# or +) with Topic Names beginning with a $ character
         if (topicName.startsWith($)) {

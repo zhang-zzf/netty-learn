@@ -78,8 +78,7 @@ public class DefaultBroker implements Broker {
     }
 
     @Timed(value = METRIC_NAME, histogram = true)
-    private int doForward(String clientId, Publish packet) {
-        int times = 0;
+    private void doForward(String clientId, Publish packet) {
         for (Topic topic : routingTable.match(packet.topicName())) {
             String topicFilter = topic.topicFilter();
             for (String subscriber : topic.subscribers()) {
@@ -92,12 +91,9 @@ public class DefaultBroker implements Broker {
                     log.debug("Publish({}) forward -> tf: {}, client: {}, packet: {}",
                             packet.pId(), topicFilter, session.clientIdentifier(), packet);
                 }
-                times += 1;
             }
         }
-        return times;
     }
-
 
     private boolean block(Publish packet) {
         if (blockedTopic == null) {
@@ -174,17 +170,17 @@ public class DefaultBroker implements Broker {
     }
 
     @Override
-    public int forward(String clientId, Publish packet) {
+    public void forward(String clientId, Publish packet) {
         // check Blocked TopicFilter
         if (block(packet)) {
-            return 0;
+            return;
         }
         // retain message
         if (packet.retainFlag()) {
             retain(packet);
         }
         // Broker forward Publish to relative topic after receive a PublishPacket
-        return doForward(clientId, packet);
+        doForward(clientId, packet);
     }
 
     private boolean zeroBytesPayload(Publish publish) {

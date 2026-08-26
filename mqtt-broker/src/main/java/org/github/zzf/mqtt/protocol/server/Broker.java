@@ -31,7 +31,7 @@ public interface Broker {
      *
      * @param packet ControlPacket
      */
-    int forward(String clientId, Publish packet);
+    void forward(String clientId, Publish packet);
 
     /**
      * register a subscription between the session and the topic

@@ -11,5 +11,4 @@ public interface Topic {
      */
     Set<String> subscribers();
 
-
 }
